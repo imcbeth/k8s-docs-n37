@@ -1,3 +1,14 @@
+imcbeth:
+  name: Ian McBeth
+  title: SRE Staff @ Cisco, Founder Network-Ops, N37 Technologies and BlackCloudOps
+  url: https://linkedin.com/in/imcbeth
+  image_url: https://github.com/imcbeth.png
+  page: true
+  socials:
+    x: imcbeth
+    linkedin: imcbeth
+    github: imcbeth
+
 yangshun:
   name: Ian McBeth
   title: SRE Staff @ Cisco, Founder Network-Ops, N37 Technologies and BlackCloudOps
