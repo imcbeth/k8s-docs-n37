@@ -8,14 +8,5 @@ imcbeth:
     x: imcbeth
     linkedin: imcbeth
     github: imcbeth
-
-yangshun:
-  name: Ian McBeth
-  title: SRE Staff @ Cisco, Founder Network-Ops, N37 Technologies and BlackCloudOps
-  url: https://linkedin.com/in/imcbeth
-  image_url: https://github.com/imcbeth.png
-  page: true
-  socials:
-    x: imcbeth
-    linkedin: imcbeth
-    github: imcbeth
+  bio: >
+    Ian McBeth is a Staff Site Reliability Engineer at Cisco, with over 20 years of experience in network and systems engineering. He is the founder of Network-Ops, N37 Technologies, and BlackCloudOps, where he focuses on cloud infrastructure, automation, and DevOps practices. Ian is passionate about sharing knowledge through blogging and open-source contributions.
