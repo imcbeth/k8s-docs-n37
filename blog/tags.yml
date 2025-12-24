@@ -1,7 +1,7 @@
-facebook:
-  label: Facebook
-  permalink: /facebook
-  description: Facebook tag description
+k8s:
+  label: Kubernetes
+  permalink: /k8s
+  description: Kubernetes tag description
 
 hello:
   label: Hello
@@ -12,8 +12,3 @@ docusaurus:
   label: Docusaurus
   permalink: /docusaurus
   description: Docusaurus tag description
-
-hola:
-  label: Hola
-  permalink: /hola
-  description: Hola tag description
