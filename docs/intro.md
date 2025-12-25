@@ -26,20 +26,30 @@ If you're new to this setup, start here:
 
 ## 📊 Recent Infrastructure Updates
 
+### GitOps Migration (December 2025)
+- **ArgoCD Management**: Migrated UniFi Poller and kube-prometheus-stack to GitOps
+- **Automated Deployments**: All applications now self-heal and auto-sync from git
+- **Resource Optimization**: Added CPU/memory limits for Pi cluster stability
+- **Container Pinning**: Locked all images to specific versions (no more `latest`)
+- **Namespace Organization**: Dedicated namespaces for better isolation
+
 ### Storage Infrastructure
 - **Synology CSI Driver**: Deployed for persistent storage support with iSCSI
 - **Persistent Volumes**: Configured retention policies for critical data
 - **Storage Classes**: `synology-iscsi-retain` for high-availability storage
+- **Prometheus Persistence**: 50Gi volume preserving months of metrics history
 
 ### Network Migration to UniFi
 - **UniFi Network Stack**: Complete migration from consumer networking
-- **Network Monitoring**: UniFi Poller integration with Prometheus
+- **Network Monitoring**: UniFi Poller v2.11.2 with dedicated namespace
 - **Performance Monitoring**: 20-second metrics collection intervals
+- **Comprehensive Metrics**: Device health, client connections, bandwidth tracking
 
 ### Monitoring Stack Enhancements
-- **Prometheus Stack**: Updated kube-prometheus-stack configuration
-- **Grafana Dashboards**: Enhanced network and storage visibility
-- **Alert Management**: Comprehensive alerting for infrastructure health
+- **Prometheus Stack v80.6.0**: Fully GitOps-managed via ArgoCD
+- **Grafana Dashboards**: 20+ pre-loaded dashboards for comprehensive visibility
+- **Alert Management**: PrometheusRule CRDs for infrastructure health alerts
+- **Multi-Source Deployment**: Helm chart + custom values managed in git
 
 ## 🛠️ Key Features
 
