@@ -224,10 +224,10 @@ spec:
 
 **Node Alerts:**
 - Node down or unreachable
-- High CPU usage (>80%)
-- High memory usage (>90%)
-- Disk space low (<10%)
-- Node temperature critical (>75°C for Pi)
+- High CPU usage (&gt;80%)
+- High memory usage (&gt;90%)
+- Disk space low (&lt;10%)
+- Node temperature critical (&gt;75°C for Pi)
 
 **Pod Alerts:**
 - Pod crash looping
@@ -265,7 +265,7 @@ Edit AlertManager config in `values.yaml` and apply via ArgoCD.
 node_hwmon_temp_celsius
 ```
 
-**Alert Threshold:** > 70°C (warning), > 75°C (critical)
+**Alert Threshold:** &gt; 70°C (warning), &gt; 75°C (critical)
 
 #### CPU Throttling
 
@@ -283,7 +283,7 @@ node_cpu_frequency_hertz / node_cpu_scaling_frequency_max_hertz < 0.9
 (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
 ```
 
-**Alert Threshold:** > 85% (warning), > 90% (critical)
+**Alert Threshold:** &gt; 85% (warning), &gt; 90% (critical)
 
 #### NVMe Health
 
