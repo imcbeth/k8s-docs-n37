@@ -129,6 +129,25 @@ kubectl port-forward -n default svc/kube-prometheus-stack-grafana 3000:80
 
 **Documentation:** [UniFi Poller Guide](../applications/unipoller.md)
 
+#### SNMP Exporter
+
+**Purpose:** Synology NAS monitoring
+
+- **Version:** v0.26.0
+- **Deployment:** ArgoCD-managed (part of kube-prometheus-stack)
+- **Namespace:** `default`
+- **Target:** Synology DS925+ at 10.0.1.204
+
+**Storage Metrics:**
+- Disk health and temperature
+- Volume capacity and usage
+- RAID status
+- iSCSI target statistics
+- Network interface statistics
+- System resource utilization
+
+**Documentation:** [SNMP Exporter Guide](../applications/snmp-exporter.md)
+
 ## Metrics Collection
 
 ### Scrape Configuration
@@ -138,6 +157,7 @@ Prometheus is configured to scrape metrics from multiple sources:
 | Target | Interval | Purpose |
 |--------|----------|---------|
 | UniFi Poller | 20s | Network metrics |
+| SNMP Exporter | 30s | NAS storage metrics |
 | Node Exporter | 30s | Hardware metrics |
 | kubelet | 30s | Container metrics |
 | API Server | 30s | Control plane |
@@ -411,28 +431,35 @@ All monitoring components are managed via ArgoCD:
 - Monitor Prometheus memory usage
 - Adjust if OOM occurs
 
+## Implemented Enhancements
+
+### Recently Added
+
+- ✅ **SNMP Monitoring for Synology NAS** (December 2025)
+  - Disk health and temperature monitoring
+  - Volume capacity and usage tracking
+  - RAID status monitoring
+  - iSCSI target statistics
+  - Network interface statistics
+  - Comprehensive Grafana dashboard
+
 ## Planned Enhancements
 
 ### Coming Soon
 
-- ✅ **SNMP Monitoring for Synology NAS**
-  - Disk health and temperature
-  - Volume capacity and usage
-  - Network interface statistics
-
-- ✅ **Blackbox Exporter**
+- **Blackbox Exporter**
   - HTTP/HTTPS endpoint monitoring
-  - SSL certificate expiration
-  - Response time tracking
+  - SSL certificate expiration tracking
+  - Response time monitoring
 
-- ✅ **Custom Dashboards**
-  - UniFi network overview
-  - Raspberry Pi thermal dashboard
-  - Storage performance dashboard
+- **Additional Custom Dashboards**
+  - Enhanced Raspberry Pi thermal dashboard
+  - Storage performance correlation dashboard
 
-- ✅ **Alert Notification Setup**
+- **Alert Notification Setup**
   - Slack integration for critical alerts
   - Daily health report summaries
+  - PagerDuty integration for production alerts
 
 ## Troubleshooting
 
