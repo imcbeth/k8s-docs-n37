@@ -11,7 +11,7 @@ The Synology CSI (Container Storage Interface) driver enables Kubernetes to prov
 
 - **Namespace:** `synology-csi`
 - **Protocol:** iSCSI
-- **NAS Device:** Synology DS1522+ at 10.0.1.204
+- **NAS Device:** Synology DS925+ at 10.0.1.204
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-30` (deploys after networking, before applications)
 

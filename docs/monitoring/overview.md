@@ -136,7 +136,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-grafana 3000:80
 - **Version:** v0.26.0
 - **Deployment:** ArgoCD-managed (part of kube-prometheus-stack)
 - **Namespace:** `default`
-- **Target:** Synology DS1522+ at 10.0.1.204
+- **Target:** Synology DS925+ at 10.0.1.204
 
 **Storage Metrics:**
 - Disk health and temperature

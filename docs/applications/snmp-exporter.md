@@ -5,14 +5,14 @@ description: "SNMP monitoring for Synology NAS with Prometheus integration"
 
 # SNMP Exporter
 
-The SNMP Exporter enables Prometheus to collect metrics from SNMP-enabled devices, specifically monitoring the Synology DS1522+ NAS that provides storage for the cluster.
+The SNMP Exporter enables Prometheus to collect metrics from SNMP-enabled devices, specifically monitoring the Synology DS925+ NAS that provides storage for the cluster.
 
 ## Overview
 
 - **Namespace:** `default`
 - **Image:** `prom/snmp-exporter:v0.26.0`
 - **Deployment:** Managed by ArgoCD as part of kube-prometheus-stack
-- **Target Device:** Synology DS1522+ NAS (10.0.1.204)
+- **Target Device:** Synology DS925+ NAS (10.0.1.204)
 
 ## Purpose
 
@@ -483,7 +483,7 @@ If Synology releases firmware updates with new MIBs:
 SNMP exporter was added to provide comprehensive NAS monitoring:
 
 **Changes:**
-- Deployed SNMP exporter for Synology DS1522+
+- Deployed SNMP exporter for Synology DS925+
 - Configured SNMPv3 with authentication and privacy
 - Added comprehensive OID mappings for storage, system, network, and iSCSI metrics
 - Created Grafana dashboard for NAS visualization
