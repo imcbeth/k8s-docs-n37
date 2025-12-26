@@ -109,9 +109,8 @@ storageSpec:
 # Kubernetes Metrics
 - kubelet (all nodes)
 - kube-apiserver
-- kube-scheduler
 - coredns
-# Note: kube-controller-manager, kube-etcd, kube-proxy monitoring disabled
+# Note: kube-controller-manager, kube-etcd, kube-proxy, kube-scheduler disabled
 # These components bind to localhost in kubeadm and are unreachable
 
 # Node Metrics
@@ -456,6 +455,7 @@ Any deployment using:
   - kube-controller-manager: `connection refused on https://10.0.10.214:10257`
   - kube-etcd: `context deadline exceeded on http://10.0.10.214:2381`
   - kube-proxy: `connection refused on http://10.0.10.x:10249`
+  - kube-scheduler: `connection refused on https://10.0.10.214:10259`
 - Targets permanently show "down" status
 - No actual monitoring impact (cluster works fine)
 
@@ -479,6 +479,9 @@ kubeEtcd:
 
 kubeProxy:
   enabled: false  # Disabled: binds to localhost in kubeadm
+
+kubeScheduler:
+  enabled: false  # Disabled: binds to localhost in kubeadm
 ```
 
 **Why This Is Correct:**
@@ -499,7 +502,8 @@ kubeProxy:
 - Follows best practices for kubeadm homelab clusters
 
 **Related PRs:**
-- homelab#75: Disable unreachable control plane ServiceMonitors
+- homelab#75: Disable unreachable control plane ServiceMonitors (controller-manager, etcd, proxy)
+- homelab#77: Disable kube-scheduler ServiceMonitor
 
 ---
 

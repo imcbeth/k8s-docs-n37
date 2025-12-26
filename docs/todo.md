@@ -11,7 +11,7 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 ### 0. **Prometheus Monitoring Stack Fixes** ✅ COMPLETED (2025-12-26)
 - [x] Fixed node-exporter scraping issues (changed to hostNetwork: false)
 - [x] Resolved Grafana Multi-Attach PVC errors (Recreate deployment strategy)
-- [x] Disabled unreachable control plane component monitoring
+- [x] Disabled unreachable control plane monitoring (controller-manager, etcd, proxy, scheduler)
 - [x] All 5 Raspberry Pi nodes now fully monitored
 - [x] Clean Prometheus targets page (no scraping errors)
 
