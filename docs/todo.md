@@ -8,6 +8,15 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 ## 🔍 **Monitoring & Observability Enhancements**
 
+### 0. **Prometheus Monitoring Stack Fixes** ✅ COMPLETED (2025-12-26)
+- [x] Fixed node-exporter scraping issues (changed to hostNetwork: false)
+- [x] Resolved Grafana Multi-Attach PVC errors (Recreate deployment strategy)
+- [x] Disabled unreachable control plane component monitoring
+- [x] All 5 Raspberry Pi nodes now fully monitored
+- [x] Clean Prometheus targets page (no scraping errors)
+
+**Documentation:** See [kube-prometheus-stack Known Issues](./applications/kube-prometheus-stack.md#known-issues-and-solutions) for detailed troubleshooting guides.
+
 ### 1. **SNMP Monitoring for Synology** ✅ COMPLETED
 - [x] Deploy SNMP exporter for Synology NAS monitoring
 - [x] Configure Prometheus scrape config for SNMP metrics
