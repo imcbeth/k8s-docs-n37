@@ -40,6 +40,8 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 - **Authentication:** Admin credentials stored in secret
 - **Datasource:** Pre-configured Prometheus datasource
 - **Dashboards:** Comprehensive Kubernetes monitoring dashboards included
+- **Deployment Strategy:** Recreate (prevents Multi-Attach errors with ReadWriteOnce PVC)
+- **Storage:** 5Gi persistent volume (Synology iSCSI)
 
 **Service Endpoint:**
 - Internal: `kube-prometheus-stack-grafana.default:80`
@@ -69,6 +71,9 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 - Runs on all 5 Raspberry Pi nodes
 - Collects hardware and OS metrics
 - CPU, memory, disk, network statistics
+- **Network Mode:** `hostNetwork: false`, `hostPID: true`
+  - Uses pod network for connectivity (avoids Calico CNI routing issues)
+  - Retains host PID namespace for process metrics
 
 ## Storage Configuration
 
@@ -104,10 +109,9 @@ storageSpec:
 # Kubernetes Metrics
 - kubelet (all nodes)
 - kube-apiserver
-- kube-controller-manager
-- kube-scheduler
-- etcd
 - coredns
+# Note: kube-controller-manager, kube-etcd, kube-proxy, kube-scheduler disabled
+# These components bind to localhost in kubeadm and are unreachable
 
 # Node Metrics
 - node-exporter (DaemonSet on all 5 Pi nodes)
@@ -336,6 +340,201 @@ kubectl get secret kube-prometheus-stack-grafana -n default \
 kubectl port-forward -n default svc/kube-prometheus-stack-alertmanager 9093:9093
 ```
 Then open: `http://localhost:9093`
+
+## Known Issues and Solutions
+
+This section documents common issues encountered with kube-prometheus-stack on Raspberry Pi clusters with Calico CNI, and their solutions.
+
+### Issue 1: Node-Exporter Scraping Failures
+
+**Date Resolved:** 2025-12-26
+**Severity:** High (affects all node monitoring)
+
+**Symptoms:**
+- Prometheus can only scrape 1 out of 5 node-exporter instances
+- Error: `Get "http://10.0.10.x:9100/metrics": context deadline exceeded`
+- Targets show "down" status for most nodes
+- Fresh curl pods CAN reach node-exporters, but Prometheus pod CANNOT
+
+**Root Cause:**
+Node-exporter was configured with `hostNetwork: true`, which binds it to the node's IP address (10.0.10.x). When Prometheus (a regular pod in the Calico pod network) tries to connect to these node IPs, Calico's CNI routing fails due to:
+- Reverse path filtering on host network interfaces
+- CNI limitations when pods connect to hostNetwork pods via node IPs
+- Routing asymmetry between pod network and host network
+
+**Solution:**
+Changed node-exporter configuration to use pod network instead of host network:
+
+```yaml
+prometheus-node-exporter:
+  hostNetwork: false  # Changed from true
+  hostPID: true       # Kept true for process metrics
+```
+
+**Why This Works:**
+- node-exporter doesn't actually need `hostNetwork` for most metrics
+- `hostPID: true` provides access to host process information
+- Using pod network (Calico) allows Prometheus to reach all node-exporters via pod IPs (192.168.x.x)
+- Maintains full metrics collection capability
+
+**Result:**
+- All 5 node-exporters now show "UP" status in Prometheus
+- Complete metrics collection from all nodes
+- No performance impact
+
+**Related PRs:**
+- homelab#72: Disable hostNetwork for node-exporter to fix Prometheus scraping
+
+---
+
+### Issue 2: Grafana Multi-Attach PVC Errors
+
+**Date Resolved:** 2025-12-26
+**Severity:** Medium (prevents ArgoCD updates)
+
+**Symptoms:**
+- ArgoCD sync fails when updating Grafana
+- Error: `Multi-Attach error for volume "pvc-xxx" Volume is already used by pod(s) kube-prometheus-stack-grafana-xxx`
+- Grafana pod stuck in Pending state during updates
+- Old pod still running, new pod can't start
+
+**Root Cause:**
+Grafana uses a ReadWriteOnce (RWO) PVC for dashboard storage. The default RollingUpdate deployment strategy tries to:
+1. Create new pod BEFORE terminating old pod
+2. New pod attempts to mount the RWO PVC
+3. PVC is still attached to old pod
+4. Kubernetes rejects the mount → Multi-Attach error
+
+This is a fundamental incompatibility: RWO PVCs can only attach to one pod at a time, but RollingUpdate requires two pods momentarily.
+
+**Solution:**
+Changed Grafana deployment strategy to Recreate:
+
+```yaml
+grafana:
+  deploymentStrategy:
+    type: Recreate
+    rollingUpdate: null  # Must be null when using Recreate
+```
+
+**Why This Works:**
+- `Recreate` strategy terminates old pod first
+- Waits for PVC to fully detach
+- Then creates new pod
+- New pod successfully mounts the PVC
+
+**Trade-off:**
+- Small downtime during updates (~10-30 seconds)
+- Acceptable for Grafana (not a critical real-time service)
+- Better than deployment failures requiring manual intervention
+
+**Result:**
+- ArgoCD syncs complete successfully
+- Clean pod replacements
+- No manual intervention required
+
+**Applies To:**
+Any deployment using:
+- Single replica (replicas: 1)
+- ReadWriteOnce PVC
+- Examples: LocalStack, future stateful apps
+
+**Related PRs:**
+- homelab#73: Set Grafana deployment strategy to Recreate for RWO PVC
+- homelab#74: Explicitly set rollingUpdate to null for Grafana Recreate strategy
+
+---
+
+### Issue 3: Control Plane Component Scraping Failures
+
+**Date Resolved:** 2025-12-26
+**Severity:** Low (cosmetic errors in Prometheus)
+
+**Symptoms:**
+- Prometheus shows scraping errors for:
+  - kube-controller-manager: `connection refused on https://10.0.10.214:10257`
+  - kube-etcd: `context deadline exceeded on http://10.0.10.214:2381`
+  - kube-proxy: `connection refused on http://10.0.10.x:10249`
+  - kube-scheduler: `connection refused on https://10.0.10.214:10259`
+- Targets permanently show "down" status
+- No actual monitoring impact (cluster works fine)
+
+**Root Cause:**
+In kubeadm-based Kubernetes clusters, control plane components bind to localhost (127.0.0.1) for security:
+- **Security Practice:** Prevents external access to sensitive components
+- **Standard kubeadm:** Default configuration for all kubeadm clusters
+- **Unreachable:** ServiceMonitors try to scrape via node IPs, but components only listen on localhost
+
+Even if they listened on node IPs, the Calico CNI routing issue (same as node-exporter) would still prevent access.
+
+**Solution:**
+Disabled ServiceMonitors for unreachable control plane components:
+
+```yaml
+kubeControllerManager:
+  enabled: false  # Disabled: binds to localhost in kubeadm
+
+kubeEtcd:
+  enabled: false  # Disabled: binds to localhost in kubeadm
+
+kubeProxy:
+  enabled: false  # Disabled: binds to localhost in kubeadm
+
+kubeScheduler:
+  enabled: false  # Disabled: binds to localhost in kubeadm
+```
+
+**Why This Is Correct:**
+- **Not losing monitoring:** Cluster health still monitored via:
+  - kubelet (monitors node and pod health)
+  - kube-apiserver (monitors API server health)
+  - kube-state-metrics (monitors all Kubernetes resource states)
+- **Standard practice:** Common for homelab kubeadm clusters
+- **Alternative is complex:** Would require:
+  - Modifying kubeadm configuration to bind to node IPs
+  - Opening firewall ports for these services
+  - Potentially weakening security posture
+  - Risk of breaking cluster during kubeadm upgrades
+
+**Result:**
+- Clean Prometheus targets page (no error noise)
+- Still have comprehensive cluster monitoring
+- Follows best practices for kubeadm homelab clusters
+
+**Related PRs:**
+- homelab#75: Disable unreachable control plane ServiceMonitors (controller-manager, etcd, proxy)
+- homelab#77: Disable kube-scheduler ServiceMonitor
+
+---
+
+### Configuration Best Practices
+
+Based on the above issues, follow these practices for Raspberry Pi clusters with Calico CNI:
+
+**1. Avoid hostNetwork for exporters:**
+- Use `hostNetwork: false` with `hostPID: true` or `hostIPC: true` as needed
+- Allows pod network connectivity while accessing host resources
+- Prevents Calico routing issues
+
+**2. Use Recreate strategy for stateful apps with RWO PVCs:**
+- Any app with single replica + ReadWriteOnce PVC
+- Set `deploymentStrategy.type: Recreate`
+- Set `deploymentStrategy.rollingUpdate: null`
+- Accept brief downtime over deployment failures
+
+**3. Disable unreachable kubeadm control plane monitoring:**
+- Standard for homelab kubeadm clusters
+- Focus monitoring on kubelet, API server, kube-state-metrics
+- Don't try to modify kubeadm config for metric access
+
+**4. Test connectivity from Prometheus pod:**
+```bash
+# Test if Prometheus can reach a target
+kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
+  wget -q -O - --timeout=5 http://<target-ip>:<target-port>/metrics | head -5
+```
+
+---
 
 ## Troubleshooting
 
