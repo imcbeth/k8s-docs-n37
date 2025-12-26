@@ -8,11 +8,11 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 ## 🔍 **Monitoring & Observability Enhancements**
 
-### 1. **SNMP Monitoring for Synology** ⭐ Priority
-- [ ] Deploy SNMP exporter for Synology NAS monitoring
-- [ ] Configure Prometheus scrape config for SNMP metrics
-- [ ] Add Grafana dashboards for NAS performance, disk health, temperature
-- [ ] Set up alerts for disk failures, high temperature, storage capacity
+### 1. **SNMP Monitoring for Synology** ✅ COMPLETED
+- [x] Deploy SNMP exporter for Synology NAS monitoring
+- [x] Configure Prometheus scrape config for SNMP metrics
+- [x] Add Grafana dashboards for NAS performance, disk health, temperature
+- [ ] Set up alerts for disk failures, high temperature, storage capacity (pending)
 
 ```yaml
 # Add to prometheus scrape configs
@@ -31,12 +31,12 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
       replacement: snmp-exporter:9116
 ```
 
-### 2. **Node Exporter for Pi Cluster**
-- [ ] Deploy node-exporter on all 5x Pi 5 nodes
-- [ ] Monitor CPU temperature and throttling
-- [ ] Track NVMe SSD health and performance metrics
-- [ ] Memory usage and available capacity monitoring
-- [ ] Network interface statistics
+### 2. **Node Exporter for Pi Cluster** ✅ COMPLETED
+- [x] Deploy node-exporter on all 5x Pi 5 nodes
+- [x] Monitor CPU temperature and throttling
+- [x] Track NVMe SSD health and performance metrics
+- [x] Memory usage and available capacity monitoring
+- [x] Network interface statistics
 
 ### 3. **Blackbox Exporter**
 - [ ] Deploy blackbox exporter for endpoint monitoring
@@ -120,8 +120,8 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 ### 13. **DNS & Service Discovery**
 - [ ] **CoreDNS** customization for internal service discovery
-- [ ] **External-DNS** - Automatic DNS record creation
-- [ ] Internal domain setup (.k8s.local or similar)
+- [x] **External-DNS** - Automatic DNS record creation (Cloudflare + UniFi RFC2136)
+- [x] Internal domain setup (k8s.n37.ca for split-horizon DNS)
 - [ ] DNS-based load balancing configuration
 - [ ] DNS monitoring and troubleshooting tools
 
