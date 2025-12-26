@@ -543,8 +543,8 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 ## Related Documentation
 
 - [ArgoCD Application Management](./argocd.md)
-- [Cert-Manager TLS Certificates](./cert-manager.md)
 - [Monitoring Overview](../monitoring/overview.md)
+- [SNMP Exporter](./snmp-exporter.md)
 
 ## References
 
