@@ -45,24 +45,52 @@ domain-filter: k8s.n37.ca
 cloudflare-proxied: false  # Direct to MetalLB IPs
 ```
 
-### 2. UniFi RFC2136 Provider (Internal DNS)
+### 2. UniFi Webhook Provider (Internal DNS)
 
 **Purpose:** Manages internal DNS records for local network access
 
 - **Target:** UniFi UDR7 controller at 10.0.1.1
-- **Protocol:** RFC2136 (Dynamic DNS standard)
-- **Authentication:** TSIG (Transaction Signature)
-- **Deployment:** `external-dns-rfc2136`
-- **ServiceAccount:** `external-dns-rfc2136`
+- **Protocol:** UniFi API via webhook provider
+- **Authentication:** UniFi API key
+- **Webhook:** `lexfrei/external-dns-unifios-webhook` v0.2.0
+- **Deployment:** `external-dns-unifi`
+- **ServiceAccount:** `external-dns-unifi`
+
+**Why Webhook Instead of RFC2136:**
+UniFi OS does not support RFC2136 TSIG configuration, making dynamic DNS updates via RFC2136 impossible. The webhook provider uses the UniFi API directly to create and manage DNS records.
+
+**Architecture:**
+
+```
+External-DNS → Webhook Provider → UniFi API → DNS Records
+    |               |
+    |         (ghcr.io/lexfrei/
+    |          external-dns-
+    |          unifios-webhook)
+    |
+(webhook provider)
+```
 
 **Configuration:**
 
 ```yaml
-provider: rfc2136
-rfc2136-host: 10.0.1.1
-rfc2136-zone: n37.ca
-rfc2136-tsig-axfr: true
+provider: webhook
+webhook-provider-url: http://external-dns-unifi-webhook:8080
+domain-filter: k8s.n37.ca
 ```
+
+**Supported Record Types:**
+
+- A (IPv4)
+- AAAA (IPv6)
+- CNAME (canonical name)
+- TXT (ownership tracking)
+
+**Requirements:**
+
+- UniFi OS ≥ 4.3.9
+- UniFi Network ≥ 9.4.19
+- UniFi API key with DNS management permissions
 
 ## How It Works
 
@@ -253,41 +281,89 @@ stringData:
   tsig-algorithm: hmac-sha256
 ```
 
-## UniFi RFC2136 Setup
+## UniFi Webhook Setup
 
 ### Prerequisites
 
-UniFi UDR7 (or compatible controller) at 10.0.1.1
+- UniFi OS ≥ 4.3.9
+- UniFi Network ≥ 9.4.19
+- UniFi UDR7 (or compatible controller) at 10.0.1.1
+- Access to UniFi Console
 
 ### Configuration Steps
 
-**1. Enable RFC2136 on UniFi:**
+**1. Generate UniFi API Key:**
 
-- Navigate to: **Settings → System → Advanced**
-- Enable: **RFC2136 Dynamic DNS**
+Log into UniFi Console at `https://10.0.1.1`:
 
-**2. Create TSIG Key:**
+- Navigate to: **Settings → Integrations → API**
+- Click **Create API Key**
+- **Name:** `external-dns-k8s`
+- **Permissions:** Ensure DNS management permissions are granted
+- **Copy the API key** (you won't be able to see it again)
 
-- **Key Name:** `external-dns`
-- **Algorithm:** `hmac-sha256`
-- Click **Generate** to create secret key
-- **Save** the configuration
+**2. Update Kubernetes Secret:**
 
-**3. Update Kubernetes Secret:**
-
-```bash
-# Edit the secret with values from UniFi
-kubectl edit secret rfc2136-credentials -n external-dns
-
-# Or apply updated manifest
-kubectl apply -f manifests/base/external-dns/secret-rfc2136.yaml
-```
-
-**4. Restart RFC2136 Deployment:**
+Edit the UniFi credentials secret:
 
 ```bash
-kubectl rollout restart deployment/external-dns-rfc2136 -n external-dns
+# Edit the secret file (git-crypt encrypted)
+vim manifests/base/external-dns/secret-unifi.yaml
+
+# Update these values:
+# UNIFI_HOST: "https://10.0.1.1"
+# UNIFI_API_KEY: "YOUR_ACTUAL_API_KEY_HERE"
+# UNIFI_SITE_NAME: "default"  # Usually "default"
+# UNIFI_TLS_INSECURE: "true"  # For self-signed cert
+
+# Apply the updated secret
+kubectl apply -f manifests/base/external-dns/secret-unifi.yaml
 ```
+
+**3. Deploy via ArgoCD:**
+
+ArgoCD will automatically sync the deployment. To manually sync:
+
+```bash
+# Sync external-dns application
+argocd app sync external-dns
+
+# Or use kubectl
+kubectl apply -k manifests/base/external-dns/
+```
+
+**4. Verify Deployment:**
+
+```bash
+# Check webhook provider
+kubectl get deployment -n external-dns external-dns-unifi-webhook
+
+# Check external-dns deployment
+kubectl get deployment -n external-dns external-dns-unifi
+
+# View webhook logs
+kubectl logs -n external-dns deployment/external-dns-unifi-webhook
+
+# View external-dns logs
+kubectl logs -n external-dns deployment/external-dns-unifi
+```
+
+### Webhook Architecture Details
+
+The UniFi webhook provider consists of two components:
+
+1. **Webhook Provider** (`external-dns-unifi-webhook`)
+   - Runs `ghcr.io/lexfrei/external-dns-unifios-webhook:v0.2.0`
+   - Exposes HTTP API on port 8080
+   - Health checks on port 8888
+   - Prometheus metrics on `/metrics`
+
+2. **External-DNS** (`external-dns-unifi`)
+   - Connects to webhook via `http://external-dns-unifi-webhook:8080`
+   - Watches Kubernetes Ingress and Service resources
+   - Sends DNS record changes to webhook
+
+For complete setup documentation, see: `manifests/base/external-dns/UNIFI-WEBHOOK-SETUP.md`
 
 ## Monitoring
 
@@ -309,10 +385,14 @@ kubectl get pods -n external-dns
 kubectl logs -n external-dns deployment/external-dns-cloudflare -f
 ```
 
-**RFC2136 Provider:**
+**UniFi Webhook Provider:**
 
 ```bash
-kubectl logs -n external-dns deployment/external-dns-rfc2136 -f
+# External-DNS logs
+kubectl logs -n external-dns deployment/external-dns-unifi -f
+
+# Webhook provider logs
+kubectl logs -n external-dns deployment/external-dns-unifi-webhook -f
 ```
 
 ### Verify DNS Records
@@ -456,31 +536,48 @@ kubectl logs -n external-dns deployment/external-dns-cloudflare
 **Symptoms:**
 
 - Cloudflare works but UniFi DNS not updated
-- RFC2136 deployment logs show authentication errors
+- Webhook deployment logs show connection/authentication errors
 
 **Diagnosis:**
 
 ```bash
-kubectl logs -n external-dns deployment/external-dns-rfc2136
+# Check external-dns logs
+kubectl logs -n external-dns deployment/external-dns-unifi
+
+# Check webhook provider logs
+kubectl logs -n external-dns deployment/external-dns-unifi-webhook
 ```
 
 **Common Causes:**
 
-1. **RFC2136 not enabled on UniFi**
-   - Check Settings → System → Advanced
-2. **TSIG authentication failure**
-   - Verify TSIG key name and secret match UniFi
+1. **Invalid UniFi API key**
+   - Verify API key has DNS management permissions
+   - Check key hasn't expired or been revoked
 
    ```bash
-   kubectl get secret rfc2136-credentials -n external-dns -o yaml | grep -A3 stringData
+   kubectl get secret unifi-credentials -n external-dns -o yaml
    ```
 
-3. **Network connectivity**
-   - Test from pod:
+2. **Webhook provider cannot reach UniFi controller**
+   - Test connectivity from cluster:
 
    ```bash
-   kubectl exec -n external-dns deployment/external-dns-rfc2136 -- \
-     nslookup n37.ca 10.0.1.1
+   kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
+     curl -k https://10.0.1.1
+   ```
+
+3. **TLS certificate issues**
+   - For self-signed certs, ensure `UNIFI_TLS_INSECURE: "true"`
+
+4. **Incorrect site name**
+   - Verify `UNIFI_SITE_NAME` matches your UniFi site (usually "default")
+
+5. **Webhook service not reachable**
+   - Ensure webhook service is running:
+
+   ```bash
+   kubectl get svc -n external-dns external-dns-unifi-webhook
+   kubectl get endpoints -n external-dns external-dns-unifi-webhook
    ```
 
 ### DNS Records Not Updating
@@ -572,11 +669,13 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 - Rotate tokens periodically
 - Store in Kubernetes secrets (git-crypt encrypted in repo)
 
-**UniFi RFC2136:**
+**UniFi Webhook:**
 
-- Use strong TSIG secret (generated by UniFi)
-- Restrict RFC2136 to cluster subnet if possible
-- Monitor for unauthorized DNS updates
+- Use dedicated API key with minimal permissions (DNS management only)
+- Store API key in encrypted Kubernetes secrets (git-crypt)
+- Rotate API keys periodically
+- Set `UNIFI_TLS_INSECURE: "true"` only if using self-signed certs
+- Monitor webhook logs for unauthorized access attempts
 
 ### Network Security
 
@@ -601,5 +700,7 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 
 - [External-DNS Documentation](https://kubernetes-sigs.github.io/external-dns/)
 - [Cloudflare Provider Guide](https://kubernetes-sigs.github.io/external-dns/v0.15.0/tutorials/cloudflare/)
-- [RFC2136 Provider Guide](https://kubernetes-sigs.github.io/external-dns/v0.15.0/tutorials/rfc2136/)
-- [UniFi RFC2136 Setup](https://help.ui.com/hc/en-us/articles/204976324)
+- [Webhook Provider Guide](https://kubernetes-sigs.github.io/external-dns/latest/docs/tutorials/webhook-provider/)
+- [UniFi Webhook Provider (lexfrei)](https://github.com/lexfrei/external-dns-unifios-webhook)
+- [Alternative UniFi Webhook (kashalls)](https://github.com/kashalls/external-dns-unifi-webhook)
+- [UniFi API Documentation](https://ubntwiki.com/products/software/unifi-controller/api)
