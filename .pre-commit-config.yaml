@@ -1,0 +1,54 @@
+# Pre-commit hooks for k8s-docs-n37
+# See https://pre-commit.com for more information
+# Installation: pip install pre-commit && pre-commit install
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+      - id: end-of-file-fixer
+        name: Fix end of files
+      - id: check-yaml
+        name: Check YAML syntax
+        args: ['--unsafe']  # Allow custom tags
+      - id: check-added-large-files
+        name: Check for large files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+      - id: mixed-line-ending
+        name: Check line endings
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.39.0
+    hooks:
+      - id: markdownlint
+        name: Lint Markdown files
+        args: ['--fix', '--disable', 'MD013', 'MD033', 'MD041']
+        # MD013: Line length (disabled - docs can be long)
+        # MD033: Inline HTML (disabled - Docusaurus uses HTML)
+        # MD041: First line heading (disabled - frontmatter comes first)
+
+  # Docusaurus build check (catches broken links)
+  - repo: local
+    hooks:
+      - id: docusaurus-build
+        name: Docusaurus build check
+        entry: bash -c 'cd /Users/imcbeth/k8s-docs-n37 && npm run build'
+        language: system
+        pass_filenames: false
+        files: '^docs/.*\.(md|mdx)$'
+        verbose: true
+        description: 'Build Docusaurus site to catch broken links and build errors'
+
+  # YAML linting
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        name: Lint YAML files
+        args: ['-d', '{extends: default, rules: {line-length: {max: 200}, document-start: disable}}']
