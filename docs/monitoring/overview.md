@@ -18,8 +18,11 @@ The monitoring stack is built around the **kube-prometheus-stack**, which provid
 │  • Node Exporter (all 5 Pi nodes)                       │
 │  • kube-state-metrics (K8s objects)                     │
 │  • UniFi Poller (network metrics)                       │
+│  • SNMP Exporter (Synology NAS)                         │
 │  • Kubelet (container metrics)                          │
-│  • API Server, etcd, CoreDNS                            │
+│  • Control Plane: API Server, etcd, Controller Manager, │
+│    Scheduler, kube-proxy                                │
+│  • CoreDNS                                               │
 └─────────────────────────────────────────────────────────┘
                          ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -160,7 +163,11 @@ Prometheus is configured to scrape metrics from multiple sources:
 | SNMP Exporter | 30s | NAS storage metrics |
 | Node Exporter | 30s | Hardware metrics |
 | kubelet | 30s | Container metrics |
-| API Server | 30s | Control plane |
+| API Server | 30s | Control plane API |
+| etcd | 30s | Control plane datastore |
+| Controller Manager | 30s | Control plane controllers |
+| Scheduler | 30s | Control plane scheduling |
+| kube-proxy | 30s | Network proxy |
 | kube-state-metrics | 30s | K8s objects |
 | CoreDNS | 30s | DNS metrics |
 
@@ -204,8 +211,10 @@ The kube-prometheus-stack includes comprehensive dashboards:
 **Infrastructure:**
 - API Server Performance
 - etcd Metrics
-- CoreDNS Metrics
+- Controller Manager Metrics
 - Scheduler Metrics
+- kube-proxy Metrics
+- CoreDNS Metrics
 
 **Network:**
 - Network I/O Pressure

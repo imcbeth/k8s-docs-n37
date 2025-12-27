@@ -493,6 +493,182 @@ kubectl exec -n default <node-exporter-pod> -- ls -la /host/sys/class/hwmon
 - Verify node-exporter has access to host filesystem
 - Check hostPath mounts in DaemonSet spec
 
+## Control Plane Component Monitoring Issues
+
+### Control Plane Targets Showing Down
+
+**Symptoms:**
+- kube-controller-manager, etcd, kube-scheduler, or kube-proxy showing as DOWN in Prometheus
+- Missing control plane metrics
+- Scrape errors in Prometheus logs
+
+**Diagnosis:**
+```bash
+# Check Prometheus targets
+kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
+# Open http://localhost:9090/targets
+
+# Check ServiceMonitor status
+kubectl get servicemonitor -n default | grep -E "controller|etcd|scheduler|proxy"
+
+# Verify control plane component endpoints
+kubectl get endpoints -n kube-system kube-controller-manager
+kubectl get endpoints -n kube-system kube-scheduler
+```
+
+**Common Causes:**
+
+1. **Components Binding to Localhost:**
+   - **Problem:** Default kubeadm configuration binds components to 127.0.0.1
+   - **Symptom:** Connection refused errors when Prometheus tries to scrape
+   - **Solution:** Update kubeadm configuration to bind to 0.0.0.0
+
+2. **Certificate/TLS Issues:**
+   - **Problem:** Self-signed certificates or TLS verification failures
+   - **Symptom:** TLS handshake errors in Prometheus logs
+   - **Solution:** Configure `insecureSkipVerify` in ServiceMonitor (use cautiously)
+
+3. **Firewall/Network Policies:**
+   - **Problem:** Network policies blocking scrape traffic
+   - **Symptom:** Timeouts or connection refused
+   - **Solution:** Verify network policies allow Prometheus → control plane traffic
+
+**Solution - Verify Bind Addresses:**
+
+Check kubeadm configuration for control plane components:
+
+```bash
+# Controller Manager
+sudo cat /etc/kubernetes/manifests/kube-controller-manager.yaml | grep bind-address
+
+# Scheduler
+sudo cat /etc/kubernetes/manifests/kube-scheduler.yaml | grep bind-address
+
+# Expected output: --bind-address=0.0.0.0
+```
+
+**Solution - Update kubeadm Config (if binding to localhost):**
+
+1. **Edit Controller Manager:**
+   ```bash
+   sudo vim /etc/kubernetes/manifests/kube-controller-manager.yaml
+
+   # Change:
+   - --bind-address=127.0.0.1
+   # To:
+   - --bind-address=0.0.0.0
+   ```
+
+2. **Edit Scheduler:**
+   ```bash
+   sudo vim /etc/kubernetes/manifests/kube-scheduler.yaml
+
+   # Change:
+   - --bind-address=127.0.0.1
+   # To:
+   - --bind-address=0.0.0.0
+   ```
+
+3. **Edit kube-proxy ConfigMap:**
+   ```bash
+   kubectl edit configmap kube-proxy -n kube-system
+
+   # In the config.conf section, change:
+   metricsBindAddress: "127.0.0.1:10249"
+   # To:
+   metricsBindAddress: "0.0.0.0:10249"
+
+   # Then restart kube-proxy DaemonSet
+   kubectl rollout restart daemonset kube-proxy -n kube-system
+   ```
+
+4. **etcd Configuration:**
+   ```bash
+   sudo vim /etc/kubernetes/manifests/etcd.yaml
+
+   # Verify:
+   - --listen-metrics-urls=http://0.0.0.0:2381
+   ```
+
+**After Configuration Changes:**
+
+Wait for kubelet to automatically restart the static pods (~30-60 seconds), then verify targets:
+
+```bash
+# Check if targets are UP
+kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
+# Open http://localhost:9090/targets
+# Look for: kube-controller-manager, etcd, kube-scheduler, kube-proxy
+```
+
+### Missing etcd Metrics
+
+**Symptoms:**
+- etcd target DOWN or missing
+- No etcd performance metrics
+
+**Diagnosis:**
+```bash
+# Check etcd endpoint
+kubectl get endpoints -n kube-system kube-etcd
+
+# Verify etcd is exposing metrics
+curl -k http://<node-ip>:2381/metrics
+```
+
+**Solution:**
+1. Verify etcd is configured to expose metrics on port 2381
+2. Check ServiceMonitor configuration in values.yaml
+3. Ensure network connectivity from Prometheus pod to etcd
+
+### Controller Manager Metrics Missing
+
+**Diagnosis:**
+```bash
+# Test endpoint directly
+curl -k https://<node-ip>:10257/metrics
+
+# Check for certificate issues
+kubectl logs -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometheus | grep controller-manager
+```
+
+**Solution:**
+- Verify port 10257 is accessible
+- Check TLS configuration in ServiceMonitor
+- Ensure `insecureSkipVerify: true` if using self-signed certs
+
+### Scheduler Metrics Missing
+
+**Diagnosis:**
+```bash
+# Test endpoint
+curl -k https://<node-ip>:10259/metrics
+
+# Check ServiceMonitor
+kubectl get servicemonitor -n default kube-prometheus-stack-kube-scheduler -o yaml
+```
+
+**Solution:**
+- Verify scheduler is running: `kubectl get pods -n kube-system | grep scheduler`
+- Check bind address in scheduler manifest
+- Verify port 10259 is accessible
+
+### kube-proxy Metrics Missing
+
+**Diagnosis:**
+```bash
+# kube-proxy runs on all nodes
+kubectl get pods -n kube-system -l k8s-app=kube-proxy -o wide
+
+# Test metrics endpoint (use any node IP)
+curl http://<node-ip>:10249/metrics
+```
+
+**Solution:**
+- Verify metricsBindAddress in kube-proxy ConfigMap
+- Restart kube-proxy after config changes
+- Check that port 10249 is accessible from Prometheus
+
 ## General Troubleshooting Steps
 
 ### Check All Monitoring Pods
