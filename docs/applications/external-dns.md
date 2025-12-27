@@ -714,5 +714,5 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 - [Webhook Provider Guide](https://kubernetes-sigs.github.io/external-dns/latest/docs/tutorials/webhook-provider/)
 - [UniFi Webhook Provider (lexfrei)](https://github.com/lexfrei/external-dns-unifios-webhook)
 - [Alternative UniFi Webhook (kashalls)](https://github.com/kashalls/external-dns-unifi-webhook)
-- [UniFi API (community-maintained, unofficial, may be outdated)](https://ubntwiki.com/products/software/unifi-controller/api)
 - [Official Ubiquiti Developer Resources](https://developer.ui.com) (official APIs, SDKs, and developer documentation)
+- [UniFi API reference](https://ubntwiki.com/products/software/unifi-controller/api) (community-maintained, unofficial, may be outdated; use as a supplemental resource)
