@@ -669,6 +669,74 @@ curl http://<node-ip>:10249/metrics
 - Restart kube-proxy after config changes
 - Check that port 10249 is accessible from Prometheus
 
+### Calico CNI Limitation with hostNetwork Pods
+
+**IMPORTANT**: This is a known architectural limitation, not a configuration issue.
+
+**Symptoms:**
+- Control plane components show mixed UP/DOWN status
+- Timeout errors when scraping components on different nodes
+- Only components on same node as Prometheus work
+
+**Root Cause:**
+Calico CNI cannot route traffic from pod network to hostNetwork pods on different nodes via node IPs.
+
+**Diagnosis:**
+```bash
+# 1. Check which node Prometheus is running on
+kubectl get pod prometheus-kube-prometheus-stack-prometheus-0 -n default -o wide
+
+# 2. Check which nodes control plane components are on
+kubectl get pods -n kube-system -o wide | grep -E "proxy|etcd|scheduler|controller"
+
+# 3. Test connectivity from Prometheus pod
+kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
+  wget -qO- --timeout=2 http://NODE_IP:PORT/metrics
+
+# 4. Check Prometheus target status
+kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
+  wget -qO- 'http://localhost:9090/api/v1/query?query=up{job="kube-etcd"}' | python3 -m json.tool
+```
+
+**Why This Happens:**
+- Control plane components use `hostNetwork: true` (required for their operation)
+- hostNetwork pods don't get a pod IP in Calico network (pod IP = node IP)
+- Calico routing rules don't handle pod→host traffic across nodes
+- Reverse path filtering blocks the traffic
+
+**Which Components Are Affected:**
+- ❌ **kube-etcd**: Runs only on control plane node (cannot be monitored reliably)
+- ❌ **kube-proxy**: Only instance on same node as Prometheus works (1/5 success rate)
+- ✅ **kube-scheduler**: Works via HTTPS (routed through API server)
+- ✅ **kube-controller-manager**: May work via HTTPS (verify in your setup)
+
+**Solution:**
+Disable monitoring for components that cannot work reliably:
+
+```yaml
+# In manifests/base/kube-prometheus-stack/values.yaml
+kubeEtcd:
+  enabled: false  # Disabled: Calico CNI cannot route to hostNetwork pods across nodes
+
+kubeProxy:
+  enabled: false  # Disabled: Calico CNI cannot route to hostNetwork pods across nodes
+```
+
+**Alternative Solutions (Not Recommended for Homelab):**
+1. Run Prometheus as DaemonSet (one per node) - too complex
+2. Change CNI to one without this limitation - major infrastructure change
+3. Deploy metrics proxy on each node - over-engineered
+
+**Verification After Disabling:**
+```bash
+# Check that disabled ServiceMonitors are gone
+kubectl get servicemonitor -n default | grep -E "etcd|proxy"
+
+# Verify remaining targets work
+kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
+  wget -qO- 'http://localhost:9090/api/v1/query?query=up{job="kube-scheduler"}'
+```
+
 ## General Troubleshooting Steps
 
 ### Check All Monitoring Pods
