@@ -63,12 +63,7 @@ UniFi OS does not support RFC2136 TSIG configuration, making dynamic DNS updates
 
 ```
 External-DNS → Webhook Provider → UniFi API → DNS Records
-    |               |
-    |         (ghcr.io/lexfrei/
-    |          external-dns-
-    |          unifios-webhook)
-    |
-(webhook provider)
+               (ghcr.io/lexfrei/external-dns-unifios-webhook)
 ```
 
 **Configuration:**
@@ -312,8 +307,8 @@ vim manifests/base/external-dns/secret-unifi.yaml
 
 # Update these values:
 # UNIFI_HOST: "https://10.0.1.1"
-# UNIFI_API_KEY: "YOUR_ACTUAL_API_KEY_HERE"
-# UNIFI_SITE_NAME: "default"  # Usually "default"
+# UNIFI_API_KEY: "YOUR_ACTUAL_API_KEY_HERE"  # Long alphanumeric string from UniFi Console
+# UNIFI_SITE_NAME: "default"  # Use "default" for single-site installations
 # UNIFI_TLS_INSECURE: "true"  # For self-signed cert
 
 # Apply the updated secret
@@ -674,7 +669,7 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 - Use dedicated API key with minimal permissions (DNS management only)
 - Store API key in encrypted Kubernetes secrets (git-crypt)
 - Rotate API keys periodically
-- Set `UNIFI_TLS_INSECURE: "true"` only if using self-signed certs
+- Configure the UniFi controller with a trusted certificate/CA so TLS verification remains enabled (avoid `UNIFI_TLS_INSECURE: "true"`, especially in production)
 - Monitor webhook logs for unauthorized access attempts
 
 ### Network Security
