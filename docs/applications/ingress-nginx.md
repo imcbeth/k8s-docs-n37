@@ -1,5 +1,4 @@
 ---
-sidebar_position: 4
 title: "ingress-nginx"
 description: "NGINX Ingress Controller for HTTP/HTTPS traffic routing"
 ---
