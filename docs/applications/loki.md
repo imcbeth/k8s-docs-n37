@@ -77,12 +77,14 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 
 **Purpose:** Log collection agent running on all nodes
 
-- **Replicas:** 5 (one DaemonSet pod per node)
+- **Replicas:** 5 (one DaemonSet pod per node, including control-plane)
 - **Host Access:** `hostPID: true`, `hostNetwork: false`
 - **Log Sources:** `/var/log/pods/`, `/var/log/containers/`
+- **Tolerations:** Configured to run on control-plane node
 - **Resources per pod:**
   - Requests: 50m CPU, 64Mi memory
   - Limits: 100m CPU, 128Mi memory
+- **Metrics:** ServiceMonitor enabled for Prometheus scraping
 
 **Total Resource Impact:**
 - CPU Requests: 450m total (Loki 200m + 5 × Promtail 50m)
@@ -97,9 +99,26 @@ Promtail automatically adds these labels to all logs:
 - `container` - Container name
 - `node` - Node name (useful for Pi cluster debugging)
 
-**Important Note:**
+**Control-Plane Scheduling:**
+Promtail includes a toleration to run on the control-plane node:
+```yaml
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+```
+
+This enables log collection from critical control plane components:
+- kube-apiserver
+- kube-controller-manager
+- kube-scheduler
+- etcd
+- CoreDNS
+
+**Important Notes:**
 - Uses `hostNetwork: false` to avoid Calico CNI routing issues
 - Learned from control plane monitoring troubleshooting
+- Runs on ALL 5 nodes (4 workers + 1 control-plane)
 
 ## Storage
 
@@ -404,22 +423,76 @@ limits_config:
 
 ## Monitoring Loki
 
+ServiceMonitors are **enabled** for both Loki and Promtail, allowing Prometheus to scrape metrics automatically.
+
+### Prometheus Integration
+
+**ServiceMonitor Configuration:**
+```yaml
+# Loki
+monitoring:
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+
+# Promtail
+serviceMonitor:
+  enabled: true
+  labels:
+    release: kube-prometheus-stack
+```
+
+**Verify ServiceMonitors:**
+```bash
+kubectl get servicemonitor -n loki
+# Expected: loki and promtail ServiceMonitors
+```
+
+**Check Prometheus Targets:**
+```bash
+# Port-forward to Prometheus
+kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
+
+# Navigate to: http://localhost:9090/targets
+# Look for: serviceMonitor/loki/loki and serviceMonitor/loki/promtail
+```
+
 ### Key Metrics to Watch
 
-Monitor these Prometheus metrics (if ServiceMonitor enabled):
+Loki and Promtail metrics are available in Prometheus:
 
+**Loki Metrics:**
 ```promql
 # Ingestion rate (logs/second)
 sum(rate(loki_distributor_lines_received_total[1m]))
 
-# Query performance
+# Query performance (99th percentile)
 histogram_quantile(0.99, rate(loki_request_duration_seconds_bucket[5m]))
+
+# Active log streams
+loki_ingester_streams
 
 # Storage usage
 loki_store_chunk_entries
 
 # Compaction status
 loki_compactor_compaction_interval_seconds
+```
+
+**Promtail Metrics (per pod × 5):**
+```promql
+# Logs sent to Loki (rate)
+rate(promtail_sent_entries_total[5m])
+
+# Bytes read from log files
+rate(promtail_read_bytes_total[5m])
+
+# Active scrape targets (should show ~250 pods)
+promtail_targets_active_total
+
+# Files being watched
+promtail_files_active_total
 ```
 
 ### Health Checks
