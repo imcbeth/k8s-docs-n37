@@ -29,6 +29,7 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 - **Scrape Interval:** Varies by target (default 30s)
 
 **Service Endpoints:**
+
 - Internal: `kube-prometheus-stack-prometheus.default:9090`
 - Prometheus UI: `http://kube-prometheus-stack-prometheus.default:9090`
 
@@ -44,6 +45,7 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 - **Storage:** 5Gi persistent volume (Synology iSCSI)
 
 **Service Endpoint:**
+
 - Internal: `kube-prometheus-stack-grafana.default:80`
 
 ### AlertManager
@@ -55,19 +57,23 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 - **Configuration:** Managed via PrometheusRule CRDs
 
 **Service Endpoint:**
+
 - Internal: `kube-prometheus-stack-alertmanager.default:9093`
 
 ### Additional Components
 
 **Prometheus Operator:**
+
 - Manages Prometheus, AlertManager, and related resources
 - Handles PrometheusRule and ServiceMonitor CRDs
 
 **kube-state-metrics:**
+
 - Exposes Kubernetes object state as Prometheus metrics
 - Monitors deployments, pods, nodes, and other K8s resources
 
 **Node Exporter (DaemonSet):**
+
 - Runs on all 5 Raspberry Pi nodes
 - Collects hardware and OS metrics
 - CPU, memory, disk, network statistics
@@ -80,6 +86,7 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 ### Prometheus Data
 
 **Persistent Volume:**
+
 ```yaml
 storageSpec:
   volumeClaimTemplate:
@@ -202,6 +209,7 @@ spec:
 ```
 
 **Key Features:**
+
 - **Multi-source:** Combines Helm chart from upstream with local values
 - **ServerSideApply:** Required for large CRD-heavy charts
 - **Auto-sync:** Automatically deploys configuration changes from git
@@ -213,12 +221,14 @@ spec:
 The stack includes numerous dashboards for comprehensive monitoring:
 
 **Cluster Monitoring:**
+
 - Kubernetes Cluster Overview
 - Node Resource Usage
 - Namespace Resource Usage
 - Pod Resource Usage
 
 **Component Monitoring:**
+
 - etcd Metrics
 - API Server Performance
 - Controller Manager Metrics
@@ -226,11 +236,13 @@ The stack includes numerous dashboards for comprehensive monitoring:
 - CoreDNS Metrics
 
 **Infrastructure:**
+
 - Node Exporter Full
 - Persistent Volumes Usage
 - Network I/O Pressure
 
 **Application:**
+
 - Deployment Status
 - StatefulSet Status
 - DaemonSet Status
@@ -238,6 +250,7 @@ The stack includes numerous dashboards for comprehensive monitoring:
 ### Custom Dashboards
 
 Additional dashboards can be added via:
+
 1. Grafana UI (exported as JSON)
 2. ConfigMaps with dashboard JSON
 3. Grafana dashboard provisioning
@@ -249,6 +262,7 @@ Additional dashboards can be added via:
 PrometheusRule CRDs define alerting rules:
 
 **Default Rule Groups:**
+
 - Node health alerts
 - Pod crash alerts
 - Resource utilization warnings
@@ -258,6 +272,7 @@ PrometheusRule CRDs define alerting rules:
 ### Notification Channels
 
 Configure notification channels in AlertManager config:
+
 - Slack
 - Email
 - PagerDuty
@@ -271,6 +286,7 @@ Configure notification channels in AlertManager config:
 With 5 Raspberry Pi 5 nodes, monitor:
 
 **Hardware:**
+
 - CPU temperature (important for Pi thermal management)
 - CPU throttling events
 - Memory pressure
@@ -278,6 +294,7 @@ With 5 Raspberry Pi 5 nodes, monitor:
 - Network interface statistics
 
 **Resource Usage:**
+
 - Per-node CPU utilization
 - Memory usage across nodes
 - Disk space on NVMe drives
@@ -286,21 +303,25 @@ With 5 Raspberry Pi 5 nodes, monitor:
 ### Example Queries
 
 **Node CPU Usage:**
+
 ```promql
 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
 ```
 
 **Node Memory Usage:**
+
 ```promql
 (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
 ```
 
 **Node Temperature:**
+
 ```promql
 node_hwmon_temp_celsius
 ```
 
 **Pod Count per Node:**
+
 ```promql
 count by (node) (kube_pod_info)
 ```
@@ -310,24 +331,30 @@ count by (node) (kube_pod_info)
 ### Prometheus UI
 
 **Internal Access:**
+
 ```bash
 kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
 ```
+
 Then open: `http://localhost:9090`
 
 ### Grafana UI
 
 **Internal Access:**
+
 ```bash
 kubectl port-forward -n default svc/kube-prometheus-stack-grafana 3000:80
 ```
+
 Then open: `http://localhost:3000`
 
 **Default Credentials:**
+
 - Username: `admin`
 - Password: Stored in secret `kube-prometheus-stack-grafana`
 
 **Retrieve Password:**
+
 ```bash
 kubectl get secret kube-prometheus-stack-grafana -n default \
   -o jsonpath="{.data.admin-password}" | base64 -d
@@ -336,9 +363,11 @@ kubectl get secret kube-prometheus-stack-grafana -n default \
 ### AlertManager UI
 
 **Internal Access:**
+
 ```bash
 kubectl port-forward -n default svc/kube-prometheus-stack-alertmanager 9093:9093
 ```
+
 Then open: `http://localhost:9093`
 
 ## Known Issues and Solutions
@@ -351,6 +380,7 @@ This section documents common issues encountered with kube-prometheus-stack on R
 **Severity:** High (affects all node monitoring)
 
 **Symptoms:**
+
 - Prometheus can only scrape 1 out of 5 node-exporter instances
 - Error: `Get "http://10.0.10.x:9100/metrics": context deadline exceeded`
 - Targets show "down" status for most nodes
@@ -358,6 +388,7 @@ This section documents common issues encountered with kube-prometheus-stack on R
 
 **Root Cause:**
 Node-exporter was configured with `hostNetwork: true`, which binds it to the node's IP address (10.0.10.x). When Prometheus (a regular pod in the Calico pod network) tries to connect to these node IPs, Calico's CNI routing fails due to:
+
 - Reverse path filtering on host network interfaces
 - CNI limitations when pods connect to hostNetwork pods via node IPs
 - Routing asymmetry between pod network and host network
@@ -372,17 +403,20 @@ prometheus-node-exporter:
 ```
 
 **Why This Works:**
+
 - node-exporter doesn't actually need `hostNetwork` for most metrics
 - `hostPID: true` provides access to host process information
 - Using pod network (Calico) allows Prometheus to reach all node-exporters via pod IPs (192.168.x.x)
 - Maintains full metrics collection capability
 
 **Result:**
+
 - All 5 node-exporters now show "UP" status in Prometheus
 - Complete metrics collection from all nodes
 - No performance impact
 
 **Related PRs:**
+
 - homelab#72: Disable hostNetwork for node-exporter to fix Prometheus scraping
 
 ---
@@ -393,6 +427,7 @@ prometheus-node-exporter:
 **Severity:** Medium (prevents ArgoCD updates)
 
 **Symptoms:**
+
 - ArgoCD sync fails when updating Grafana
 - Error: `Multi-Attach error for volume "pvc-xxx" Volume is already used by pod(s) kube-prometheus-stack-grafana-xxx`
 - Grafana pod stuck in Pending state during updates
@@ -400,6 +435,7 @@ prometheus-node-exporter:
 
 **Root Cause:**
 Grafana uses a ReadWriteOnce (RWO) PVC for dashboard storage. The default RollingUpdate deployment strategy tries to:
+
 1. Create new pod BEFORE terminating old pod
 2. New pod attempts to mount the RWO PVC
 3. PVC is still attached to old pod
@@ -418,28 +454,33 @@ grafana:
 ```
 
 **Why This Works:**
+
 - `Recreate` strategy terminates old pod first
 - Waits for PVC to fully detach
 - Then creates new pod
 - New pod successfully mounts the PVC
 
 **Trade-off:**
+
 - Small downtime during updates (~10-30 seconds)
 - Acceptable for Grafana (not a critical real-time service)
 - Better than deployment failures requiring manual intervention
 
 **Result:**
+
 - ArgoCD syncs complete successfully
 - Clean pod replacements
 - No manual intervention required
 
 **Applies To:**
 Any deployment using:
+
 - Single replica (replicas: 1)
 - ReadWriteOnce PVC
 - Examples: LocalStack, future stateful apps
 
 **Related PRs:**
+
 - homelab#73: Set Grafana deployment strategy to Recreate for RWO PVC
 - homelab#74: Explicitly set rollingUpdate to null for Grafana Recreate strategy
 
@@ -451,6 +492,7 @@ Any deployment using:
 **Severity:** Low (cosmetic errors in Prometheus)
 
 **Symptoms:**
+
 - Prometheus shows scraping errors for:
   - kube-controller-manager: `connection refused on https://10.0.10.214:10257`
   - kube-etcd: `context deadline exceeded on http://10.0.10.214:2381`
@@ -461,6 +503,7 @@ Any deployment using:
 
 **Root Cause:**
 In kubeadm-based Kubernetes clusters, control plane components bind to localhost (127.0.0.1) for security:
+
 - **Security Practice:** Prevents external access to sensitive components
 - **Standard kubeadm:** Default configuration for all kubeadm clusters
 - **Unreachable:** ServiceMonitors try to scrape via node IPs, but components only listen on localhost
@@ -485,6 +528,7 @@ kubeScheduler:
 ```
 
 **Why This Is Correct:**
+
 - **Not losing monitoring:** Cluster health still monitored via:
   - kubelet (monitors node and pod health)
   - kube-apiserver (monitors API server health)
@@ -497,11 +541,13 @@ kubeScheduler:
   - Risk of breaking cluster during kubeadm upgrades
 
 **Result:**
+
 - Clean Prometheus targets page (no error noise)
 - Still have comprehensive cluster monitoring
 - Follows best practices for kubeadm homelab clusters
 
 **Related PRs:**
+
 - homelab#75: Disable unreachable control plane ServiceMonitors (controller-manager, etcd, proxy)
 - homelab#77: Disable kube-scheduler ServiceMonitor
 
@@ -512,22 +558,26 @@ kubeScheduler:
 Based on the above issues, follow these practices for Raspberry Pi clusters with Calico CNI:
 
 **1. Avoid hostNetwork for exporters:**
+
 - Use `hostNetwork: false` with `hostPID: true` or `hostIPC: true` as needed
 - Allows pod network connectivity while accessing host resources
 - Prevents Calico routing issues
 
 **2. Use Recreate strategy for stateful apps with RWO PVCs:**
+
 - Any app with single replica + ReadWriteOnce PVC
 - Set `deploymentStrategy.type: Recreate`
 - Set `deploymentStrategy.rollingUpdate: null`
 - Accept brief downtime over deployment failures
 
 **3. Disable unreachable kubeadm control plane monitoring:**
+
 - Standard for homelab kubeadm clusters
 - Focus monitoring on kubelet, API server, kube-state-metrics
 - Don't try to modify kubeadm config for metric access
 
 **4. Test connectivity from Prometheus pod:**
+
 ```bash
 # Test if Prometheus can reach a target
 kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
@@ -569,20 +619,24 @@ kubectl logs -n default deployment/kube-prometheus-stack-grafana
 ### Common Issues
 
 **Prometheus Pod Pending:**
+
 - Check PVC status: `kubectl get pvc -n default`
 - Verify Synology CSI driver is running
 - Ensure storage class exists
 
 **Grafana Can't Connect to Prometheus:**
+
 - Verify Prometheus service is running
 - Check datasource configuration in Grafana
 
 **No Metrics from Node Exporter:**
+
 - Verify DaemonSet is running on all nodes
 - Check ServiceMonitor configuration
 - Review Prometheus targets page
 
 **High Memory Usage:**
+
 - Review retention settings
 - Check scrape interval configuration
 - Consider reducing metric cardinality
@@ -616,6 +670,7 @@ To modify stack configuration:
 kube-prometheus-stack was migrated from Helm to ArgoCD GitOps management:
 
 **Changes:**
+
 - Migrated from manual Helm install to ArgoCD-managed
 - Preserved existing 50Gi Prometheus PVC (data retained)
 - Added ServerSideApply for better CRD handling
@@ -624,6 +679,7 @@ kube-prometheus-stack was migrated from Helm to ArgoCD GitOps management:
 - Multi-source configuration for flexibility
 
 **Migration Steps:**
+
 1. Backed up Helm values
 2. Uninstalled Helm release (preserved PVCs)
 3. Created ArgoCD Application manifest
@@ -635,16 +691,19 @@ kube-prometheus-stack was migrated from Helm to ArgoCD GitOps management:
 ### Raspberry Pi Cluster Optimization
 
 **Resource Limits:**
+
 - Set appropriate CPU/memory limits for Pi constraints
 - Monitor for resource contention
 - Adjust scrape intervals if needed
 
 **Storage:**
+
 - 50Gi provides adequate retention for homelab
 - Monitor disk usage growth
 - Consider compression and retention policies
 
 **Cardinality:**
+
 - Be mindful of high-cardinality metrics
 - Use recording rules for expensive queries
 - Regularly review active series count

@@ -11,29 +11,36 @@ Before setting up the Kubernetes cluster, ensure you have the following prerequi
 ## Hardware Requirements
 
 ### Minimum Requirements
+
 - **5x Raspberry Pi 5**: 8GB RAM minimum (16GB recommended)
 - **PoE Switch**: 8+ port PoE+ switch with sufficient power budget
 - **Storage**: MicroSD cards (32GB minimum) + NVMe SSDs (256GB recommended)
 - **Network**: Stable internet connection and local network
 
 ### Recommended Hardware
+
 See the [Hardware Setup](./hardware) guide for detailed specifications of the recommended configuration.
 
 ## Network Requirements
 
 ### IP Address Planning
+
 Plan your network topology:
+
 - **Management Network**: For cluster nodes and infrastructure
 - **Service Network**: For Kubernetes services and ingress
 - **Storage Network**: For NAS and storage communication
 
 ### DNS Configuration
+
 - Access to public DNS for package downloads
 - Ability to configure local DNS records (optional but recommended)
 - Consider using Pi-hole for network-level DNS management
 
 ### Firewall Rules
+
 Ensure the following ports are available:
+
 - **6443**: Kubernetes API server
 - **2379-2380**: etcd server communication
 - **10250**: Kubelet API
@@ -44,11 +51,14 @@ Ensure the following ports are available:
 ## Software Requirements
 
 ### Operating System
+
 - **Raspberry Pi OS Lite**: 64-bit version recommended
 - **Alternative**: Ubuntu Server 22.04 LTS for ARM64
 
 ### Required Tools
+
 Install these tools on your workstation:
+
 ```bash
 # kubectl - Kubernetes command-line tool
 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -63,6 +73,7 @@ sudo apt update && sudo apt install git -y
 ```
 
 ### Development Environment (Optional)
+
 - **VS Code**: For editing configurations
 - **Docker**: For building custom images
 - **Lens**: Kubernetes IDE for cluster management
@@ -70,11 +81,13 @@ sudo apt update && sudo apt install git -y
 ## Storage Requirements
 
 ### Local Storage
+
 - **Boot Storage**: MicroSD cards for initial setup
 - **Application Storage**: NVMe SSDs for performance
 - **Container Images**: Sufficient space for image cache
 
 ### Network Storage
+
 - **NAS Device**: Synology or compatible NAS for persistent storage
 - **iSCSI Support**: For block storage integration
 - **Backup Storage**: Separate storage for backups
@@ -82,12 +95,14 @@ sudo apt update && sudo apt install git -y
 ## Knowledge Prerequisites
 
 ### Required Knowledge
+
 - **Linux Administration**: Basic command line skills
 - **Networking**: Understanding of TCP/IP, DNS, and routing
 - **Git**: Version control basics
 - **YAML**: Configuration file syntax
 
 ### Recommended Knowledge
+
 - **Docker/Containers**: Understanding containerization
 - **Kubernetes Basics**: Pods, Services, Deployments
 - **Infrastructure as Code**: GitOps principles
@@ -96,13 +111,17 @@ sudo apt update && sudo apt install git -y
 ## Account Requirements
 
 ### GitHub Account
+
 Required for:
+
 - Storing configuration repositories
 - ArgoCD GitOps workflow
 - Accessing community charts and tools
 
 ### Container Registries
+
 Access to:
+
 - **Docker Hub**: For public container images
 - **Quay.io**: For operator and tool images
 - **GitHub Container Registry**: For custom images (optional)
@@ -110,16 +129,19 @@ Access to:
 ## Security Considerations
 
 ### SSH Access
+
 - Configure SSH key-based authentication
 - Disable password authentication
 - Use strong SSH keys (RSA 4096-bit or Ed25519)
 
 ### Network Security
+
 - Enable firewall on all nodes
 - Implement network segmentation where possible
 - Regular security updates for base OS
 
 ### Secrets Management
+
 - Plan for secure storage of sensitive data
 - Consider external secrets management
 - Regular rotation of credentials
@@ -127,12 +149,14 @@ Access to:
 ## Time and Effort Planning
 
 ### Initial Setup Time
+
 - **Pi Preparation**: 2-4 hours for 5 nodes
 - **Network Configuration**: 1-2 hours
 - **Kubernetes Installation**: 3-5 hours
 - **Basic Applications**: 2-3 hours
 
 ### Ongoing Maintenance
+
 - **Weekly**: Monitor cluster health and updates
 - **Monthly**: Security patches and dependency updates
 - **Quarterly**: Major version updates and reviews

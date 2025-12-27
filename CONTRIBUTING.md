@@ -29,6 +29,7 @@ npm install
 We use pre-commit hooks to ensure code quality and catch errors before they reach CI/CD.
 
 **Install pre-commit:**
+
 ```bash
 # macOS
 brew install pre-commit
@@ -38,11 +39,13 @@ pip install pre-commit
 ```
 
 **Install the hooks:**
+
 ```bash
 pre-commit install
 ```
 
 **Test the hooks:**
+
 ```bash
 pre-commit run --all-files
 ```
@@ -92,6 +95,7 @@ git commit -m "docs: Your commit message"
 ```
 
 **What the hooks check:**
+
 - ✅ YAML syntax validation
 - ✅ Markdown linting
 - ✅ Docusaurus build (catches broken links!)
@@ -99,6 +103,7 @@ git commit -m "docs: Your commit message"
 - ✅ File ending fixes
 
 **If hooks fail:**
+
 - Fix the reported issues
 - Stage the fixes: `git add .`
 - Retry the commit: `git commit -m "..."`
@@ -123,12 +128,14 @@ Use conventional commits:
 ```
 
 **Types:**
+
 - `docs:` - Documentation changes
 - `fix:` - Bug fixes
 - `feat:` - New features
 - `chore:` - Maintenance tasks
 
 **Examples:**
+
 ```
 docs: Add troubleshooting guide for cert-manager
 fix: Correct broken link in metallb documentation
@@ -171,6 +178,7 @@ pre-commit autoupdate
 **Problem:** Docusaurus build hook fails
 
 **Solution:**
+
 ```bash
 # Run build manually to see detailed error
 npm run build
@@ -184,6 +192,7 @@ npm run build
 **Problem:** Markdown linting fails
 
 **Solution:**
+
 ```bash
 # Run markdownlint manually (use quotes for reliable globbing)
 npx markdownlint-cli "docs/**/*.md"
@@ -274,8 +283,8 @@ kind: Pod
 
 ## Questions?
 
-- Open an issue: https://github.com/imcbeth/k8s-docs-n37/issues
-- Check existing docs: http://localhost:3000 (when running locally)
+- Open an issue: <https://github.com/imcbeth/k8s-docs-n37/issues>
+- Check existing docs: <http://localhost:3000> (when running locally)
 
 ---
 

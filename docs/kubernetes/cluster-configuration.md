@@ -10,7 +10,8 @@ This guide covers the essential configuration steps after initial Kubernetes ins
 ## Coming Soon
 
 This section will cover:
-- Node labeling and taints  
+
+- Node labeling and taints
 - Resource quotas and limits
 - Network policies
 - RBAC configuration

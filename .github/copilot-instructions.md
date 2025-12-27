@@ -6,5 +6,5 @@
 - [x] Install Required Extensions - Installed Tailwind CSS IntelliSense
 - [x] Compile the Project - Successfully built site with npm run build
 - [x] Create and Run Task - Set up VS Code task for development server
-- [x] Launch the Project - Started Docusaurus dev server at http://localhost:3000
+- [x] Launch the Project - Started Docusaurus dev server at <http://localhost:3000>
 - [x] Ensure Documentation is Complete - Updated README.md and documentation

@@ -20,16 +20,16 @@ graph TB
     Switch --> Pi4[Pi5 Worker Node 3]
     Switch --> Pi5[Pi5 Worker Node 4]
     Switch --> NAS[Synology NAS]
-    
+
     Pi1 --> K8s[Kubernetes Cluster]
     Pi2 --> K8s
     Pi3 --> K8s
     Pi4 --> K8s
     Pi5 --> K8s
-    
+
     NAS --> iSCSI[iSCSI Storage]
     iSCSI --> K8s
-    
+
     K8s --> ArgoCD[GitOps with ArgoCD]
     K8s --> Prometheus[Monitoring Stack]
     K8s --> Apps[Applications]
@@ -38,23 +38,27 @@ graph TB
 ## Key Components
 
 ### Hardware Layer
+
 - **5x Raspberry Pi 5**: 16GB RAM each with active cooling
 - **PoE+ Switch**: Powers all Pi devices through single cable
 - **NVMe SSDs**: 256GB storage per Pi for fast I/O
 - **Synology NAS**: Network-attached storage for persistent data
 
 ### Network Layer
+
 - **UniFi Gateway**: Enterprise-grade routing and firewall
 - **Network Monitoring**: Real-time metrics collection
 - **VLAN Segmentation**: Isolated network segments for security
 
 ### Kubernetes Layer
+
 - **Control Plane**: Single master node with HA storage
 - **Worker Nodes**: 4x worker nodes for application workloads
 - **CNI**: Calico for network policy and connectivity
 - **Storage**: Synology CSI for persistent volumes
 
 ### Application Layer
+
 - **GitOps**: ArgoCD for declarative application management
 - **Monitoring**: Prometheus, Grafana, and AlertManager
 - **DNS**: Pi-hole for network-level ad blocking
@@ -63,24 +67,28 @@ graph TB
 ## Design Principles
 
 ### High Availability
+
 - Multi-node cluster design
 - Persistent storage for critical data
 - Network redundancy where possible
 - Automated failover for applications
 
 ### Observability
+
 - Comprehensive metrics collection
 - Centralized logging (planned)
 - Network performance monitoring
 - Infrastructure health monitoring
 
 ### Security
+
 - Network segmentation with VLANs
 - Certificate management with cert-manager
 - Secrets management with Kubernetes secrets
 - Regular security updates
 
 ### Automation
+
 - GitOps workflow for all deployments
 - Automated certificate renewal
 - Self-healing applications

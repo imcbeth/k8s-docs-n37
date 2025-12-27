@@ -67,8 +67,9 @@ spec:
 ```
 
 **Access Points:**
-- **HTTP:** http://10.0.10.10 (redirects to HTTPS)
-- **HTTPS:** https://10.0.10.10 (requires valid host header)
+
+- **HTTP:** <http://10.0.10.10> (redirects to HTTPS)
+- **HTTPS:** <https://10.0.10.10> (requires valid host header)
 
 ### IngressClass
 
@@ -152,6 +153,7 @@ spec:
 ```
 
 **What Happens:**
+
 1. Ingress created with cert-manager annotation
 2. cert-manager requests TLS certificate from Let's Encrypt
 3. Certificate stored in secret `myapp-k8s-n37-ca-nginx-tls`
@@ -287,6 +289,7 @@ kubectl delete pod -n ingress-nginx -l app.kubernetes.io/component=controller
 pathType: Prefix
 path: /app
 ```
+
 Matches: `/app`, `/app/`, `/app/anything`
 
 ### Exact
@@ -295,6 +298,7 @@ Matches: `/app`, `/app/`, `/app/anything`
 pathType: Exact
 path: /app
 ```
+
 Matches: `/app` only (not `/app/` or `/app/subpath`)
 
 ### ImplementationSpecific
@@ -303,6 +307,7 @@ Matches: `/app` only (not `/app/` or `/app/subpath`)
 pathType: ImplementationSpecific
 path: /app
 ```
+
 Behavior depends on ingress controller (NGINX uses regex matching)
 
 ---
@@ -354,6 +359,7 @@ spec:
 ### Ingress Shows No Address
 
 **Symptoms:**
+
 ```bash
 kubectl get ingress -n my-app
 # ADDRESS field is empty
@@ -362,17 +368,20 @@ kubectl get ingress -n my-app
 **Causes & Solutions:**
 
 1. **Controller not running:**
+
    ```bash
    kubectl get pods -n ingress-nginx
    ```
 
 2. **IngressClass mismatch:**
+
    ```yaml
    spec:
      ingressClassName: nginx  # Must match
    ```
 
 3. **LoadBalancer service pending:**
+
    ```bash
    kubectl get svc -n ingress-nginx
    # Check if EXTERNAL-IP is assigned
@@ -385,11 +394,13 @@ kubectl get ingress -n my-app
 **Causes & Solutions:**
 
 1. **Service not found:**
+
    ```bash
    kubectl get svc my-app-service -n my-app
    ```
 
 2. **Service port mismatch:**
+
    ```yaml
    backend:
      service:
@@ -402,6 +413,7 @@ kubectl get ingress -n my-app
    - Verify path in request matches Ingress rule
 
 4. **Host header missing:**
+
    ```bash
    curl -H "Host: myapp.k8s.n37.ca" https://10.0.10.10
    ```
@@ -413,6 +425,7 @@ kubectl get ingress -n my-app
 **Causes & Solutions:**
 
 1. **Certificate not ready:**
+
    ```bash
    kubectl get certificate -n my-app
    kubectl describe certificate myapp-k8s-n37-ca-nginx-tls -n my-app
@@ -423,6 +436,7 @@ kubectl get ingress -n my-app
    - Staging certs are not trusted by browsers
 
 3. **Secret not found:**
+
    ```bash
    kubectl get secret myapp-k8s-n37-ca-nginx-tls -n my-app
    ```
@@ -434,18 +448,21 @@ kubectl get ingress -n my-app
 **Causes & Solutions:**
 
 1. **No healthy pods:**
+
    ```bash
    kubectl get endpoints my-app-service -n my-app
    # Should show pod IPs
    ```
 
 2. **Pod not ready:**
+
    ```bash
    kubectl get pods -n my-app
    # Check READY column
    ```
 
 3. **Service selector mismatch:**
+
    ```bash
    kubectl describe svc my-app-service -n my-app
    # Check Selector and Endpoints
@@ -479,6 +496,7 @@ nginx_ingress_controller_ssl_certificate_expiry_seconds
 ### Grafana Dashboards
 
 Recommended community dashboards:
+
 - **Dashboard ID 9614:** NGINX Ingress Controller
 - **Dashboard ID 11875:** Kubernetes Ingress
 
@@ -487,30 +505,35 @@ Recommended community dashboards:
 ## Security Best Practices
 
 1. **Always Use TLS:** Force HTTPS redirect
+
    ```yaml
    annotations:
      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
    ```
 
 2. **Rate Limiting:** Protect against DDoS
+
    ```yaml
    annotations:
      nginx.ingress.kubernetes.io/limit-rps: "100"
    ```
 
 3. **IP Whitelisting:** Restrict access by IP
+
    ```yaml
    annotations:
      nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,192.168.0.0/16"
    ```
 
 4. **Modern TLS Only:**
+
    ```yaml
    annotations:
      nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
    ```
 
 5. **Request Size Limits:**
+
    ```yaml
    annotations:
      nginx.ingress.kubernetes.io/proxy-body-size: "10m"
@@ -545,10 +568,10 @@ curl -H "Host: example.k8s.n37.ca" https://10.0.10.10
 
 ## Resources
 
-- **Official Documentation:** https://kubernetes.github.io/ingress-nginx/
-- **Annotations Reference:** https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/
-- **Examples:** https://kubernetes.github.io/ingress-nginx/examples/
-- **Troubleshooting:** https://kubernetes.github.io/ingress-nginx/troubleshooting/
+- **Official Documentation:** <https://kubernetes.github.io/ingress-nginx/>
+- **Annotations Reference:** <https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/>
+- **Examples:** <https://kubernetes.github.io/ingress-nginx/examples/>
+- **Troubleshooting:** <https://kubernetes.github.io/ingress-nginx/troubleshooting/>
 
 ---
 

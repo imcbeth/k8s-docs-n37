@@ -63,6 +63,7 @@ cainjector:
 ```
 
 **Total Resource Usage:**
+
 - CPU Requests: 30m (0.15% of 20 cores)
 - Memory Requests: 96Mi (0.12% of 80GB)
 
@@ -143,6 +144,7 @@ kubectl get secret cloudflare-api-token-secret -n cert-manager -o yaml
 ```
 
 **Permissions Required:**
+
 - Zone: DNS: Edit
 - Zone: Zone: Read
 
@@ -278,24 +280,29 @@ kubectl annotate certificate grafana-k8s-n37-ca-nginx-tls -n default cert-manage
 ### Certificate Not Issuing
 
 1. **Check Certificate Status:**
+
    ```bash
    kubectl describe certificate <cert-name> -n <namespace>
    ```
+
    Look for events describing the issue.
 
 2. **Check CertificateRequest:**
+
    ```bash
    kubectl get certificaterequest -n <namespace>
    kubectl describe certificaterequest <request-name> -n <namespace>
    ```
 
 3. **Check Challenge:**
+
    ```bash
    kubectl get challenge -n <namespace>
    kubectl describe challenge <challenge-name> -n <namespace>
    ```
 
 4. **Check Order:**
+
    ```bash
    kubectl get order -n <namespace>
    kubectl describe order <order-name> -n <namespace>
@@ -308,11 +315,13 @@ kubectl annotate certificate grafana-k8s-n37-ca-nginx-tls -n default cert-manage
 **Cause:** DNS TXT record not yet visible to Let's Encrypt servers
 
 **Solution:**
+
 - Wait 2-5 minutes for DNS propagation
 - Check Cloudflare DNS records for `_acme-challenge` entries
 - Verify Cloudflare API token has correct permissions
 
 **Verify DNS:**
+
 ```bash
 # Check DNS TXT record
 dig _acme-challenge.grafana.k8s.n37.ca TXT +short
@@ -323,6 +332,7 @@ dig _acme-challenge.grafana.k8s.n37.ca TXT +short
 **Cause:** Cloudflare API token secret missing or in wrong namespace
 
 **Solution:**
+
 ```bash
 # Verify secret exists
 kubectl get secret cloudflare-api-token-secret -n cert-manager
@@ -336,15 +346,17 @@ kubectl apply -f manifests/base/cert-manager/cloudflare-api-token-secret.yaml
 **Cause:** Too many certificate requests to Let's Encrypt production
 
 **Solution:**
+
 - Use staging issuer for testing: `lets-encrypt-k8s-n37-ca-staging`
 - Wait for rate limit reset (limits are per domain, per week)
-- See: https://letsencrypt.org/docs/rate-limits/
+- See: <https://letsencrypt.org/docs/rate-limits/>
 
 #### Issue: Certificate shows as "False" or "Unknown"
 
 **Cause:** Various - check logs
 
 **Solution:**
+
 ```bash
 # Check cert-manager controller logs
 kubectl logs -n cert-manager deployment/cert-manager -f
@@ -416,6 +428,7 @@ spec:
 ```
 
 **Process:**
+
 1. Apply Ingress manifest
 2. cert-manager detects annotation
 3. Creates Certificate resource automatically
@@ -426,6 +439,7 @@ spec:
 ### For Testing (Use Staging)
 
 Replace the issuer annotation:
+
 ```yaml
 annotations:
   cert-manager.io/cluster-issuer: "lets-encrypt-k8s-n37-ca-staging"
@@ -470,16 +484,19 @@ Both use the same Cloudflare API token, no conflict.
 ### Critical Resources to Backup
 
 1. **ClusterIssuers:**
+
    ```bash
    kubectl get clusterissuer -o yaml > clusterissuers-backup.yaml
    ```
 
 2. **Cloudflare API Token Secret:**
+
    ```bash
    kubectl get secret cloudflare-api-token-secret -n cert-manager -o yaml > cloudflare-secret-backup.yaml
    ```
 
 3. **ACME Account Keys:**
+
    ```bash
    kubectl get secret lets-encrypt-k8s-n37-ca-key-prod -n cert-manager -o yaml > acme-key-prod-backup.yaml
    kubectl get secret lets-encrypt-k8s-n37-ca-key-staging -n cert-manager -o yaml > acme-key-staging-backup.yaml
@@ -499,7 +516,7 @@ Both use the same Cloudflare API token, no conflict.
 cert-manager is managed by ArgoCD using Helm. To upgrade:
 
 1. **Update Chart Version:** Edit `manifests/applications/cert-manager.yaml` in homelab repo
-2. **Check Release Notes:** Review breaking changes at https://cert-manager.io/docs/releases/
+2. **Check Release Notes:** Review breaking changes at <https://cert-manager.io/docs/releases/>
 3. **Create PR:** Follow GitOps workflow
 4. **ArgoCD Sync:** Automatic after merge
 5. **Verify:** Check pods and certificate renewal
@@ -538,11 +555,11 @@ kubectl get secret <cert-secret> -n <namespace> -o jsonpath='{.data.tls\.crt}' |
 
 ## Resources
 
-- **Official Documentation:** https://cert-manager.io/docs/
-- **Let's Encrypt:** https://letsencrypt.org/
-- **Cloudflare API Tokens:** https://developers.cloudflare.com/fundamentals/api/get-started/create-token/
-- **ACME Challenge Types:** https://letsencrypt.org/docs/challenge-types/
-- **Rate Limits:** https://letsencrypt.org/docs/rate-limits/
+- **Official Documentation:** <https://cert-manager.io/docs/>
+- **Let's Encrypt:** <https://letsencrypt.org/>
+- **Cloudflare API Tokens:** <https://developers.cloudflare.com/fundamentals/api/get-started/create-token/>
+- **ACME Challenge Types:** <https://letsencrypt.org/docs/challenge-types/>
+- **Rate Limits:** <https://letsencrypt.org/docs/rate-limits/>
 
 ---
 

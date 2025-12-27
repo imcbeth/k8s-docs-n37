@@ -56,6 +56,7 @@ The monitoring stack is built around the **kube-prometheus-stack**, which provid
 - **Namespace:** `default`
 
 **Capabilities:**
+
 - Time-series metric storage
 - Powerful query language (PromQL)
 - Service discovery
@@ -73,6 +74,7 @@ The monitoring stack is built around the **kube-prometheus-stack**, which provid
 - **Authentication:** Secure admin access
 
 **Access:**
+
 ```bash
 kubectl port-forward -n default svc/kube-prometheus-stack-grafana 3000:80
 ```
@@ -93,6 +95,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-grafana 3000:80
 **Deployment:** DaemonSet on all 5 Raspberry Pi nodes
 
 **Metrics Collected:**
+
 - CPU usage and temperature
 - Memory utilization
 - Disk I/O and space
@@ -107,6 +110,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-grafana 3000:80
 **Purpose:** Kubernetes object state metrics
 
 **Metrics Collected:**
+
 - Pod status and resource usage
 - Deployment health and replicas
 - Node conditions and capacity
@@ -123,6 +127,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-grafana 3000:80
 - **Controller:** 10.0.1.1
 
 **Network Metrics:**
+
 - Device status and uptime
 - Port statistics and errors
 - Wireless client connections
@@ -142,6 +147,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-grafana 3000:80
 - **Target:** Synology DS925+ at 10.0.1.204
 
 **Storage Metrics:**
+
 - Disk health and temperature
 - Volume capacity and usage
 - RAID status
@@ -174,12 +180,14 @@ Prometheus is configured to scrape metrics from multiple sources:
 ### Storage and Retention
 
 **Prometheus Storage:**
+
 - **Size:** 50Gi
 - **Backend:** Synology NAS via iSCSI
 - **Storage Class:** `synology-iscsi-retain`
 - **Retention Policy:** Configured for long-term storage
 
 **PVC Details:**
+
 ```bash
 kubectl get pvc -n default | grep prometheus
 ```
@@ -191,24 +199,28 @@ kubectl get pvc -n default | grep prometheus
 The kube-prometheus-stack includes comprehensive dashboards:
 
 **Cluster-Level:**
+
 - Kubernetes Cluster Overview
 - Cluster Resource Usage
 - Namespace Resource Usage
 - Persistent Volumes
 
 **Node-Level:**
+
 - Node Exporter Full
 - Node Resource Usage per Namespace
 - Nodes Dashboard
 - Node Temperature (critical for Pis!)
 
 **Application-Level:**
+
 - Deployment Status
 - StatefulSet Status
 - Pod Resource Usage
 - Container Resource Usage
 
 **Infrastructure:**
+
 - API Server Performance
 - etcd Metrics
 - Controller Manager Metrics
@@ -217,6 +229,7 @@ The kube-prometheus-stack includes comprehensive dashboards:
 - CoreDNS Metrics
 
 **Network:**
+
 - Network I/O Pressure
 - UniFi Network Performance (custom)
 
@@ -252,6 +265,7 @@ spec:
 ### Common Alerts
 
 **Node Alerts:**
+
 - Node down or unreachable
 - High CPU usage (&gt;80%)
 - High memory usage (&gt;90%)
@@ -259,12 +273,14 @@ spec:
 - Node temperature critical (&gt;75°C for Pi)
 
 **Pod Alerts:**
+
 - Pod crash looping
 - Pod restart count high
 - Container OOM killed
 - Pod pending too long
 
 **Cluster Alerts:**
+
 - API server errors
 - etcd performance degradation
 - Persistent volume filling up
@@ -273,6 +289,7 @@ spec:
 ### AlertManager Configuration
 
 **Notification Channels:**
+
 - Slack (recommended for homelab)
 - Email
 - Discord
@@ -364,6 +381,7 @@ kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes * 100
 ### Prometheus UI
 
 **Port Forward:**
+
 ```bash
 kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
 ```
@@ -371,6 +389,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
 **URL:** `http://localhost:9090`
 
 **Features:**
+
 - PromQL query interface
 - Target status page
 - Alert rules viewer
@@ -379,6 +398,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
 ### Grafana UI
 
 **Port Forward:**
+
 ```bash
 kubectl port-forward -n default svc/kube-prometheus-stack-grafana 3000:80
 ```
@@ -386,6 +406,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-grafana 3000:80
 **URL:** `http://localhost:3000`
 
 **Login:**
+
 ```bash
 # Get admin password
 kubectl get secret kube-prometheus-stack-grafana -n default \
@@ -395,6 +416,7 @@ kubectl get secret kube-prometheus-stack-grafana -n default \
 ### AlertManager UI
 
 **Port Forward:**
+
 ```bash
 kubectl port-forward -n default svc/kube-prometheus-stack-alertmanager 9093:9093
 ```
@@ -406,6 +428,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-alertmanager 9093:9093
 All monitoring components are managed via ArgoCD:
 
 **Sync Waves:**
+
 ```
 -20: UniFi Poller (metrics collection)
 -15: kube-prometheus-stack (monitoring stack)
@@ -414,6 +437,7 @@ All monitoring components are managed via ArgoCD:
 **Auto-Sync:** Enabled with prune and self-heal
 
 **Configuration Changes:**
+
 1. Edit values in `homelab/manifests/base/kube-prometheus-stack/values.yaml`
 2. Commit and push
 3. ArgoCD automatically syncs within ~3 minutes
@@ -423,19 +447,23 @@ All monitoring components are managed via ArgoCD:
 ### For Raspberry Pi Cluster
 
 **Scrape Intervals:**
+
 - Balance between metric resolution and resource usage
 - 20-30s intervals are appropriate for homelab
 
 **Retention:**
+
 - 50Gi provides months of retention
 - Adjust based on growth rate
 
 **Cardinality:**
+
 - Be mindful of high-cardinality metrics
 - Use recording rules for expensive queries
 - Regularly review series count
 
 **Resource Limits:**
+
 - Set appropriate limits for 16GB node memory
 - Monitor Prometheus memory usage
 - Adjust if OOM occurs
@@ -475,16 +503,19 @@ All monitoring components are managed via ArgoCD:
 ### Common Issues
 
 **Prometheus High Memory:**
+
 - Check cardinality: `curl localhost:9090/api/v1/status/tsdb`
 - Review scrape configuration
 - Adjust retention settings
 
 **Missing Metrics:**
+
 - Verify ServiceMonitor exists
 - Check Prometheus targets page
 - Review pod logs
 
 **Grafana Connection Issues:**
+
 - Verify datasource configuration
 - Check Prometheus service endpoint
 - Review Grafana logs

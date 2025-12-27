@@ -5,10 +5,13 @@ description: "Complete guide to setting up Kubernetes on Raspberry Pi cluster"
 ---
 
 # Setup Kubernetes Cluster on Raspberry Pi
+
 ___
 
 # (Master and Node)
+
 ___
+
 ## Update Firmware
 
 ```bash
@@ -21,13 +24,17 @@ sudo reboot
 ```
 
 If you want to override how much cooling is done on the Pi
+
 ```bash
 echo 2 | sudo tee /sys/class/thermal/cooling_device0/cur_state
 ```
 
 # Kubernetes Prerequisites
+
 ___
+
 ## Update and Install Packages
+
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y apt-transport-https ca-certificates curl net-tools gnupg
@@ -37,6 +44,7 @@ sudo apt-get update
 ## Enable IPv4 packet forwarding
 
 ### sysctl params required by setup, params persist across reboots
+
 ```bash
 cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
 net.ipv4.ip_forward = 1
@@ -44,11 +52,13 @@ EOF
 ```
 
 ### Apply sysctl params without reboot
+
 ```bash
 sudo sysctl --system
 ```
 
 ## Install runc
+
 ```bash
 curl -LO https://github.com/opencontainers/runc/releases/download/v1.4.0/runc.arm64
 chmod +x runc.arm64
@@ -57,6 +67,7 @@ runc --version
 ```
 
 ## Install CNI
+
 ```bash
 curl -LO https://github.com/containernetworking/plugins/releases/download/v1.9.0/cni-plugins-linux-arm-v1.9.0.tgz
 sudo mkdir -p /opt/cni/bin
@@ -66,6 +77,7 @@ rm cni-plugins-linux-arm-v1.9.0.tgz
 ```
 
 ## Install containerd
+
 ```bash
 curl -LO https://github.com/containerd/containerd/releases/download/v2.2.1/containerd-2.2.1-linux-arm64.tar.gz
 tar -xvzf containerd-2.2.1-linux-arm64.tar.gz
@@ -76,6 +88,7 @@ rm -rf bin
 ```
 
 ## Install containerd Service (systemd file)
+
 ```bash
 sudo curl -o /etc/systemd/system/containerd.service https://raw.githubusercontent.com/containerd/containerd/main/containerd.service
 systemctl daemon-reload
@@ -85,12 +98,14 @@ sudo systemctl restart containerd
 ```
 
 ### Install Firewall
+
 ```bash
 sudo apt update
 sudo apt install ufw -y
 ```
 
 ### Firewall (Master ONLY)
+
 ```bash
 sudo ufw allow 22/tcp
 sudo ufw allow 8443/tcp
@@ -108,6 +123,7 @@ sudo ufw allow 2379:2380/tcp
 ```
 
 ### Firewall (Node ONLY)
+
 ```bash
 sudo ufw allow 22/tcp
 sudo ufw allow 10250/tcp        # Kubelet API
@@ -123,17 +139,21 @@ sudo ufw enable
 ```
 
 ## Disable Swap
+
 ```bash
 sudo nano /etc/fstab
 ```
 
 ## Install kubectl
+
 ```bash
 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
 curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl.sha256"
 echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
 ```
+
 ## kubectl
+
 ```bash
 sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 rm kubectl
@@ -142,19 +162,22 @@ rm kubectl.sha256
 
 ```bash
 kubectl version --client
-kubectl version --client --output=yaml 
+kubectl version --client --output=yaml
 ```
 
 ```bash
 sudo mkdir -p -m 755 /etc/apt/keyrings
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg 
+sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 ```
+
 This overwrites any existing configuration in /etc/apt/sources.list.d/kubernetes.list
+
 ```bash
 echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
-sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list   
+sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list
 ```
+
 helps tools such as command-not-found to work correctly
 
 ```bash
@@ -163,12 +186,15 @@ sudo apt-get install -y kubelet kubeadm kubectl
 ```
 
 # Install K8s Kubernetes
+
 ```bash
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 ```
+
 ```bash
 echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
 ```
+
 ```bash
 sudo systemctl enable --now kubelet
 ```
@@ -182,27 +208,35 @@ sudo kubeadm config images pull
 ```
 
 ## Initializing your control-plane (Master Only) - Please update your IP address here
+
 ```bash
 sudo kubeadm init --control-plane-endpoint=10.0.10.214:6443 --cri-socket=unix:///var/run/containerd/containerd.sock
 ```
+
  (Master Only)
+
 ```bash
 sudo chown $USER:$USER /etc/kubernetes/admin.conf
 ```
+
  (Master Only)
+
 ```bash
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 export KUBECONFIG=/etc/kubernetes/admin.conf
 ```
+
  (Master Only)
+
 ```bash
 kubectl get nodes
 kubectl cluster-info
 ```
 
 ## Install Calico
+
 ```bash
 kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.3/manifests/tigera-operator.yaml
 kubectl taint nodes --all node-role.kubernetes.io/control-plane
@@ -213,22 +247,27 @@ kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
 ```
 
 # End of Node (Master Only)
+
 ___
 
 ### Check all Pods
+
 ```bash
 watch kubectl get pods --all-namespaces
 ```
+
 wait for all to be running
 
 ### Get Detailed Pod Information
+
 ```bash
-kubectl describe pod <pod-name> -n <namespace> 
+kubectl describe pod <pod-name> -n <namespace>
 kubectl describe pod kube-apiserver-control-plane -n kube-system
 kubectl get nodes -o wide
 ```
 
 ## Install Helm
+
 ```bash
 curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
 chmod 700 get_helm.sh
@@ -237,7 +276,9 @@ helm version
 ```
 
 ## Install Ingress
+
 ___
+
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.14.1/deploy/static/provider/cloud/deploy.yaml
 ```

@@ -10,6 +10,7 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 ## Overview
 
 **Loki:**
+
 - **Namespace:** `loki`
 - **Helm Chart:** `grafana/loki`
 - **Chart Version:** `6.49.0`
@@ -18,6 +19,7 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 - **Sync Wave:** `-12` (after kube-prometheus-stack -15, before cert-manager -10)
 
 **Promtail:**
+
 - **Namespace:** `loki`
 - **Helm Chart:** `grafana/promtail`
 - **Chart Version:** `6.16.6`
@@ -63,11 +65,13 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
   - Limits: 500m CPU, 768Mi memory
 
 **Service Endpoints:**
+
 - Internal: `loki.loki.svc.cluster.local:3100`
 - Push API: `http://loki.loki.svc.cluster.local:3100/loki/api/v1/push`
 - Query API: `http://loki.loki.svc.cluster.local:3100/loki/api/v1/query`
 
 **Key Features:**
+
 - **TSDB Index:** Modern time-series database index for efficient queries
 - **Compaction:** Runs every 10 minutes to reduce storage usage
 - **Retention:** Automatically deletes logs older than 7 days
@@ -87,6 +91,7 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 - **Metrics:** ServiceMonitor enabled for Prometheus scraping
 
 **Total Resource Impact:**
+
 - CPU Requests: 450m total (Loki 200m + 5 × Promtail 50m)
 - Memory Requests: 704Mi total (Loki 384Mi + 5 × Promtail 64Mi)
 - CPU Limits: 1000m total (Loki 500m + 5 × Promtail 100m)
@@ -94,6 +99,7 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 
 **Log Labeling:**
 Promtail automatically adds these labels to all logs:
+
 - `namespace` - Kubernetes namespace
 - `pod` - Pod name
 - `container` - Container name
@@ -101,6 +107,7 @@ Promtail automatically adds these labels to all logs:
 
 **Control-Plane Scheduling:**
 Promtail includes a toleration to run on the control-plane node:
+
 ```yaml
 tolerations:
   - key: node-role.kubernetes.io/control-plane
@@ -109,6 +116,7 @@ tolerations:
 ```
 
 This enables log collection from critical control plane components:
+
 - kube-apiserver
 - kube-controller-manager
 - kube-scheduler
@@ -116,6 +124,7 @@ This enables log collection from critical control plane components:
 - CoreDNS
 
 **Important Notes:**
+
 - Uses `hostNetwork: false` to avoid Calico CNI routing issues
 - Learned from control plane monitoring troubleshooting
 - Runs on ALL 5 nodes (4 workers + 1 control-plane)
@@ -132,6 +141,7 @@ This enables log collection from critical control plane components:
 ### Storage Calculation
 
 Expected usage for the 5-node cluster:
+
 - ~250 pods total (5 nodes × ~50 pods)
 - ~1.8 GB/day compressed logs
 - 7-day retention = ~12.6 GB
@@ -163,6 +173,7 @@ loki:
 ```
 
 **How it works:**
+
 1. Compactor runs every 10 minutes
 2. Identifies log chunks older than 7 days
 3. Automatically deletes expired chunks
@@ -193,6 +204,7 @@ metadata:
 ```
 
 The Grafana sidecar automatically:
+
 1. Watches for ConfigMaps with label `grafana_datasource: "1"`
 2. Loads datasource configuration
 3. Makes Loki available in Grafana Explore and dashboards
@@ -341,9 +353,11 @@ Create a custom dashboard to monitor errors across namespaces:
 
 1. Create new dashboard
 2. Add panel with query:
+
    ```logql
    sum(rate({namespace=~".+"} |= "error" [5m])) by (namespace)
    ```
+
 3. Visualization: Time series or Bar chart
 4. Set alert threshold for error rate > X/min
 
@@ -352,18 +366,21 @@ Create a custom dashboard to monitor errors across namespaces:
 ### No Logs Appearing
 
 **Check Promtail pods are running:**
+
 ```bash
 kubectl get pods -n loki -l app.kubernetes.io/name=promtail
 # Expect: 5 pods (one per node)
 ```
 
 **Check Promtail logs:**
+
 ```bash
 kubectl logs -n loki -l app.kubernetes.io/name=promtail --tail=50
 # Look for connection errors or scrape failures
 ```
 
 **Verify Loki service:**
+
 ```bash
 kubectl get svc -n loki loki
 # Should show ClusterIP on port 3100
@@ -372,12 +389,14 @@ kubectl get svc -n loki loki
 ### Loki Pod Crashes or OOM
 
 **Check memory usage:**
+
 ```bash
 kubectl top pod -n loki loki-0
 ```
 
 **Increase memory limits if needed:**
 Edit `manifests/base/loki/values.yaml`:
+
 ```yaml
 singleBinary:
   resources:
@@ -386,17 +405,20 @@ singleBinary:
 ```
 
 **Check query complexity:**
+
 - Avoid queries with very long time ranges
 - Use `max_query_series` limit to prevent expensive queries
 
 ### Slow Queries
 
 **Check compaction status:**
+
 ```bash
 kubectl logs -n loki loki-0 -c loki | grep compaction
 ```
 
 **Reduce retention if storage is filling:**
+
 ```yaml
 limits_config:
   retention_period: 120h  # Reduce to 5 days
@@ -405,17 +427,20 @@ limits_config:
 ### Storage Full
 
 **Check PVC usage:**
+
 ```bash
 kubectl exec -n loki loki-0 -c loki -- df -h /var/loki
 ```
 
 **Expand PVC:**
+
 ```bash
 kubectl edit pvc loki-chunks-loki-0 -n loki
 # Increase spec.resources.requests.storage
 ```
 
 **Or reduce retention:**
+
 ```yaml
 limits_config:
   retention_period: 72h  # 3 days
@@ -428,6 +453,7 @@ ServiceMonitors are **enabled** for both Loki and Promtail, allowing Prometheus 
 ### Prometheus Integration
 
 **ServiceMonitor Configuration:**
+
 ```yaml
 # Loki
 monitoring:
@@ -444,12 +470,14 @@ serviceMonitor:
 ```
 
 **Verify ServiceMonitors:**
+
 ```bash
 kubectl get servicemonitor -n loki
 # Expected: loki and promtail ServiceMonitors
 ```
 
 **Check Prometheus Targets:**
+
 ```bash
 # Port-forward to Prometheus
 kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
@@ -463,6 +491,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
 Loki and Promtail metrics are available in Prometheus:
 
 **Loki Metrics:**
+
 ```promql
 # Ingestion rate (logs/second)
 sum(rate(loki_distributor_lines_received_total[1m]))
@@ -481,6 +510,7 @@ loki_compactor_compaction_interval_seconds
 ```
 
 **Promtail Metrics (per pod × 5):**
+
 ```promql
 # Logs sent to Loki (rate)
 rate(promtail_sent_entries_total[5m])
@@ -498,12 +528,14 @@ promtail_files_active_total
 ### Health Checks
 
 **Check Loki readiness:**
+
 ```bash
 kubectl exec -n loki loki-0 -c loki -- wget -qO- http://localhost:3100/ready
 # Should return: "ready"
 ```
 
 **Check Loki metrics endpoint:**
+
 ```bash
 kubectl exec -n loki loki-0 -c loki -- wget -qO- http://localhost:3100/metrics | head
 ```
@@ -513,11 +545,13 @@ kubectl exec -n loki loki-0 -c loki -- wget -qO- http://localhost:3100/metrics |
 ### ArgoCD Applications
 
 **Loki:**
+
 - Path: `manifests/applications/loki.yaml`
 - Sync Wave: `-12`
 - Destination: `loki` namespace
 
 **Promtail:**
+
 - Path: `manifests/applications/promtail.yaml`
 - Sync Wave: `-11`
 - Destination: `loki` namespace
@@ -525,14 +559,17 @@ kubectl exec -n loki loki-0 -c loki -- wget -qO- http://localhost:3100/metrics |
 ### Helm Values
 
 **Loki Configuration:**
+
 - Path: `manifests/base/loki/values.yaml`
 - Key settings: deployment mode, storage, retention
 
 **Promtail Configuration:**
+
 - Path: `manifests/base/promtail/values.yaml`
 - Key settings: resources, scrape config, labels
 
 **Grafana Datasource:**
+
 - Path: `manifests/base/loki/loki-datasource.yaml`
 - Auto-discovered by Grafana sidecar
 
@@ -541,6 +578,7 @@ kubectl exec -n loki loki-0 -c loki -- wget -qO- http://localhost:3100/metrics |
 ### For Raspberry Pi Cluster
 
 **Current settings are optimized for:**
+
 - 5 Raspberry Pi 5 nodes (16GB RAM each)
 - ~250 pods total
 - Moderate log volume (~1.8GB/day)
@@ -548,17 +586,20 @@ kubectl exec -n loki loki-0 -c loki -- wget -qO- http://localhost:3100/metrics |
 **If experiencing performance issues:**
 
 1. **Reduce scrape frequency** (less CPU on nodes):
+
    ```yaml
    # In promtail values.yaml, not currently set (uses default)
    ```
 
 2. **Reduce query parallelism** (less memory in Loki):
+
    ```yaml
    limits_config:
      max_query_parallelism: 16  # Default: 32
    ```
 
 3. **Increase Loki memory** (better query performance):
+
    ```yaml
    singleBinary:
      resources:
@@ -573,6 +614,7 @@ kubectl exec -n loki loki-0 -c loki -- wget -qO- http://localhost:3100/metrics |
 Loki is configured with `auth_enabled: false` for simplicity in homelab environment.
 
 For multi-tenant or production use, enable authentication:
+
 ```yaml
 loki:
   auth_enabled: true
@@ -581,6 +623,7 @@ loki:
 ### Network Policies
 
 Consider adding NetworkPolicy to restrict access:
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

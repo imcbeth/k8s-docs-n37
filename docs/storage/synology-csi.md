@@ -18,6 +18,7 @@ The Synology CSI (Container Storage Interface) driver enables Kubernetes to prov
 ## Purpose
 
 The Synology CSI driver provides:
+
 - Dynamic volume provisioning
 - Persistent storage for stateful applications
 - Volume expansion capabilities
@@ -37,6 +38,7 @@ storageClassName: synology-iscsi-retain
 ```
 
 **Configuration:**
+
 - **Location:** `/volume2` (HDD storage pool)
 - **Filesystem:** btrfs
 - **Reclaim Policy:** Retain (PV kept after PVC deletion)
@@ -44,6 +46,7 @@ storageClassName: synology-iscsi-retain
 - **Default:** ✅ Yes
 
 **When to Use:**
+
 - Database persistent volumes
 - Application state that must be preserved
 - Any critical data requiring manual cleanup
@@ -57,6 +60,7 @@ storageClassName: synology-iscsi-delete
 ```
 
 **Configuration:**
+
 - **Location:** `/volume2` (HDD storage pool)
 - **Filesystem:** btrfs
 - **Reclaim Policy:** Delete (PV auto-deleted with PVC)
@@ -64,6 +68,7 @@ storageClassName: synology-iscsi-delete
 - **Default:** ❌ No
 
 **When to Use:**
+
 - Development environments
 - Cache storage
 - Temporary data that can be recreated
@@ -78,6 +83,7 @@ storageClassName: synology-iscsi-retain-ssd
 ```
 
 **Configuration:**
+
 - **Location:** `/volume4` (SSD storage pool)
 - **Filesystem:** btrfs
 - **Reclaim Policy:** Retain
@@ -85,6 +91,7 @@ storageClassName: synology-iscsi-retain-ssd
 - **Default:** ❌ No
 
 **When to Use:**
+
 - High-IOPS database workloads
 - Performance-critical applications
 - Frequently accessed data
@@ -99,6 +106,7 @@ storageClassName: synology-iscsi-delete-ssd
 ```
 
 **Configuration:**
+
 - **Location:** `/volume4` (SSD storage pool)
 - **Filesystem:** btrfs
 - **Reclaim Policy:** Delete
@@ -106,6 +114,7 @@ storageClassName: synology-iscsi-delete-ssd
 - **Default:** ❌ No
 
 **When to Use:**
+
 - High-performance cache layers
 - Temporary high-speed storage
 - Performance testing
@@ -116,18 +125,21 @@ storageClassName: synology-iscsi-delete-ssd
 ### Components
 
 **CSI Controller:**
+
 - Handles volume provisioning and deletion
 - Manages snapshots and cloning
 - Communicates with Synology DSM API
 - Runs as a Deployment (1 replica)
 
 **CSI Node Driver:**
+
 - Runs on every Kubernetes node (DaemonSet)
 - Mounts iSCSI volumes to pods
 - Handles volume attach/detach operations
 - Manages local mount points
 
 **Snapshotter (Optional):**
+
 - Enables volume snapshots
 - Creates point-in-time copies
 - Supports snapshot-based backups
@@ -144,11 +156,13 @@ storageClassName: synology-iscsi-delete-ssd
 ### Requirements
 
 **Kubernetes Nodes:**
+
 - `open-iscsi` package installed
 - `iscsid` service running
 - iSCSI initiator configured
 
 **Verify on nodes:**
+
 ```bash
 # Check iscsid service
 sudo systemctl status iscsid
@@ -194,6 +208,7 @@ spec:
 **Location:** `manifests/base/synology-csi/`
 
 **Files:**
+
 - `namespace.yml` - Namespace definition
 - `controller.yml` - CSI controller deployment
 - `node.yml` - CSI node DaemonSet
@@ -263,15 +278,18 @@ spec:
 ### Access Modes
 
 **ReadWriteOnce (RWO):**
+
 - Volume can be mounted read-write by a single node
 - Most common for databases and stateful apps
 - Supported by iSCSI
 
 **ReadOnlyMany (ROX):**
+
 - Volume can be mounted read-only by many nodes
 - Supported by iSCSI
 
 **ReadWriteMany (RWX):**
+
 - Volume can be mounted read-write by many nodes
 - **NOT supported** by iSCSI (use NFS for RWX)
 
@@ -293,6 +311,7 @@ spec:
 ```
 
 **Notes:**
+
 - Volume can only be expanded, not shrunk
 - Pod may need restart to recognize new size
 - Filesystem will be automatically resized
@@ -316,6 +335,7 @@ kubectl get pv <pv-name> -o yaml
 ### Deleting Volumes
 
 **With Retain policy:**
+
 ```bash
 # Delete PVC (PV remains)
 kubectl delete pvc my-app-data
@@ -330,6 +350,7 @@ kubectl delete pv <pv-name>
 ```
 
 **With Delete policy:**
+
 ```bash
 # Delete PVC (PV and iSCSI LUN auto-deleted)
 kubectl delete pvc my-app-data
@@ -404,6 +425,7 @@ kubectl top pvc -A
 **Web UI:** `https://10.0.1.204:5001`
 
 **Storage Manager:**
+
 - View iSCSI LUNs
 - Monitor storage pool capacity
 - Check disk health
@@ -414,11 +436,13 @@ kubectl top pvc -A
 ### PVC Stuck in Pending
 
 **Check PVC events:**
+
 ```bash
 kubectl describe pvc <pvc-name>
 ```
 
 **Common causes:**
+
 - CSI controller not running
 - Synology NAS unreachable
 - Storage pool out of space
@@ -426,6 +450,7 @@ kubectl describe pvc <pvc-name>
 - Invalid storage class
 
 **Verify CSI pods:**
+
 ```bash
 kubectl get pods -n synology-csi
 ```
@@ -433,17 +458,20 @@ kubectl get pods -n synology-csi
 ### Volume Mount Failures
 
 **Check pod events:**
+
 ```bash
 kubectl describe pod <pod-name>
 ```
 
 **Common causes:**
+
 - iSCSI initiator not running on node
 - Network connectivity to NAS
 - Volume already attached to another node
 - Filesystem corruption
 
 **Verify iSCSI sessions on node:**
+
 ```bash
 # SSH to the node
 sudo iscsiadm -m session
@@ -452,11 +480,13 @@ sudo iscsiadm -m session
 ### Volume Not Expanding
 
 **Check PVC status:**
+
 ```bash
 kubectl describe pvc <pvc-name>
 ```
 
 **Steps:**
+
 1. Verify allowVolumeExpansion: true in storage class
 2. Check CSI controller logs
 3. Restart pod using the PVC
@@ -465,6 +495,7 @@ kubectl describe pvc <pvc-name>
 ### CSI Driver Not Working
 
 **Check node prerequisites:**
+
 ```bash
 # On each Kubernetes node
 sudo systemctl status iscsid
@@ -473,6 +504,7 @@ which iscsiadm
 ```
 
 **Restart CSI pods:**
+
 ```bash
 kubectl rollout restart deployment/synology-csi-controller -n synology-csi
 kubectl rollout restart daemonset/synology-csi-node -n synology-csi
@@ -483,6 +515,7 @@ kubectl rollout restart daemonset/synology-csi-node -n synology-csi
 ### Critical Volumes
 
 **Prometheus Metrics Storage:**
+
 - **PVC:** `prometheus-kube-prometheus-stack-prometheus-db-...`
 - **Size:** 50Gi
 - **Class:** synology-iscsi-retain
@@ -500,16 +533,19 @@ kubectl get pvc -A --sort-by=.spec.resources.requests.storage
 ### Raspberry Pi Cluster
 
 **Network:**
+
 - Gigabit Ethernet on all 5 Pi nodes
 - iSCSI over standard network
 - Typical throughput: 100-300 MB/s
 - Latency: 1-5ms
 
 **Storage Pools:**
+
 - `/volume2` (HDD): Higher capacity, lower IOPS
 - `/volume4` (SSD): Lower capacity, higher IOPS
 
 **Optimization:**
+
 - Use SSD storage class for databases
 - Use HDD storage class for bulk data
 - Enable btrfs compression for better efficiency

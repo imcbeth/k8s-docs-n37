@@ -17,6 +17,7 @@ UniFi Poller collects metrics from UniFi network controllers and exposes them in
 ## Purpose
 
 UniFi Poller provides comprehensive network monitoring by:
+
 - Collecting device metrics from UniFi controller
 - Exposing metrics in Prometheus format
 - Tracking network performance, client connections, and device health
@@ -69,24 +70,28 @@ UniFi Poller is automatically scraped by Prometheus via the following job config
 UniFi Poller exposes a wide range of metrics including:
 
 ### Device Metrics
+
 - Device uptime and status
 - CPU and memory utilization
 - Temperature readings
 - Firmware versions
 
 ### Network Metrics
+
 - Port statistics (bytes in/out, packets)
 - Error rates
 - Link speed and duplex
 - PoE power consumption
 
 ### Client Metrics
+
 - Connected clients count
 - Client signal strength
 - Bandwidth usage per client
 - Connection duration
 
 ### Wireless Metrics
+
 - SSID statistics
 - Channel utilization
 - Interference levels
@@ -147,16 +152,19 @@ UniFi Poller metrics can be visualized in Grafana. Common dashboard panels inclu
 ### Common Queries
 
 **Total connected clients:**
+
 ```promql
 sum(unifi_device_client_count)
 ```
 
 **Network throughput:**
+
 ```promql
 rate(unifi_device_bytes_total[5m])
 ```
 
 **Device uptime:**
+
 ```promql
 unifi_device_uptime_seconds
 ```
@@ -185,11 +193,13 @@ kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
 ### Common Issues
 
 **Connection to UniFi Controller Failed:**
+
 - Verify controller URL is accessible: `https://10.0.1.1`
 - Check credentials in the secret
 - Ensure UniFi controller user has read permissions
 
 **No Metrics in Prometheus:**
+
 - Verify Prometheus scrape configuration
 - Check UniFi Poller pod is running
 - Confirm service endpoint is accessible

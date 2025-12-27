@@ -17,6 +17,7 @@ External-DNS automatically synchronizes Kubernetes Ingress and Service resources
 ## Purpose
 
 External-DNS provides automatic DNS management by:
+
 - Creating DNS records for new Ingress resources
 - Creating DNS records for LoadBalancer Services
 - Updating DNS when resources change
@@ -37,6 +38,7 @@ This deployment runs **two separate external-dns instances** for split-horizon D
 - **ServiceAccount:** `external-dns-cloudflare`
 
 **Configuration:**
+
 ```yaml
 provider: cloudflare
 domain-filter: k8s.n37.ca
@@ -54,6 +56,7 @@ cloudflare-proxied: false  # Direct to MetalLB IPs
 - **ServiceAccount:** `external-dns-rfc2136`
 
 **Configuration:**
+
 ```yaml
 provider: rfc2136
 rfc2136-host: 10.0.1.1
@@ -68,6 +71,7 @@ rfc2136-tsig-axfr: true
 External-DNS monitors these Kubernetes resources:
 
 **1. Ingress Resources:**
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -88,6 +92,7 @@ spec:
 ```
 
 **2. LoadBalancer Services:**
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -132,6 +137,7 @@ This prevents accidental deletion of manually-created records.
 **Domain:** `k8s.n37.ca`
 
 Only resources with hostnames under `k8s.n37.ca` are processed:
+
 - ✅ `app.k8s.n37.ca` - Managed
 - ✅ `*.k8s.n37.ca` - Managed
 - ❌ `example.com` - Ignored
@@ -142,11 +148,13 @@ Only resources with hostnames under `k8s.n37.ca` are processed:
 External-DNS creates TXT records to track ownership:
 
 **Purpose:**
+
 - Prevents conflicts with manually-created records
 - Enables safe multi-provider setups
 - Tracks which external-dns instance owns each record
 
 **Format:**
+
 - DNS A record: `app.k8s.n37.ca → 10.0.10.50`
 - TXT record: `external-dns-app.k8s.n37.ca → "heritage=external-dns,external-dns/owner=external-dns-cloudflare"`
 
@@ -155,6 +163,7 @@ External-DNS creates TXT records to track ownership:
 **Interval:** 1 minute
 
 External-DNS checks for changes every 60 seconds:
+
 - Polls Kubernetes API for resource changes
 - Compares current state with DNS provider state
 - Creates/updates records as needed
@@ -166,6 +175,7 @@ External-DNS checks for changes every 60 seconds:
 **ClusterRole:** `external-dns`
 
 Permissions (read-only):
+
 ```yaml
 - services, endpoints, pods (get, watch, list)
 - ingresses (get, watch, list)
@@ -177,6 +187,7 @@ Permissions (read-only):
 ### Resource Limits
 
 **Per Deployment:**
+
 ```yaml
 resources:
   requests:
@@ -211,6 +222,7 @@ Runs with minimal privileges and no root access.
 **Secret:** `cloudflare-api-token` (in `external-dns` namespace)
 
 **Reuses cert-manager token:**
+
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -228,6 +240,7 @@ stringData:
 **Secret:** `rfc2136-credentials` (in `external-dns` namespace)
 
 **TSIG Authentication:**
+
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -249,16 +262,19 @@ UniFi UDR7 (or compatible controller) at 10.0.1.1
 ### Configuration Steps
 
 **1. Enable RFC2136 on UniFi:**
+
 - Navigate to: **Settings → System → Advanced**
 - Enable: **RFC2136 Dynamic DNS**
 
 **2. Create TSIG Key:**
+
 - **Key Name:** `external-dns`
 - **Algorithm:** `hmac-sha256`
 - Click **Generate** to create secret key
 - **Save** the configuration
 
 **3. Update Kubernetes Secret:**
+
 ```bash
 # Edit the secret with values from UniFi
 kubectl edit secret rfc2136-credentials -n external-dns
@@ -268,6 +284,7 @@ kubectl apply -f manifests/base/external-dns/secret-rfc2136.yaml
 ```
 
 **4. Restart RFC2136 Deployment:**
+
 ```bash
 kubectl rollout restart deployment/external-dns-rfc2136 -n external-dns
 ```
@@ -287,11 +304,13 @@ kubectl get pods -n external-dns
 ### View Logs
 
 **Cloudflare Provider:**
+
 ```bash
 kubectl logs -n external-dns deployment/external-dns-cloudflare -f
 ```
 
 **RFC2136 Provider:**
+
 ```bash
 kubectl logs -n external-dns deployment/external-dns-rfc2136 -f
 ```
@@ -299,6 +318,7 @@ kubectl logs -n external-dns deployment/external-dns-rfc2136 -f
 ### Verify DNS Records
 
 **Check managed resources:**
+
 ```bash
 # List ingresses
 kubectl get ingress -A
@@ -308,6 +328,7 @@ kubectl get svc -A --field-selector spec.type=LoadBalancer
 ```
 
 **Test DNS resolution:**
+
 ```bash
 # External (Cloudflare)
 dig myapp.k8s.n37.ca
@@ -351,6 +372,7 @@ spec:
 ```
 
 **Result:**
+
 - External-DNS creates DNS records (Cloudflare + UniFi)
 - Cert-manager obtains Let's Encrypt certificate
 - Grafana accessible at `https://grafana.k8s.n37.ca`
@@ -375,6 +397,7 @@ spec:
 ```
 
 **Result:**
+
 - MetalLB assigns IP from pool
 - External-DNS creates `custom.k8s.n37.ca` pointing to MetalLB IP
 - Custom TTL of 300 seconds
@@ -397,6 +420,7 @@ spec:
 ```
 
 **Result:**
+
 - Both `app.k8s.n37.ca` and `www.k8s.n37.ca` DNS records created
 
 ## Troubleshooting
@@ -404,19 +428,24 @@ spec:
 ### Cloudflare Records Not Created
 
 **Symptoms:**
+
 - Ingress created but no Cloudflare DNS record
 - external-dns-cloudflare logs show errors
 
 **Diagnosis:**
+
 ```bash
 kubectl logs -n external-dns deployment/external-dns-cloudflare
 ```
 
 **Common Causes:**
+
 1. **Invalid API token**
+
    ```bash
    kubectl get secret cloudflare-api-token -n external-dns -o yaml
    ```
+
 2. **Insufficient API token permissions**
    - Verify token has DNS:Edit for `k8s.n37.ca`
 3. **Domain filter mismatch**
@@ -425,24 +454,30 @@ kubectl logs -n external-dns deployment/external-dns-cloudflare
 ### UniFi Records Not Created
 
 **Symptoms:**
+
 - Cloudflare works but UniFi DNS not updated
 - RFC2136 deployment logs show authentication errors
 
 **Diagnosis:**
+
 ```bash
 kubectl logs -n external-dns deployment/external-dns-rfc2136
 ```
 
 **Common Causes:**
+
 1. **RFC2136 not enabled on UniFi**
    - Check Settings → System → Advanced
 2. **TSIG authentication failure**
    - Verify TSIG key name and secret match UniFi
+
    ```bash
    kubectl get secret rfc2136-credentials -n external-dns -o yaml | grep -A3 stringData
    ```
+
 3. **Network connectivity**
    - Test from pod:
+
    ```bash
    kubectl exec -n external-dns deployment/external-dns-rfc2136 -- \
      nslookup n37.ca 10.0.1.1
@@ -451,23 +486,29 @@ kubectl logs -n external-dns deployment/external-dns-rfc2136
 ### DNS Records Not Updating
 
 **Symptoms:**
+
 - DNS record exists but points to old IP
 - Changes not reflected after sync interval
 
 **Solutions:**
+
 1. **Force sync:**
+
    ```bash
    kubectl rollout restart deployment/external-dns-cloudflare -n external-dns
    kubectl rollout restart deployment/external-dns-rfc2136 -n external-dns
    ```
 
 2. **Check TXT ownership:**
+
    ```bash
    dig TXT external-dns-myapp.k8s.n37.ca
    ```
+
    - If owned by different instance, may not update
 
 3. **Verify resource hostname:**
+
    ```bash
    kubectl get ingress myapp -o yaml | grep host
    ```
@@ -475,10 +516,12 @@ kubectl logs -n external-dns deployment/external-dns-rfc2136
 ### Split-Brain DNS Issues
 
 **Symptoms:**
+
 - External clients can't reach service
 - Internal clients work fine (or vice versa)
 
 **Diagnosis:**
+
 ```bash
 # Test external DNS (Cloudflare)
 dig @1.1.1.1 myapp.k8s.n37.ca
@@ -488,6 +531,7 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 ```
 
 **Solutions:**
+
 - Verify both providers are running
 - Check logs for both deployments
 - Ensure both point to same MetalLB IP
@@ -497,6 +541,7 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 ### Sync Efficiency
 
 **1-minute sync interval** balances:
+
 - ✅ Timely DNS updates for new resources
 - ✅ Low API call volume
 - ✅ Minimal resource usage
@@ -506,11 +551,13 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 ### Resource Usage
 
 **Typical Usage:**
+
 - CPU: 20-30m per deployment
 - Memory: 40-50Mi per deployment
 - Network: Minimal (API polls + DNS updates)
 
 **Scaling:**
+
 - Single replica per deployment is sufficient
 - External-DNS is not compute-intensive
 
@@ -519,12 +566,14 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 ### API Token Security
 
 **Cloudflare:**
+
 - Use scoped API tokens (not Global API Key)
 - Limit to DNS:Edit for specific zone
 - Rotate tokens periodically
 - Store in Kubernetes secrets (git-crypt encrypted in repo)
 
 **UniFi RFC2136:**
+
 - Use strong TSIG secret (generated by UniFi)
 - Restrict RFC2136 to cluster subnet if possible
 - Monitor for unauthorized DNS updates
@@ -532,10 +581,12 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 ### Network Security
 
 **Cloudflare:**
+
 - HTTPS API calls to Cloudflare
 - Token transmitted securely
 
 **RFC2136:**
+
 - DNS protocol to UniFi (10.0.1.1:53)
 - TSIG authentication prevents spoofing
 - Consider VPN/firewall rules for additional security
