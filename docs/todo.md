@@ -79,12 +79,15 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 - [ ] Implement security policies and mTLS
 - [ ] Circuit breaker and retry policies
 
-### 7. **Log Aggregation**
-- [ ] Deploy **Loki + Promtail** stack for centralized logging
-- [ ] Integrate with existing Grafana instance
-- [ ] Configure log retention policies
-- [ ] Set up log-based alerting for errors and anomalies
-- [ ] Create log dashboards for application troubleshooting
+### 7. **Log Aggregation** ✅ COMPLETED (2025-12-27)
+- [x] Deploy **Loki + Promtail** stack for centralized logging
+- [x] Integrate with existing Grafana instance (auto-discovered datasource)
+- [x] Configure log retention policies (7 days, 20Gi PVC)
+- [x] Promtail DaemonSet on all 5 nodes (including control-plane)
+- [ ] Set up log-based alerting for errors and anomalies (pending)
+- [ ] Create custom log dashboards for application troubleshooting (pending)
+
+**Documentation:** See [Loki Application Guide](./applications/loki.md) for complete deployment details.
 
 ### 8. **Secrets Management**
 - [ ] **External Secrets Operator** - Use Synology as secrets backend
@@ -129,10 +132,16 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 ### 13. **DNS & Service Discovery**
 - [ ] **CoreDNS** customization for internal service discovery
-- [x] **External-DNS** - Automatic DNS record creation (Cloudflare + UniFi RFC2136)
-- [x] Internal domain setup (k8s.n37.ca for split-horizon DNS)
+- [ ] **External-DNS** - Automatic DNS record creation (manifest exists, needs UniFi RFC2136 configuration)
+  - [ ] Complete UniFi UDR7 RFC2136 setup (TSIG key generation)
+  - [ ] Apply external-dns ArgoCD Application
+  - [ ] Configure Cloudflare provider for public DNS
+  - [ ] Configure UniFi RFC2136 provider for internal DNS
+- [ ] Internal domain setup (k8s.n37.ca for split-horizon DNS)
 - [ ] DNS-based load balancing configuration
 - [ ] DNS monitoring and troubleshooting tools
+
+**Note:** External-DNS manifest is ready but not deployed. See homelab CLAUDE_NOTES.md 2025-12-26 Afternoon session.
 
 ### 14. **VPN & Remote Access**
 - [ ] **Tailscale** or **WireGuard** - Secure remote access to cluster
@@ -168,30 +177,48 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 ## 📅 **Implementation Priority**
 
-### **Phase 1 (Immediate - Next 2 weeks)**
-1. SNMP Monitoring for Synology
-2. Node Exporter deployment
-3. Backup strategy implementation (Velero)
+Items are organized by priority. Focus on:
 
-### **Phase 2 (Short term - Next month)**
+### **Phase 1: Foundation & Reliability**
+1. External-DNS deployment (unblock pending work)
+2. Backup strategy (Velero + critical PVC backups)
+3. Enhanced alerting (AlertManager notifications)
+4. Metrics server deployment
+
+### **Phase 2: Security & Observability**
 1. Security scanning (Trivy Operator)
-2. Log aggregation (Loki stack)
+2. Secrets management migration
 3. Blackbox exporter for endpoint monitoring
+4. Custom Grafana dashboards
+5. Log-based alerting
 
-### **Phase 3 (Medium term - Next quarter)**
-1. Service mesh evaluation and deployment
-2. Secrets management implementation
-3. Advanced alerting and dashboards
+### **Phase 3: Advanced Features**
+1. Service mesh evaluation and potential deployment
+2. GitOps enhancements (Renovate)
+3. Network policies implementation
+4. Development tools and CI/CD
 
-### **Phase 4 (Long term - Next 6 months)**
-1. Development tools and CI/CD
-2. Chaos engineering and testing
-3. Advanced networking and access management
+### **Phase 4: Optimization & Expansion**
+1. Resource optimization and VPA
+2. Chaos engineering and resilience testing
+3. Advanced networking and VPN
+4. Additional application deployments
 
 ---
 
 ## 📋 **Notes**
-- Consider resource constraints on Pi 5 cluster when implementing resource-intensive solutions
-- Test all implementations in development namespace before production deployment
-- Document all configurations and procedures for maintainability
-- Regular review and updates of this TODO list based on cluster evolution
+- **Resource Constraints:** All implementations must consider the Pi 5 cluster constraints (80GB RAM total, 20 ARM cores)
+- **Testing Strategy:** Test all implementations in a development namespace before production deployment
+- **Documentation First:** Document all configurations and procedures for maintainability in this docs site
+- **GitOps Workflow:** All changes must go through PR workflow in homelab repo
+- **Regular Reviews:** Review and update this TODO list monthly based on cluster evolution
+- **Monitoring First:** Ensure monitoring is in place before deploying new workloads
+
+---
+
+## 🔗 **References**
+
+- **homelab/CLAUDE_NOTES.md** - Detailed session notes and troubleshooting history
+- **homelab/TODO.md** - Infrastructure repository TODO list (should sync with this)
+- **homelab/Hardware.md** - Cluster hardware specifications
+- **homelab/network-info.md** - Comprehensive network configuration
