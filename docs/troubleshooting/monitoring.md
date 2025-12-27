@@ -12,10 +12,12 @@ This guide covers common issues with the monitoring stack (Prometheus, Grafana, 
 ### Prometheus Pod Stuck in Pending
 
 **Symptoms:**
+
 - Prometheus pod shows `Pending` status
 - No metrics being collected
 
 **Diagnosis:**
+
 ```bash
 kubectl describe pod prometheus-kube-prometheus-stack-prometheus-0 -n default
 ```
@@ -23,9 +25,11 @@ kubectl describe pod prometheus-kube-prometheus-stack-prometheus-0 -n default
 **Common Causes:**
 
 1. **PVC Not Bound:**
+
    ```bash
    kubectl get pvc -n default | grep prometheus
    ```
+
    - Check if PVC is in `Pending` state
    - Verify Synology CSI driver is running: `kubectl get pods -n synology-csi`
    - Ensure storage class exists: `kubectl get storageclass`
@@ -37,6 +41,7 @@ kubectl describe pod prometheus-kube-prometheus-stack-prometheus-0 -n default
    - Review resource requests vs limits
 
 **Solution:**
+
 ```bash
 # If CSI driver issue
 kubectl rollout restart deployment/synology-csi-controller -n synology-csi
@@ -48,11 +53,13 @@ kubectl get pods -o wide -A | grep prometheus
 ### Prometheus High Memory Usage
 
 **Symptoms:**
+
 - Prometheus pod using excessive memory
 - Pod getting OOMKilled
 - Slow query performance
 
 **Diagnosis:**
+
 ```bash
 # Check current memory usage
 kubectl top pod prometheus-kube-prometheus-stack-prometheus-0 -n default
@@ -63,6 +70,7 @@ kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
 ```
 
 **Common Causes:**
+
 - High-cardinality metrics
 - Too many active series
 - Aggressive scrape intervals
@@ -71,6 +79,7 @@ kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
 **Solution:**
 
 1. **Review Scrape Intervals:**
+
    ```bash
    # Check prometheus configuration
    kubectl get prometheus -n default -o yaml | grep interval
@@ -83,6 +92,7 @@ kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
 
 3. **Adjust Resource Limits:**
    Edit `manifests/base/kube-prometheus-stack/values.yaml`:
+
    ```yaml
    prometheus:
      prometheusSpec:
@@ -92,6 +102,7 @@ kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
    ```
 
 4. **Reduce Retention:**
+
    ```yaml
    prometheus:
      prometheusSpec:
@@ -101,10 +112,12 @@ kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
 ### No Metrics from Specific Target
 
 **Symptoms:**
+
 - Missing metrics in Prometheus
 - Scrape target showing as down
 
 **Diagnosis:**
+
 ```bash
 # Port-forward to Prometheus UI
 kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
@@ -116,6 +129,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
 **Common Targets and Checks:**
 
 **UniFi Poller:**
+
 ```bash
 # Check pod running
 kubectl get pods -n unipoller
@@ -129,6 +143,7 @@ kubectl logs -n unipoller deployment/unifi-poller
 ```
 
 **Node Exporter:**
+
 ```bash
 # Check DaemonSet (should have 5 pods for 5 nodes)
 kubectl get ds -n default | grep node-exporter
@@ -138,6 +153,7 @@ kubectl get pods -n default -l app.kubernetes.io/name=prometheus-node-exporter
 ```
 
 **Solution:**
+
 - Verify ServiceMonitor exists: `kubectl get servicemonitor -A`
 - Check service endpoints: `kubectl get endpoints <service-name>`
 - Review Prometheus logs: `kubectl logs -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometheus`
@@ -145,11 +161,13 @@ kubectl get pods -n default -l app.kubernetes.io/name=prometheus-node-exporter
 ### Prometheus Disk Full
 
 **Symptoms:**
+
 - Prometheus logs show disk space errors
 - Metrics collection stops
 - Write failures
 
 **Diagnosis:**
+
 ```bash
 # Check PVC size
 kubectl get pvc -n default | grep prometheus
@@ -162,6 +180,7 @@ kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
 **Solution:**
 
 1. **Expand PVC:**
+
    ```bash
    kubectl edit pvc prometheus-kube-prometheus-stack-prometheus-db-prometheus-kube-prometheus-stack-prometheus-0 -n default
 
@@ -176,6 +195,7 @@ kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
    Edit values to reduce data retention period
 
 3. **Clean Old Data (Emergency):**
+
    ```bash
    # Delete old time series (use with caution)
    kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
@@ -190,10 +210,12 @@ kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
 ### Cannot Access Grafana UI
 
 **Symptoms:**
+
 - Cannot connect to Grafana via port-forward
 - Grafana dashboard not loading
 
 **Diagnosis:**
+
 ```bash
 # Check Grafana pod status
 kubectl get pods -n default | grep grafana
@@ -206,6 +228,7 @@ kubectl get svc -n default | grep grafana
 ```
 
 **Solution:**
+
 ```bash
 # Port-forward to Grafana
 kubectl port-forward -n default svc/kube-prometheus-stack-grafana 3000:80
@@ -219,6 +242,7 @@ kubectl rollout restart deployment/kube-prometheus-stack-grafana -n default
 ### Forgot Grafana Admin Password
 
 **Solution:**
+
 ```bash
 # Retrieve password from secret
 kubectl get secret kube-prometheus-stack-grafana -n default \
@@ -230,6 +254,7 @@ echo  # Add newline after password
 ### Grafana Shows "No Data" or "N/A"
 
 **Symptoms:**
+
 - Dashboards show no data
 - Queries return empty results
 - All panels show "N/A"
@@ -242,6 +267,7 @@ echo  # Add newline after password
    - Click "Test" button
 
 2. **Verify Prometheus Running:**
+
    ```bash
    kubectl get pods -n default | grep prometheus
    ```
@@ -256,12 +282,14 @@ echo  # Add newline after password
    Should be: `http://kube-prometheus-stack-prometheus.default:9090`
 
 2. **Restart Grafana:**
+
    ```bash
    kubectl rollout restart deployment/kube-prometheus-stack-grafana -n default
    ```
 
 3. **Verify Metrics Exist:**
    Query Prometheus directly:
+
    ```bash
    kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
    # Open http://localhost:9090
@@ -271,15 +299,18 @@ echo  # Add newline after password
 ### Dashboard Import Fails
 
 **Symptoms:**
+
 - Cannot import dashboard JSON
 - Dashboard shows errors after import
 
 **Common Causes:**
+
 - Incompatible Grafana version
 - Missing data sources
 - Incorrect variable definitions
 
 **Solution:**
+
 1. Verify Grafana version compatibility
 2. Check datasource name matches
 3. Review dashboard variables
@@ -290,10 +321,12 @@ echo  # Add newline after password
 ### Alerts Not Firing
 
 **Symptoms:**
+
 - Expected alerts not appearing
 - No notifications received
 
 **Diagnosis:**
+
 ```bash
 # Check AlertManager pod
 kubectl get pods -n default | grep alertmanager
@@ -309,6 +342,7 @@ kubectl get prometheusrule -A
 **Solution:**
 
 1. **Verify Alert Rules:**
+
    ```bash
    # Check rules loaded in Prometheus
    # Port-forward to Prometheus: http://localhost:9090/rules
@@ -320,6 +354,7 @@ kubectl get prometheusrule -A
    - Review `for` duration in alert rules
 
 3. **Review AlertManager Config:**
+
    ```bash
    kubectl get secret alertmanager-kube-prometheus-stack-alertmanager -n default -o yaml
    ```
@@ -327,10 +362,12 @@ kubectl get prometheusrule -A
 ### Notification Not Sent
 
 **Symptoms:**
+
 - Alerts firing but no notifications
 - Slack/email not received
 
 **Diagnosis:**
+
 ```bash
 # Check AlertManager logs
 kubectl logs -n default alertmanager-kube-prometheus-stack-alertmanager-0
@@ -344,6 +381,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-alertmanager 9093:9093
 
 1. **Configure Notification Channel:**
    Edit `manifests/base/kube-prometheus-stack/values.yaml`:
+
    ```yaml
    alertmanager:
      config:
@@ -366,10 +404,12 @@ kubectl port-forward -n default svc/kube-prometheus-stack-alertmanager 9093:9093
 ### UniFi Poller Not Collecting Metrics
 
 **Symptoms:**
+
 - No UniFi metrics in Prometheus
 - UniFi dashboards empty
 
 **Diagnosis:**
+
 ```bash
 # Check UniFi Poller pod
 kubectl get pods -n unipoller
@@ -395,22 +435,26 @@ kubectl exec -n unipoller deployment/unifi-poller -- \
 **Solution:**
 
 1. **Check Configuration:**
+
    ```bash
    kubectl get configmap -n unipoller unifi-poller-config -o yaml
    ```
 
 2. **Verify Secret:**
+
    ```bash
    kubectl get secret -n unipoller unifi-poller-secret -o yaml
    ```
 
 3. **Test Controller Connection:**
+
    ```bash
    kubectl exec -n unipoller deployment/unifi-poller -- \
      curl -k https://10.0.1.1
    ```
 
 4. **Restart UniFi Poller:**
+
    ```bash
    kubectl rollout restart deployment/unifi-poller -n unipoller
    ```
@@ -418,20 +462,24 @@ kubectl exec -n unipoller deployment/unifi-poller -- \
 ### UniFi Poller High Error Rate
 
 **Symptoms:**
+
 - Logs show connection errors
 - Intermittent metric collection
 
 **Diagnosis:**
+
 ```bash
 kubectl logs -n unipoller deployment/unifi-poller | grep -i error
 ```
 
 **Common Issues:**
+
 - Network connectivity to controller
 - Invalid credentials
 - Controller API changes after upgrade
 
 **Solution:**
+
 - Verify network path to 10.0.1.1
 - Update UniFi Poller to latest version
 - Check UniFi Controller version compatibility
@@ -441,10 +489,12 @@ kubectl logs -n unipoller deployment/unifi-poller | grep -i error
 ### Missing Node Metrics
 
 **Symptoms:**
+
 - Some nodes missing from metrics
 - Incomplete node exporter data
 
 **Diagnosis:**
+
 ```bash
 # Check DaemonSet status (should show 5/5 for 5 nodes)
 kubectl get daemonset -n default prometheus-node-exporter
@@ -459,11 +509,13 @@ kubectl get servicemonitor -n default | grep node-exporter
 **Solution:**
 
 1. **Check Pod Status:**
+
    ```bash
    kubectl describe pod -n default -l app.kubernetes.io/name=prometheus-node-exporter
    ```
 
 2. **Node Taint Issues:**
+
    ```bash
    # Check node taints
    kubectl describe nodes | grep -i taint
@@ -472,6 +524,7 @@ kubectl get servicemonitor -n default | grep node-exporter
    ```
 
 3. **Restart DaemonSet:**
+
    ```bash
    kubectl rollout restart daemonset/prometheus-node-exporter -n default
    ```
@@ -479,16 +532,19 @@ kubectl get servicemonitor -n default | grep node-exporter
 ### Temperature Metrics Missing
 
 **Symptoms:**
+
 - No `node_hwmon_temp_celsius` metrics
 - Cannot monitor Pi temperature
 
 **Diagnosis:**
+
 ```bash
 # Check if hwmon is exposed on nodes
 kubectl exec -n default <node-exporter-pod> -- ls -la /host/sys/class/hwmon
 ```
 
 **Solution:**
+
 - Raspberry Pi temperature sensors should be auto-detected
 - Verify node-exporter has access to host filesystem
 - Check hostPath mounts in DaemonSet spec
@@ -498,11 +554,13 @@ kubectl exec -n default <node-exporter-pod> -- ls -la /host/sys/class/hwmon
 ### Control Plane Targets Showing Down
 
 **Symptoms:**
+
 - kube-controller-manager, etcd, kube-scheduler, or kube-proxy showing as DOWN in Prometheus
 - Missing control plane metrics
 - Scrape errors in Prometheus logs
 
 **Diagnosis:**
+
 ```bash
 # Check Prometheus targets
 kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
@@ -550,6 +608,7 @@ sudo cat /etc/kubernetes/manifests/kube-scheduler.yaml | grep bind-address
 **Solution - Update kubeadm Config (if binding to localhost):**
 
 1. **Edit Controller Manager:**
+
    ```bash
    sudo vim /etc/kubernetes/manifests/kube-controller-manager.yaml
 
@@ -560,6 +619,7 @@ sudo cat /etc/kubernetes/manifests/kube-scheduler.yaml | grep bind-address
    ```
 
 2. **Edit Scheduler:**
+
    ```bash
    sudo vim /etc/kubernetes/manifests/kube-scheduler.yaml
 
@@ -570,6 +630,7 @@ sudo cat /etc/kubernetes/manifests/kube-scheduler.yaml | grep bind-address
    ```
 
 3. **Edit kube-proxy ConfigMap:**
+
    ```bash
    kubectl edit configmap kube-proxy -n kube-system
 
@@ -583,6 +644,7 @@ sudo cat /etc/kubernetes/manifests/kube-scheduler.yaml | grep bind-address
    ```
 
 4. **etcd Configuration:**
+
    ```bash
    sudo vim /etc/kubernetes/manifests/etcd.yaml
 
@@ -604,10 +666,12 @@ kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
 ### Missing etcd Metrics
 
 **Symptoms:**
+
 - etcd target DOWN or missing
 - No etcd performance metrics
 
 **Diagnosis:**
+
 ```bash
 # Check etcd endpoint
 kubectl get endpoints -n kube-system kube-etcd
@@ -617,6 +681,7 @@ curl -k http://<node-ip>:2381/metrics
 ```
 
 **Solution:**
+
 1. Verify etcd is configured to expose metrics on port 2381
 2. Check ServiceMonitor configuration in values.yaml
 3. Ensure network connectivity from Prometheus pod to etcd
@@ -624,6 +689,7 @@ curl -k http://<node-ip>:2381/metrics
 ### Controller Manager Metrics Missing
 
 **Diagnosis:**
+
 ```bash
 # Test endpoint directly
 curl -k https://<node-ip>:10257/metrics
@@ -633,6 +699,7 @@ kubectl logs -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
 ```
 
 **Solution:**
+
 - Verify port 10257 is accessible
 - Check TLS configuration in ServiceMonitor
 - Ensure `insecureSkipVerify: true` if using self-signed certs
@@ -640,6 +707,7 @@ kubectl logs -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
 ### Scheduler Metrics Missing
 
 **Diagnosis:**
+
 ```bash
 # Test endpoint
 curl -k https://<node-ip>:10259/metrics
@@ -649,6 +717,7 @@ kubectl get servicemonitor -n default kube-prometheus-stack-kube-scheduler -o ya
 ```
 
 **Solution:**
+
 - Verify scheduler is running: `kubectl get pods -n kube-system | grep scheduler`
 - Check bind address in scheduler manifest
 - Verify port 10259 is accessible
@@ -656,6 +725,7 @@ kubectl get servicemonitor -n default kube-prometheus-stack-kube-scheduler -o ya
 ### kube-proxy Metrics Missing
 
 **Diagnosis:**
+
 ```bash
 # kube-proxy runs on all nodes
 kubectl get pods -n kube-system -l k8s-app=kube-proxy -o wide
@@ -665,6 +735,7 @@ curl http://<node-ip>:10249/metrics
 ```
 
 **Solution:**
+
 - Verify metricsBindAddress in kube-proxy ConfigMap
 - Restart kube-proxy after config changes
 - Check that port 10249 is accessible from Prometheus
@@ -674,6 +745,7 @@ curl http://<node-ip>:10249/metrics
 **IMPORTANT**: This is a known architectural limitation, not a configuration issue.
 
 **Symptoms:**
+
 - Control plane components show mixed UP/DOWN status
 - Timeout errors when scraping components on different nodes
 - Only components on same node as Prometheus work
@@ -682,6 +754,7 @@ curl http://<node-ip>:10249/metrics
 Calico CNI cannot route traffic from pod network to hostNetwork pods on different nodes via node IPs.
 
 **Diagnosis:**
+
 ```bash
 # 1. Check which node Prometheus is running on
 kubectl get pod prometheus-kube-prometheus-stack-prometheus-0 -n default -o wide
@@ -699,12 +772,14 @@ kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
 ```
 
 **Why This Happens:**
+
 - Control plane components use `hostNetwork: true` (required for their operation)
 - hostNetwork pods don't get a pod IP in Calico network (pod IP = node IP)
 - Calico routing rules don't handle pod→host traffic across nodes
 - Reverse path filtering blocks the traffic
 
 **Which Components Are Affected:**
+
 - ❌ **kube-etcd**: Runs only on control plane node (cannot be monitored reliably)
 - ❌ **kube-proxy**: Only instance on same node as Prometheus works (1/5 success rate)
 - ✅ **kube-scheduler**: Works via HTTPS (routed through API server)
@@ -723,11 +798,13 @@ kubeProxy:
 ```
 
 **Alternative Solutions (Not Recommended for Homelab):**
+
 1. Run Prometheus as DaemonSet (one per node) - too complex
 2. Change CNI to one without this limitation - major infrastructure change
 3. Deploy metrics proxy on each node - over-engineered
 
 **Verification After Disabling:**
+
 ```bash
 # Check that disabled ServiceMonitors are gone
 kubectl get servicemonitor -n default | grep -E "etcd|proxy"
@@ -769,6 +846,7 @@ kubectl logs -n unipoller deployment/unifi-poller
 ### Restart Monitoring Stack
 
 **Individual Components:**
+
 ```bash
 # Restart Grafana
 kubectl rollout restart deployment/kube-prometheus-stack-grafana -n default
@@ -784,6 +862,7 @@ kubectl delete pod prometheus-kube-prometheus-stack-prometheus-0 -n default
 ```
 
 **Full Stack Restart:**
+
 ```bash
 # Sync ArgoCD application
 argocd app sync kube-prometheus-stack --grpc-web
@@ -806,11 +885,13 @@ argocd app get unipoller --grpc-web
 ### Slow Dashboard Load Times
 
 **Causes:**
+
 - Expensive PromQL queries
 - Large time ranges
 - High cardinality metrics
 
 **Solutions:**
+
 1. Use recording rules for expensive queries
 2. Limit dashboard time range
 3. Optimize PromQL queries
@@ -819,11 +900,13 @@ argocd app get unipoller --grpc-web
 ### High CPU Usage on Prometheus
 
 **Diagnosis:**
+
 ```bash
 kubectl top pod prometheus-kube-prometheus-stack-prometheus-0 -n default
 ```
 
 **Solutions:**
+
 1. Reduce scrape frequency
 2. Use recording rules
 3. Reduce retention period
@@ -834,10 +917,12 @@ kubectl top pod prometheus-kube-prometheus-stack-prometheus-0 -n default
 ### CPU Throttling Affecting Monitoring
 
 **Symptoms:**
+
 - Monitoring gaps during high load
 - Inconsistent metric collection
 
 **Solution:**
+
 - Monitor Pi temperature: `node_hwmon_temp_celsius`
 - Improve cooling if temps > 70°C
 - Adjust resource limits on monitoring pods
@@ -846,10 +931,12 @@ kubectl top pod prometheus-kube-prometheus-stack-prometheus-0 -n default
 ### Network Bandwidth Saturation
 
 **Symptoms:**
+
 - Delayed metric collection
 - iSCSI performance issues affecting Prometheus storage
 
 **Solution:**
+
 - Check network utilization metrics
 - Reduce scrape intervals if needed
 - Monitor Synology NAS network traffic
@@ -860,21 +947,25 @@ kubectl top pod prometheus-kube-prometheus-stack-prometheus-0 -n default
 ### Complete Monitoring Stack Failure
 
 1. **Check ArgoCD:**
+
    ```bash
    kubectl get application kube-prometheus-stack -n argocd
    ```
 
 2. **Force Sync:**
+
    ```bash
    argocd app sync kube-prometheus-stack --force --grpc-web
    ```
 
 3. **Check PVCs:**
+
    ```bash
    kubectl get pvc -n default | grep prometheus
    ```
 
 4. **Verify Storage:**
+
    ```bash
    kubectl get pods -n synology-csi
    ```
@@ -882,11 +973,13 @@ kubectl top pod prometheus-kube-prometheus-stack-prometheus-0 -n default
 ### Data Loss Prevention
 
 **Critical PVC:**
+
 - `prometheus-kube-prometheus-stack-prometheus-db-prometheus-kube-prometheus-stack-prometheus-0`
 - Uses `synology-iscsi-retain` storage class
 - PV retained even if PVC deleted
 
 **Backup Recommendations:**
+
 - Synology snapshot schedule for Prometheus volume
 - Regular testing of restore procedures
 - Document alert rules and dashboard configs in git

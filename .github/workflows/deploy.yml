@@ -34,7 +34,7 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Build website
         run: npm run build
 
@@ -43,13 +43,13 @@ jobs:
         with:
           # Automatically enable Pages if not already enabled
           enablement: true
-        
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           # Upload entire repository
           path: build
-          
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

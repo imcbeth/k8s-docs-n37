@@ -17,6 +17,7 @@ The SNMP Exporter enables Prometheus to collect metrics from SNMP-enabled device
 ## Purpose
 
 The SNMP Exporter provides comprehensive NAS monitoring by collecting:
+
 - Disk health and temperature
 - Volume capacity and usage
 - RAID status and health
@@ -30,12 +31,14 @@ The SNMP Exporter provides comprehensive NAS monitoring by collecting:
 ### Components
 
 **Init Container (config-processor):**
+
 - Processes SNMP configuration template
 - Injects credentials from Kubernetes secrets
 - Generates final configuration file
 - Uses busybox:1.36
 
 **Main Container (snmp-exporter):**
+
 - Prometheus SNMP Exporter
 - Exposes HTTP endpoint for metric scraping
 - Queries NAS via SNMPv3
@@ -50,15 +53,18 @@ The exporter uses **SNMPv3 with authentication and privacy** for secure monitori
 **Security Level:** `authPriv`
 
 **Authentication:**
+
 - Protocol: SHA (configurable)
 - Username: Stored in secret
 - Password: Stored in secret
 
 **Privacy (Encryption):**
+
 - Protocol: AES (configurable)
 - Password: Stored in secret
 
 **Why SNMPv3?**
+
 - Encrypted communication with NAS
 - Authentication prevents unauthorized access
 - Privacy ensures data confidentiality
@@ -71,6 +77,7 @@ The exporter uses **SNMPv3 with authentication and privacy** for secure monitori
 **Location:** `manifests/base/kube-prometheus-stack/snmp-exporter-secret.yaml` (git-crypt encrypted)
 
 **Fields:**
+
 ```yaml
 snmp-username: <username>
 snmp-auth-password: <authentication password>
@@ -80,6 +87,7 @@ snmp-priv-protocol: AES  # or DES
 ```
 
 **Apply Secret:**
+
 ```bash
 kubectl apply -f manifests/base/kube-prometheus-stack/snmp-exporter-secret.yaml
 ```
@@ -91,12 +99,14 @@ kubectl apply -f manifests/base/kube-prometheus-stack/snmp-exporter-secret.yaml
 **Location:** `manifests/base/kube-prometheus-stack/snmp-exporter-deployment.yaml`
 
 **Key Features:**
+
 - Init container for credential injection
 - Environment variable substitution
 - Health checks (liveness and readiness probes)
 - Resource limits appropriate for Pi cluster
 
 **Resource Limits:**
+
 ```yaml
 resources:
   requests:
@@ -129,6 +139,7 @@ spec:
 **Location:** `manifests/base/kube-prometheus-stack/snmp-exporter-configmap.yaml`
 
 Contains SNMP module configuration including:
+
 - OID mappings
 - Metric translations
 - Walk configurations
@@ -159,6 +170,7 @@ scrape_configs:
 ```
 
 **How It Works:**
+
 1. Prometheus sends scrape request to snmp-exporter
 2. snmp-exporter queries NAS via SNMP
 3. snmp-exporter translates SNMP data to Prometheus metrics
@@ -169,17 +181,20 @@ scrape_configs:
 #### Storage Metrics
 
 **Disk Health:**
+
 - `diskTable` - Disk status and health
 - `diskTemperature` - Drive temperatures
 - `diskModel` - Drive model information
 
 **Volume Metrics:**
+
 - `volumeTable` - Volume status
 - `volumeSize` - Total capacity
 - `volumeFreeSize` - Available space
 - `volumePercentUsed` - Usage percentage
 
 **RAID Status:**
+
 - `raidTable` - RAID array status
 - `raidFreeSize` - Available RAID capacity
 - `raidStatus` - Health status
@@ -187,11 +202,13 @@ scrape_configs:
 #### System Metrics
 
 **CPU and Memory:**
+
 - `systemCPU` - CPU utilization
 - `memorySize` - Total memory
 - `memoryAvailable` - Free memory
 
 **Temperature:**
+
 - `systemTemperature` - System temperature
 - `cpuFanStatus` - Fan status and speed
 - `systemFanStatus` - Chassis fan status
@@ -199,6 +216,7 @@ scrape_configs:
 #### Network Metrics
 
 **Interface Statistics:**
+
 - `ifInOctets` - Incoming bytes
 - `ifOutOctets` - Outgoing bytes
 - `ifInErrors` - Receive errors
@@ -208,6 +226,7 @@ scrape_configs:
 #### iSCSI Metrics
 
 **Target Statistics:**
+
 - `iscsiTargetTable` - iSCSI target status
 - `iscsiLUNTable` - LUN status and usage
 - `iscsiSessionTable` - Active sessions
@@ -219,6 +238,7 @@ scrape_configs:
 **Location:** `Synology_Dashboard2.json`
 
 **Panels Include:**
+
 - Storage capacity overview
 - Disk health and temperature
 - RAID status
@@ -228,6 +248,7 @@ scrape_configs:
 - Temperature trends
 
 **Import Dashboard:**
+
 1. Access Grafana UI
 2. Navigate to Dashboards → Import
 3. Upload `Synology_Dashboard2.json`
@@ -237,21 +258,25 @@ scrape_configs:
 ### Common Queries
 
 **Volume Usage:**
+
 ```promql
 (volumeSize - volumeFreeSize) / volumeSize * 100
 ```
 
 **Disk Temperature:**
+
 ```promql
 diskTemperature{disk="Disk 1"}
 ```
 
 **Network Throughput:**
+
 ```promql
 rate(ifInOctets{ifDescr="eth0"}[5m]) * 8
 ```
 
 **iSCSI LUN Usage:**
+
 ```promql
 iscsiLUNUsed / iscsiLUNSize * 100
 ```
@@ -261,16 +286,19 @@ iscsiLUNUsed / iscsiLUNSize * 100
 ### Metrics Endpoint
 
 **Port Forward:**
+
 ```bash
 kubectl port-forward -n default svc/snmp-exporter 9116:9116
 ```
 
 **Query Metrics Directly:**
+
 ```bash
 curl http://localhost:9116/snmp?target=10.0.1.204&module=synology
 ```
 
 **Health Check:**
+
 ```bash
 curl http://localhost:9116/health
 ```
@@ -278,6 +306,7 @@ curl http://localhost:9116/health
 ### Testing SNMP Connectivity
 
 **From within cluster:**
+
 ```bash
 kubectl exec -n default deployment/snmp-exporter -- \
   wget -qO- http://localhost:9116/snmp?target=10.0.1.204&module=synology | head -50
@@ -303,10 +332,12 @@ kubectl logs -n default deployment/snmp-exporter -c snmp-exporter
 #### No Metrics Returned
 
 **Symptoms:**
+
 - Empty metrics output
 - SNMP exporter returns errors
 
 **Diagnosis:**
+
 ```bash
 # Check exporter logs
 kubectl logs -n default deployment/snmp-exporter
@@ -318,12 +349,14 @@ kubectl exec -n default deployment/snmp-exporter -- \
 ```
 
 **Common Causes:**
+
 - SNMP not enabled on Synology NAS
 - Incorrect credentials
 - Firewall blocking SNMP (UDP 161)
 - Wrong security level configuration
 
 **Solution:**
+
 1. Verify SNMP enabled in DSM (Control Panel → Terminal & SNMP → SNMP)
 2. Check SNMPv3 user configured in DSM
 3. Verify credentials in secret match DSM
@@ -332,10 +365,12 @@ kubectl exec -n default deployment/snmp-exporter -- \
 #### Authentication Failures
 
 **Symptoms:**
+
 - Logs show "authentication failure"
 - "Unknown user name" errors
 
 **Solution:**
+
 1. Verify SNMPv3 user exists in Synology DSM
 2. Check username in secret: `kubectl get secret snmp-exporter-credentials -o yaml`
 3. Ensure auth/priv protocols match DSM configuration
@@ -344,15 +379,18 @@ kubectl exec -n default deployment/snmp-exporter -- \
 #### Missing Specific Metrics
 
 **Symptoms:**
+
 - Some metrics present, others missing
 - Incomplete disk or volume data
 
 **Common Causes:**
+
 - OID not in walk configuration
 - Synology model differences
 - Firmware version changes
 
 **Solution:**
+
 1. Check ConfigMap for OID definitions
 2. Use `snmpwalk` to discover available OIDs
 3. Update ConfigMap with new OIDs if needed
@@ -361,12 +399,14 @@ kubectl exec -n default deployment/snmp-exporter -- \
 ### Configuration Changes
 
 **Update SNMP Module:**
+
 1. Edit `manifests/base/kube-prometheus-stack/snmp-exporter-configmap.yaml`
 2. Commit and push changes
 3. ArgoCD will sync automatically
 4. Pod will restart with new configuration
 
 **Update Credentials:**
+
 1. Edit secret file (git-crypt encrypted)
 2. Apply updated secret: `kubectl apply -f snmp-exporter-secret.yaml`
 3. Restart deployment: `kubectl rollout restart deployment/snmp-exporter -n default`
@@ -375,7 +415,7 @@ kubectl exec -n default deployment/snmp-exporter -- \
 
 ### Enable SNMP on Synology DSM
 
-1. Log in to DSM (https://10.0.1.204:5001)
+1. Log in to DSM (<https://10.0.1.204:5001>)
 2. Go to Control Panel → Terminal & SNMP
 3. Click SNMP tab
 4. Enable SNMPv3 service
@@ -400,6 +440,7 @@ Ensure Synology firewall allows SNMP from Kubernetes nodes:
 ### Recommended Alerts
 
 **Disk Temperature:**
+
 ```yaml
 - alert: DiskHighTemperature
   expr: diskTemperature > 50
@@ -409,6 +450,7 @@ Ensure Synology firewall allows SNMP from Kubernetes nodes:
 ```
 
 **Volume Nearly Full:**
+
 ```yaml
 - alert: VolumeHighUsage
   expr: (volumeSize - volumeFreeSize) / volumeSize * 100 > 85
@@ -418,6 +460,7 @@ Ensure Synology firewall allows SNMP from Kubernetes nodes:
 ```
 
 **RAID Degraded:**
+
 ```yaml
 - alert: RAIDDegraded
   expr: raidStatus != 1
@@ -439,6 +482,7 @@ To update to a newer version:
 5. ArgoCD deploys automatically
 
 **Example:**
+
 ```yaml
 image: prom/snmp-exporter:v0.27.0  # Update from v0.26.0
 ```
@@ -460,6 +504,7 @@ If Synology releases firmware updates with new MIBs:
 **Current:** 30s (standard Prometheus default)
 
 **Considerations:**
+
 - SNMP queries are lightweight
 - 30s provides good resolution for storage metrics
 - Can be reduced to 15s for more frequent updates
@@ -468,11 +513,13 @@ If Synology releases firmware updates with new MIBs:
 ### Resource Usage
 
 **Typical:**
+
 - CPU: ~20-30m
 - Memory: ~40-50Mi
 - Network: Minimal (SNMP queries are small)
 
 **Limits:**
+
 - Set conservatively for Pi cluster
 - Monitor actual usage and adjust if needed
 
@@ -483,6 +530,7 @@ If Synology releases firmware updates with new MIBs:
 SNMP exporter was added to provide comprehensive NAS monitoring:
 
 **Changes:**
+
 - Deployed SNMP exporter for Synology DS925+
 - Configured SNMPv3 with authentication and privacy
 - Added comprehensive OID mappings for storage, system, network, and iSCSI metrics

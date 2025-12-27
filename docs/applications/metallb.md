@@ -52,6 +52,7 @@ speaker:
 ```
 
 **Total Resource Usage:**
+
 - CPU Requests: 600m (3% of 20 cores)
 - Memory Requests: 600Mi (0.7% of 80GB)
 
@@ -77,6 +78,7 @@ spec:
 ```
 
 **Pool Status:**
+
 - **Total IPs:** 90 (10.0.10.10 - 10.0.10.99)
 - **Assigned IPv4:** 1
 - **Available IPv4:** 89
@@ -96,6 +98,7 @@ spec:
 ```
 
 **How it Works:**
+
 - Speaker pods use ARP to advertise IPs on the local network
 - UniFi switch learns MAC addresses and routes traffic
 - If a node fails, another speaker takes over the IP
@@ -182,6 +185,7 @@ spec:
 ```
 
 **Process:**
+
 1. Service created with `type: LoadBalancer`
 2. MetalLB controller assigns next available IP from pool
 3. Speaker pods announce IP via ARP
@@ -204,6 +208,7 @@ spec:
 ### Service Stuck in "Pending"
 
 **Symptoms:**
+
 ```bash
 kubectl get svc -n my-namespace
 # EXTERNAL-IP shows <pending>
@@ -212,16 +217,20 @@ kubectl get svc -n my-namespace
 **Causes & Solutions:**
 
 1. **No available IPs in pool:**
+
    ```bash
    kubectl get ipaddresspool first-pool -n metallb-system -o yaml
    # Check: status.availableIPv4
    ```
+
    **Solution:** Expand IP pool range or release unused IPs
 
 2. **MetalLB controller not running:**
+
    ```bash
    kubectl get pods -n metallb-system
    ```
+
    **Solution:** Check controller logs, ensure ArgoCD sync is healthy
 
 3. **Service in different namespace than pool:**
@@ -235,16 +244,19 @@ kubectl get svc -n my-namespace
 **Causes & Solutions:**
 
 1. **Speaker pods not running:**
+
    ```bash
    kubectl get pods -n metallb-system -l component=speaker
    # Should show 5/5 running (one per node)
    ```
 
 2. **ARP not propagating:**
+
    ```bash
    # From a client on same network:
    arp -a | grep 10.0.10.10
    ```
+
    **Solution:** Check network switch configuration, VLAN settings
 
 3. **Firewall blocking traffic:**
@@ -324,6 +336,7 @@ metallb_k8s_client_update_errors_total
 To add more IPs to the pool:
 
 1. **Edit IP Pool in homelab repo:**
+
    ```yaml
    # manifests/base/metal-lb/ipaddresspool.yaml
    spec:
@@ -336,6 +349,7 @@ To add more IPs to the pool:
 3. **ArgoCD syncs automatically** after merge
 
 4. **Verify:**
+
    ```bash
    kubectl get ipaddresspool first-pool -n metallb-system -o yaml
    # Check: spec.addresses and status.availableIPv4
@@ -367,7 +381,7 @@ To add more IPs to the pool:
 MetalLB is managed by ArgoCD using Helm:
 
 1. **Update Chart Version:** Edit `manifests/applications/metal-lb.yaml`
-2. **Check Release Notes:** Review breaking changes at https://metallb.universe.tf/release-notes/
+2. **Check Release Notes:** Review breaking changes at <https://metallb.universe.tf/release-notes/>
 3. **Create PR** and merge
 4. **ArgoCD Syncs** automatically
 5. **Verify:** Check pods and service IPs
@@ -401,10 +415,10 @@ kubectl get ipaddresspool first-pool -n metallb-system -o jsonpath='{.status}' |
 
 ## Resources
 
-- **Official Documentation:** https://metallb.universe.tf/
-- **Configuration:** https://metallb.universe.tf/configuration/
-- **Concepts:** https://metallb.universe.tf/concepts/
-- **Troubleshooting:** https://metallb.universe.tf/troubleshooting/
+- **Official Documentation:** <https://metallb.universe.tf/>
+- **Configuration:** <https://metallb.universe.tf/configuration/>
+- **Concepts:** <https://metallb.universe.tf/concepts/>
+- **Troubleshooting:** <https://metallb.universe.tf/troubleshooting/>
 
 ---
 

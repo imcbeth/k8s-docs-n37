@@ -11,7 +11,7 @@ Welcome to the comprehensive documentation for my Kubernetes-based homelab infra
 This homelab is built around a **5-node Raspberry Pi 5 cluster** running Kubernetes, complete with:
 
 - **High-performance hardware**: Pi 5s with 16GB RAM and NVMe SSDs
-- **Enterprise-grade storage**: Synology NAS with iSCSI integration  
+- **Enterprise-grade storage**: Synology NAS with iSCSI integration
 - **Professional monitoring**: Prometheus, Grafana, and UniFi network monitoring
 - **GitOps workflow**: ArgoCD for declarative application management
 - **Network infrastructure**: UniFi networking with comprehensive monitoring
@@ -27,6 +27,7 @@ If you're new to this setup, start here:
 ## 📊 Recent Infrastructure Updates
 
 ### GitOps Migration (December 2025)
+
 - **ArgoCD Management**: Migrated UniFi Poller and kube-prometheus-stack to GitOps
 - **Automated Deployments**: All applications now self-heal and auto-sync from git
 - **Resource Optimization**: Added CPU/memory limits for Pi cluster stability
@@ -34,18 +35,21 @@ If you're new to this setup, start here:
 - **Namespace Organization**: Dedicated namespaces for better isolation
 
 ### Storage Infrastructure
+
 - **Synology CSI Driver**: Deployed for persistent storage support with iSCSI
 - **Persistent Volumes**: Configured retention policies for critical data
 - **Storage Classes**: `synology-iscsi-retain` for high-availability storage
 - **Prometheus Persistence**: 50Gi volume preserving months of metrics history
 
 ### Network Migration to UniFi
+
 - **UniFi Network Stack**: Complete migration from consumer networking
 - **Network Monitoring**: UniFi Poller v2.11.2 with dedicated namespace
 - **Performance Monitoring**: 20-second metrics collection intervals
 - **Comprehensive Metrics**: Device health, client connections, bandwidth tracking
 
 ### Monitoring Stack Enhancements
+
 - **Prometheus Stack v80.6.0**: Fully GitOps-managed via ArgoCD
 - **Grafana Dashboards**: 20+ pre-loaded dashboards for comprehensive visibility
 - **Alert Management**: PrometheusRule CRDs for infrastructure health alerts

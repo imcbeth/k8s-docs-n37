@@ -19,6 +19,7 @@ ArgoCD is a declarative, GitOps continuous delivery tool for Kubernetes that aut
 ## Purpose
 
 ArgoCD serves as the foundation of the GitOps workflow by:
+
 - Monitoring git repositories for configuration changes
 - Automatically syncing desired state to the cluster
 - Providing visualization of application health
@@ -34,22 +35,26 @@ ArgoCD manages its own deployment through a bootstrap Application manifest. This
 ### Components
 
 **Application Controller:**
+
 - Monitors git repositories
 - Compares desired state (git) vs actual state (cluster)
 - Synchronizes resources
 - Replicas: 2 (for high availability)
 
 **Repo Server:**
+
 - Clones git repositories
 - Renders Helm charts and Kustomize configurations
 - Caches rendered manifests
 
 **API Server:**
+
 - Provides web UI and API
 - Handles authentication and authorization
 - Service Type: ClusterIP
 
 **Dex (Optional):**
+
 - OAuth2/OIDC authentication provider
 - Supports GitHub, Google, LDAP integration
 - Currently disabled (can be enabled for SSO)
@@ -112,25 +117,30 @@ controller:
 **External URL:** `https://argocd.k8s.n37.ca`
 
 **Port Forward (for local access):**
+
 ```bash
 kubectl port-forward svc/argocd-server -n argocd 8080:443
 ```
+
 Then open: `https://localhost:8080`
 
 ### CLI Access
 
 **Login:**
+
 ```bash
 argocd login argocd.k8s.n37.ca --grpc-web
 ```
 
 **Get Initial Admin Password:**
+
 ```bash
 kubectl get secret argocd-initial-admin-secret -n argocd \
   -o jsonpath="{.data.password}" | base64 -d
 ```
 
 **Change Admin Password:**
+
 ```bash
 argocd account update-password --grpc-web
 ```
@@ -146,6 +156,7 @@ ArgoCD organizes applications into projects for access control and resource mana
 **Purpose:** Core cluster infrastructure and platform services
 
 **Applications:**
+
 - argocd (self-management)
 - metal-lb
 - synology-csi
@@ -161,6 +172,7 @@ ArgoCD organizes applications into projects for access control and resource mana
 **Purpose:** User-facing applications and services
 
 **Applications:**
+
 - localstack
 - (future applications)
 
@@ -169,6 +181,7 @@ ArgoCD organizes applications into projects for access control and resource mana
 ArgoCD uses sync waves to control deployment order. Applications are deployed in ascending order by sync wave annotation.
 
 **Current Sync Wave Configuration:**
+
 ```
 -50: ArgoCD (must be first)
 -35: MetalLB, Pi-hole (networking layer)
@@ -180,6 +193,7 @@ ArgoCD uses sync waves to control deployment order. Applications are deployed in
 ```
 
 **Why This Matters:**
+
 - Storage must be ready before applications request PVCs
 - Load balancer must be ready before services request LoadBalancer IPs
 - Monitoring should deploy early to track other applications
@@ -189,14 +203,17 @@ ArgoCD uses sync waves to control deployment order. Applications are deployed in
 All applications have automated sync enabled with these policies:
 
 **prune: true**
+
 - Automatically removes resources deleted from git
 - Keeps cluster in sync with repository
 
 **selfHeal: true**
+
 - Automatically reverts manual changes to resources
 - Enforces git as the single source of truth
 
 **CreateNamespace: true**
+
 - Automatically creates target namespace if it doesn't exist
 
 ## Common Operations
@@ -263,6 +280,7 @@ argocd app logs <app-name> --follow --grpc-web
 Contains SSH private key for accessing the private homelab repository.
 
 **Apply Secret:**
+
 ```bash
 kubectl apply -f secrets/argocd-git-access.yaml
 ```
@@ -283,17 +301,20 @@ argocd repo add git@github.com:imcbeth/homelab.git \
 ### Application Won't Sync
 
 **Check sync status:**
+
 ```bash
 kubectl get application <name> -n argocd -o yaml | grep -A 20 "status:"
 ```
 
 **Common issues:**
+
 - Invalid YAML syntax in manifests
 - Missing dependencies (e.g., storage class doesn't exist)
 - Resource conflicts
 - CRD not installed
 
 **Force refresh and sync:**
+
 ```bash
 argocd app get <name> --refresh --grpc-web
 argocd app sync <name> --force --grpc-web
@@ -302,11 +323,13 @@ argocd app sync <name> --force --grpc-web
 ### Out of Sync Resources
 
 **View diff:**
+
 ```bash
 argocd app diff <name> --grpc-web
 ```
 
 **Manual kubectl apply:**
+
 ```bash
 kubectl apply -f manifests/applications/<app-name>.yaml
 ```
@@ -314,11 +337,13 @@ kubectl apply -f manifests/applications/<app-name>.yaml
 ### ArgoCD Pods Not Running
 
 **Check pod status:**
+
 ```bash
 kubectl get pods -n argocd
 ```
 
 **View logs:**
+
 ```bash
 kubectl logs -n argocd deployment/argocd-server
 kubectl logs -n argocd deployment/argocd-application-controller
@@ -328,11 +353,13 @@ kubectl logs -n argocd deployment/argocd-repo-server
 ### Git Repository Connection Issues
 
 **Test SSH key:**
+
 ```bash
 ssh -T git@github.com
 ```
 
 **Verify repository secret:**
+
 ```bash
 kubectl get secret -n argocd | grep repo
 ```
@@ -340,11 +367,13 @@ kubectl get secret -n argocd | grep repo
 ### Self-Healing Not Working
 
 **Check sync policy:**
+
 ```bash
 kubectl get application <name> -n argocd -o yaml | grep -A 5 "syncPolicy:"
 ```
 
 **Ensure selfHeal is enabled:**
+
 ```yaml
 syncPolicy:
   automated:
@@ -364,6 +393,7 @@ To update to a newer ArgoCD version:
 5. ArgoCD will self-upgrade automatically
 
 **Example:**
+
 ```yaml
 targetRevision: 9.1.0  # Update from 9.0.5
 ```
@@ -409,14 +439,17 @@ To modify ArgoCD settings:
 ## Resource Usage
 
 **Application Controller:**
+
 - CPU: ~100-200m under normal load
 - Memory: ~256-512Mi
 
 **Repo Server:**
+
 - CPU: ~50-100m
 - Memory: ~128-256Mi
 
 **API Server:**
+
 - CPU: ~50-100m
 - Memory: ~128-256Mi
 
