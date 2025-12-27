@@ -50,13 +50,15 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 - [x] Memory usage and available capacity monitoring
 - [x] Network interface statistics
 
-### 3. **Blackbox Exporter**
+### 3. **Blackbox Exporter** ✅ COMPLETED (2025-12-27)
 
-- [ ] Deploy blackbox exporter for endpoint monitoring
-- [ ] Monitor external services availability (DNS, HTTP/HTTPS)
-- [ ] SSL certificate expiry monitoring
-- [ ] Network latency and response time tracking
-- [ ] Add alerts for service downtime
+- [x] Deploy blackbox exporter for endpoint monitoring
+- [x] Monitor external services availability (DNS, HTTP/HTTPS)
+- [x] SSL certificate expiry monitoring
+- [x] Network latency and response time tracking
+- [x] Add alerts for service downtime
+
+**Documentation:** See [Blackbox Exporter Application Guide](./applications/blackbox-exporter.md) for complete deployment details.
 
 ## 🛡️ **Security & Backup**
 
