@@ -360,7 +360,7 @@ The UniFi webhook provider consists of two components:
    - Watches Kubernetes Ingress and Service resources
    - Sends DNS record changes to webhook
 
-For complete setup documentation, see the `UNIFI-WEBHOOK-SETUP.md` document in your homelab Kubernetes manifests repository (typically under the `manifests/base/external-dns/` directory).
+For complete setup documentation, see the `manifests/base/external-dns/UNIFI-WEBHOOK-SETUP.md` document in your homelab Kubernetes manifests repository.
 
 ## Monitoring
 
@@ -700,5 +700,5 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 - [Webhook Provider Guide](https://kubernetes-sigs.github.io/external-dns/latest/docs/tutorials/webhook-provider/)
 - [UniFi Webhook Provider (lexfrei)](https://github.com/lexfrei/external-dns-unifios-webhook)
 - [Alternative UniFi Webhook (kashalls)](https://github.com/kashalls/external-dns-unifi-webhook)
-- [UniFi API (community-maintained, unofficial)](https://ubntwiki.com/products/software/unifi-controller/api)
+- [UniFi API (community-maintained, unofficial, may be outdated)](https://ubntwiki.com/products/software/unifi-controller/api)
 - [Official Ubiquiti Developer Resources](https://developer.ui.com)
