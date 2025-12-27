@@ -678,6 +678,7 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 **UniFi Webhook:**
 
 - Use dedicated API key with minimal permissions (DNS management only)
+- Note: Ensure only DNS-related permissions are enabled when creating the API key in the UniFi Console.
   - Ensure only DNS-related permissions are enabled when creating the API key in the UniFi Console
   - Select the **Network** application with **Read/Write** access (required to create, update, and delete DNS records)
   - Do not grant access to other applications unless explicitly needed
