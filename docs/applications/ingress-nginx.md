@@ -25,10 +25,12 @@ The NGINX Ingress Controller is a Kubernetes controller that manages external ac
 ### Installation
 
 - **Namespace:** ingress-nginx
-- **Type:** DaemonSet (one pod per node) or Deployment
+- **Type:** Deployment (single replica)
 - **Version:** v1.14.1
 - **LoadBalancer IP:** 10.0.10.10 (via MetalLB)
-- **Deployment Method:** Helm / Manifest
+- **Deployment Method:** Manual (kubectl apply)
+  - **Status:** Currently deployed manually, not managed by ArgoCD/GitOps
+  - **Note:** Migrating to GitOps management is planned for improved tracking and automation
 
 ### Components
 
