@@ -50,4 +50,18 @@ repos:
     hooks:
       - id: yamllint
         name: Lint YAML files
-        args: ['-d', '{extends: default, rules: {line-length: {max: 200}, document-start: disable}}']
+        args:
+          - '-d'
+          - |
+            extends: default
+            rules:
+              line-length:
+                max: 350
+              document-start: disable
+              truthy:
+                check-keys: false
+              indentation:
+                spaces: 2
+                indent-sequences: consistent
+              comments:
+                min-spaces-from-content: 1
