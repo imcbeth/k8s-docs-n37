@@ -30,6 +30,36 @@ const sidebars: SidebarsConfig = {
       label: 'Kubernetes Setup',
       items: [
         'kubernetes/installation',
+        'kubernetes/cluster-configuration',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Networking',
+      items: [
+        'networking/overview',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Storage',
+      items: [
+        'storage/synology-csi',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Applications',
+      items: [
+        'applications/argocd',
+        'applications/metallb',
+        'applications/unipoller',
+        'applications/kube-prometheus-stack',
+        'applications/snmp-exporter',
+        'applications/loki',
+        'applications/cert-manager',
+        'applications/external-dns',
+        'applications/ingress-nginx',
       ],
     },
     {
@@ -37,6 +67,13 @@ const sidebars: SidebarsConfig = {
       label: 'Monitoring',
       items: [
         'monitoring/overview',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Troubleshooting',
+      items: [
+        'troubleshooting/monitoring',
       ],
     },
     {
