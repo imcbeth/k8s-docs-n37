@@ -29,7 +29,7 @@ UniFi Poller provides comprehensive network monitoring by:
 
 - **Controller URL:** `https://10.0.1.1`
 - **Site:** `n37-gw`
-- **User:** `unifipoller`
+- **Authentication:** API Key (stored in Secret)
 - **TLS Verification:** Disabled (controller has self-signed certificate)
 - **Scrape Interval:** 20 seconds (configured in Prometheus)
 
@@ -135,7 +135,46 @@ The application creates the following Kubernetes resources:
 1. **Deployment:** Single replica of UniFi Poller
 2. **Service:** ClusterIP service exposing port 9130
 3. **ConfigMap:** Configuration for UniFi controller connection
-4. **Secret:** UniFi controller credentials
+4. **Secret:** UniFi controller API key credentials
+
+## Authentication
+
+UniFi Poller uses **API key authentication** to connect to the UniFi controller. This is more secure than username/password authentication and supports better access control.
+
+### Creating a UniFi API Key
+
+1. Log into your UniFi Console at `https://10.0.1.1`
+2. Navigate to **Settings** → **Integrations** → **API**
+3. Click **Create API Key**
+4. **Name:** `unipoller-k8s`
+5. **Permissions:** Grant network monitoring permissions
+6. Copy the API key (you won't be able to see it again)
+
+### Configuring the Secret
+
+The API key is stored in a Kubernetes Secret:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: unipoller-secret
+  namespace: unipoller
+type: Opaque
+stringData:
+  api-key: "YOUR_UNIFI_API_KEY_HERE"
+```
+
+The deployment references this secret via environment variable:
+
+```yaml
+env:
+- name: UP_UNIFI_CONTROLLER_0_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: unipoller-secret
+      key: api-key
+```
 
 ## Monitoring and Dashboards
 
@@ -195,8 +234,8 @@ kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometh
 **Connection to UniFi Controller Failed:**
 
 - Verify controller URL is accessible: `https://10.0.1.1`
-- Check credentials in the secret
-- Ensure UniFi controller user has read permissions
+- Check API key in the secret (`unipoller-secret`)
+- Ensure UniFi API key has appropriate permissions for network monitoring
 
 **No Metrics in Prometheus:**
 
