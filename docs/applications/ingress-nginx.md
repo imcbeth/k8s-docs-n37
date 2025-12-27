@@ -557,7 +557,8 @@ curl -H "Host: example.k8s.n37.ca" https://10.0.10.10
 - [cert-manager](./cert-manager.md) - TLS certificate automation
 - [metallb](./metallb.md) - LoadBalancer IP provider
 - [external-dns](./external-dns.md) - DNS automation (planned)
-- [Network Configuration](../network-info.md) - Network topology
+
+**Note:** For comprehensive network configuration details, see `network-info.md` in the [homelab repository](https://github.com/imcbeth/homelab).
 
 ---
 

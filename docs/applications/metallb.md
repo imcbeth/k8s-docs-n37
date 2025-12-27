@@ -411,8 +411,9 @@ kubectl get ipaddresspool first-pool -n metallb-system -o jsonpath='{.status}' |
 ## Related Documentation
 
 - [ingress-nginx](./ingress-nginx.md) - Primary consumer of MetalLB LoadBalancer
-- [Network Configuration](../network-info.md) - VLAN and IP addressing details
 - [ArgoCD](./argocd.md) - GitOps deployment of MetalLB
+
+**Note:** For comprehensive network configuration details, see `network-info.md` in the [homelab repository](https://github.com/imcbeth/homelab).
 
 ---
 
