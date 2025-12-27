@@ -415,7 +415,7 @@ kubectl exec -n default deployment/snmp-exporter -- \
 
 ### Enable SNMP on Synology DSM
 
-1. Log in to DSM (<https://10.0.1.204:5001>)
+1. Log in to DSM ([https://10.0.1.204:5001](https://10.0.1.204:5001))
 2. Go to Control Panel → Terminal & SNMP
 3. Click SNMP tab
 4. Enable SNMPv3 service

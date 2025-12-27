@@ -68,8 +68,8 @@ spec:
 
 **Access Points:**
 
-- **HTTP:** <http://10.0.10.10> (redirects to HTTPS)
-- **HTTPS:** <https://10.0.10.10> (requires valid host header)
+- **HTTP:** [http://10.0.10.10](http://10.0.10.10) (redirects to HTTPS)
+- **HTTPS:** [https://10.0.10.10](https://10.0.10.10) (requires valid host header)
 
 ### IngressClass
 
@@ -568,10 +568,10 @@ curl -H "Host: example.k8s.n37.ca" https://10.0.10.10
 
 ## Resources
 
-- **Official Documentation:** <https://kubernetes.github.io/ingress-nginx/>
-- **Annotations Reference:** <https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/>
-- **Examples:** <https://kubernetes.github.io/ingress-nginx/examples/>
-- **Troubleshooting:** <https://kubernetes.github.io/ingress-nginx/troubleshooting/>
+- **Official Documentation:** [ingress-nginx Documentation](https://kubernetes.github.io/ingress-nginx/)
+- **Annotations Reference:** [Annotations Guide](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/)
+- **Examples:** [ingress-nginx Examples](https://kubernetes.github.io/ingress-nginx/examples/)
+- **Troubleshooting:** [Troubleshooting Guide](https://kubernetes.github.io/ingress-nginx/troubleshooting/)
 
 ---
 

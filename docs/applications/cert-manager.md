@@ -349,7 +349,7 @@ kubectl apply -f manifests/base/cert-manager/cloudflare-api-token-secret.yaml
 
 - Use staging issuer for testing: `lets-encrypt-k8s-n37-ca-staging`
 - Wait for rate limit reset (limits are per domain, per week)
-- See: <https://letsencrypt.org/docs/rate-limits/>
+- See: [Let's Encrypt Rate Limits](https://letsencrypt.org/docs/rate-limits/)
 
 #### Issue: Certificate shows as "False" or "Unknown"
 
@@ -516,7 +516,7 @@ Both use the same Cloudflare API token, no conflict.
 cert-manager is managed by ArgoCD using Helm. To upgrade:
 
 1. **Update Chart Version:** Edit `manifests/applications/cert-manager.yaml` in homelab repo
-2. **Check Release Notes:** Review breaking changes at <https://cert-manager.io/docs/releases/>
+2. **Check Release Notes:** Review breaking changes at [cert-manager Releases](https://cert-manager.io/docs/releases/)
 3. **Create PR:** Follow GitOps workflow
 4. **ArgoCD Sync:** Automatic after merge
 5. **Verify:** Check pods and certificate renewal
@@ -555,11 +555,11 @@ kubectl get secret <cert-secret> -n <namespace> -o jsonpath='{.data.tls\.crt}' |
 
 ## Resources
 
-- **Official Documentation:** <https://cert-manager.io/docs/>
-- **Let's Encrypt:** <https://letsencrypt.org/>
-- **Cloudflare API Tokens:** <https://developers.cloudflare.com/fundamentals/api/get-started/create-token/>
-- **ACME Challenge Types:** <https://letsencrypt.org/docs/challenge-types/>
-- **Rate Limits:** <https://letsencrypt.org/docs/rate-limits/>
+- **Official Documentation:** [cert-manager.io](https://cert-manager.io/docs/)
+- **Let's Encrypt:** [letsencrypt.org](https://letsencrypt.org/)
+- **Cloudflare API Tokens:** [Cloudflare API Tokens Guide](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/)
+- **ACME Challenge Types:** [Let's Encrypt Challenge Types](https://letsencrypt.org/docs/challenge-types/)
+- **Rate Limits:** [Let's Encrypt Rate Limits](https://letsencrypt.org/docs/rate-limits/)
 
 ---
 

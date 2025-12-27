@@ -265,16 +265,19 @@ See the [cert-manager guide](../applications/cert-manager.md) for detailed confi
 **Diagnostic Steps:**
 
 1. Check CoreDNS is running:
+
    ```bash
    kubectl get pods -n kube-system -l k8s-app=kube-dns
    ```
 
 2. Check Calico pods running:
+
    ```bash
    kubectl get pods -n kube-system -l k8s-app=calico-node
    ```
 
 3. Check node has default route:
+
    ```bash
    kubectl get nodes -o wide
    ```
@@ -286,16 +289,19 @@ See the [cert-manager guide](../applications/cert-manager.md) for detailed confi
 **Diagnostic Steps:**
 
 1. Check MetalLB pods:
+
    ```bash
    kubectl get pods -n metallb-system
    ```
 
 2. Check IP pool has available IPs:
+
    ```bash
    kubectl get ipaddresspool -n metallb-system
    ```
 
 3. Verify Service type is LoadBalancer:
+
    ```bash
    kubectl get svc <service-name> -n <namespace>
    ```
@@ -307,23 +313,27 @@ See the [cert-manager guide](../applications/cert-manager.md) for detailed confi
 **Diagnostic Steps:**
 
 1. Check nginx-ingress controller running:
+
    ```bash
    kubectl get pods -n ingress-nginx
    kubectl get svc -n ingress-nginx
    ```
 
 2. Check Ingress resource:
+
    ```bash
    kubectl get ingress -n <namespace>
    kubectl describe ingress <ingress-name> -n <namespace>
    ```
 
 3. Check DNS resolves to MetalLB IP:
+
    ```bash
    nslookup <hostname>
    ```
 
 4. Check TLS certificate:
+
    ```bash
    kubectl get certificate -n <namespace>
    ```
@@ -378,10 +388,10 @@ kubectl get l2advertisement -n metallb-system -o yaml
 
 ## References
 
-- **Calico Documentation:** https://docs.tigera.io/calico/latest
-- **MetalLB Documentation:** https://metallb.universe.tf/
-- **nginx-ingress:** https://kubernetes.github.io/ingress-nginx/
-- **UniFi Network:** https://ui.com/
+- **Calico Documentation:** [Calico Docs](https://docs.tigera.io/calico/latest)
+- **MetalLB Documentation:** [MetalLB](https://metallb.universe.tf/)
+- **nginx-ingress:** [ingress-nginx](https://kubernetes.github.io/ingress-nginx/)
+- **UniFi Network:** [UniFi](https://ui.com/)
 - **Synology NAS:** 10.0.1.204 (DSM interface)
 
 ---

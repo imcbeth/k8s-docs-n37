@@ -381,7 +381,7 @@ To add more IPs to the pool:
 MetalLB is managed by ArgoCD using Helm:
 
 1. **Update Chart Version:** Edit `manifests/applications/metal-lb.yaml`
-2. **Check Release Notes:** Review breaking changes at <https://metallb.universe.tf/release-notes/>
+2. **Check Release Notes:** Review breaking changes at [MetalLB Release Notes](https://metallb.universe.tf/release-notes/)
 3. **Create PR** and merge
 4. **ArgoCD Syncs** automatically
 5. **Verify:** Check pods and service IPs
@@ -415,10 +415,10 @@ kubectl get ipaddresspool first-pool -n metallb-system -o jsonpath='{.status}' |
 
 ## Resources
 
-- **Official Documentation:** <https://metallb.universe.tf/>
-- **Configuration:** <https://metallb.universe.tf/configuration/>
-- **Concepts:** <https://metallb.universe.tf/concepts/>
-- **Troubleshooting:** <https://metallb.universe.tf/troubleshooting/>
+- **Official Documentation:** [MetalLB Documentation](https://metallb.universe.tf/)
+- **Configuration:** [Configuration Guide](https://metallb.universe.tf/configuration/)
+- **Concepts:** [MetalLB Concepts](https://metallb.universe.tf/concepts/)
+- **Troubleshooting:** [Troubleshooting Guide](https://metallb.universe.tf/troubleshooting/)
 
 ---
 
