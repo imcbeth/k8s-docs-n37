@@ -561,6 +561,7 @@ kubectl logs -n external-dns deployment/external-dns-unifi-webhook
 
    ```bash
    # Inspect the UniFi credentials secret created by secret-unifi.yaml
+   # Inspect the UniFi credentials secret created by secret-unifi.yaml
    kubectl get secret unifi-credentials -n external-dns -o yaml
    ```
 
@@ -684,7 +685,7 @@ dig @10.0.1.1 myapp.k8s.n37.ca
   - Do not grant access to other applications unless explicitly needed
 - Store API key in encrypted Kubernetes secrets (git-crypt)
 - Rotate API keys periodically
-- Configure the UniFi controller with a trusted certificate/CA so TLS verification remains enabled (avoid `UNIFI_TLS_INSECURE: "true"`, especially in production)
+- Configure the UniFi controller with a trusted certificate/CA so TLS verification remains enabled (avoid `UNIFI_TLS_INSECURE: "true"`, especially in production). This is a UniFi controller prerequisite and should be configured in the UniFi Console following UniFi’s own documentation (see the **References** section below).
 - Monitor webhook logs for unauthorized access attempts
 
 ### Network Security
@@ -714,4 +715,4 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 - [UniFi Webhook Provider (lexfrei)](https://github.com/lexfrei/external-dns-unifios-webhook)
 - [Alternative UniFi Webhook (kashalls)](https://github.com/kashalls/external-dns-unifi-webhook)
 - [UniFi API (community-maintained, unofficial, may be outdated)](https://ubntwiki.com/products/software/unifi-controller/api)
-- [Official Ubiquiti Developer Resources](https://developer.ui.com)
+- [Official Ubiquiti Developer Resources](https://developer.ui.com) (official APIs, SDKs, and developer documentation)
