@@ -1,5 +1,4 @@
 ---
-sidebar_position: 2
 title: "cert-manager"
 description: "Automated TLS certificate management with Let's Encrypt"
 ---

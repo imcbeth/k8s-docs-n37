@@ -1,5 +1,4 @@
 ---
-sidebar_position: 3
 title: "MetalLB"
 description: "Layer 2 load balancer for bare-metal Kubernetes clusters"
 ---
