@@ -291,11 +291,11 @@ stringData:
 
 Log into UniFi Console at `https://10.0.1.1`:
 
-- Navigate to: **Settings → Integrations → API**
+- Navigate to: **Settings → System → Advanced → API Access** (path may vary slightly by UniFi OS version)
 - Click **Create API Key**
 - **Name:** `external-dns-k8s`
-- **Permissions:** Ensure DNS management permissions are granted
-- **Copy the API key** (you won't be able to see it again)
+- **Permissions:** Select the **Network** application with **Read/Write** access (required to create, update, and delete DNS records). Do not grant access to other applications unless explicitly needed.
+- **Copy the API key** and securely store it immediately — it will only be displayed once and cannot be retrieved later. If you lose it, you must generate a new API key.
 
 **2. Update Kubernetes Secret:**
 
