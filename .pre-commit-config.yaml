@@ -56,7 +56,7 @@ repos:
             extends: default
             rules:
               line-length:
-                max: 400
+                max: 350
               document-start: disable
               truthy:
                 check-keys: false
