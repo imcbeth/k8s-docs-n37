@@ -307,9 +307,11 @@ vim manifests/base/external-dns/secret-unifi.yaml
 
 # Update these values:
 # UNIFI_HOST: "https://10.0.1.1"
-# UNIFI_API_KEY: "YOUR_ACTUAL_API_KEY_HERE"  # Long alphanumeric string from UniFi Console
-# UNIFI_SITE_NAME: "default"  # Use "default" for single-site installations
-# UNIFI_TLS_INSECURE: "true"  # For self-signed cert
+# UNIFI_API_KEY: "YOUR_ACTUAL_API_KEY_HERE"  # Long alphanumeric API key from UniFi Console (e.g., "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4")
+# UNIFI_SITE_NAME: "default"  # Commonly "default", but verify in your UniFi Console URL:
+#                           # if the URL contains /site/mysite, the site name is "mysite".
+#                           # You can also confirm the site name via the UniFi API if needed.
+# UNIFI_TLS_INSECURE: "false"  # Recommended: use a valid or trusted cert; only set to "true" temporarily in non-production if you must skip TLS verification
 
 # Apply the updated secret
 kubectl apply -f manifests/base/external-dns/secret-unifi.yaml
@@ -348,7 +350,7 @@ kubectl logs -n external-dns deployment/external-dns-unifi
 The UniFi webhook provider consists of two components:
 
 1. **Webhook Provider** (`external-dns-unifi-webhook`)
-   - Runs `ghcr.io/lexfrei/external-dns-unifios-webhook:v0.2.0`
+   - Runs `ghcr.io/lexfrei/external-dns-unifios-webhook`
    - Exposes HTTP API on port 8080
    - Health checks on port 8888
    - Prometheus metrics on `/metrics`
@@ -358,7 +360,7 @@ The UniFi webhook provider consists of two components:
    - Watches Kubernetes Ingress and Service resources
    - Sends DNS record changes to webhook
 
-For complete setup documentation, see: `manifests/base/external-dns/UNIFI-WEBHOOK-SETUP.md`
+For complete setup documentation, see the `UNIFI-WEBHOOK-SETUP.md` document in your homelab Kubernetes manifests repository (typically under the `manifests/base/external-dns/` directory).
 
 ## Monitoring
 
@@ -698,4 +700,5 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 - [Webhook Provider Guide](https://kubernetes-sigs.github.io/external-dns/latest/docs/tutorials/webhook-provider/)
 - [UniFi Webhook Provider (lexfrei)](https://github.com/lexfrei/external-dns-unifios-webhook)
 - [Alternative UniFi Webhook (kashalls)](https://github.com/kashalls/external-dns-unifi-webhook)
-- [UniFi API Documentation](https://ubntwiki.com/products/software/unifi-controller/api)
+- [UniFi API (community-maintained, unofficial)](https://ubntwiki.com/products/software/unifi-controller/api)
+- [Official Ubiquiti Developer Resources](https://developer.ui.com)
