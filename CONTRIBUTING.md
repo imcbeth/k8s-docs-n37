@@ -156,7 +156,7 @@ If you absolutely must bypass hooks:
 git commit --no-verify -m "message"
 ```
 
-**⚠️ Warning:** Only use this for emergencies. Bypassing hooks can lead to failed CI builds.
+**⚠️ Warning:** Only use this for emergencies. Bypassing hooks will bypass critical checks and can cause broken links and failed CI builds.
 
 ### Updating Hooks
 
