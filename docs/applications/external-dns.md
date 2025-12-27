@@ -52,7 +52,7 @@ cloudflare-proxied: false  # Direct to MetalLB IPs
 - **Target:** UniFi UDR7 controller at 10.0.1.1
 - **Protocol:** UniFi API via webhook provider
 - **Authentication:** UniFi API key
-- **Webhook:** `lexfrei/external-dns-unifios-webhook` v0.2.0
+- **Webhook:** `kashalls/external-dns-unifi-webhook` v0.7.0
 - **Deployment:** `external-dns-unifi`
 - **ServiceAccount:** `external-dns-unifi`
 
@@ -63,14 +63,14 @@ UniFi OS does not support RFC2136 TSIG configuration, making dynamic DNS updates
 
 ```
 External-DNS → Webhook Provider → UniFi API → DNS Records
-               (ghcr.io/lexfrei/external-dns-unifios-webhook)
+               (ghcr.io/kashalls/external-dns-unifi-webhook:v0.7.0)
 ```
 
 **Configuration:**
 
 ```yaml
 provider: webhook
-webhook-provider-url: http://external-dns-unifi-webhook:8080
+webhook-provider-url: http://external-dns-unifi-webhook:8888
 domain-filter: k8s.n37.ca
 ```
 
@@ -641,6 +641,114 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 - Verify both providers are running
 - Check logs for both deployments
 - Ensure both point to same MetalLB IP
+
+### Useful Diagnostic Commands
+
+**Check Overall Status:**
+
+```bash
+# View all external-dns resources
+kubectl get all -n external-dns
+
+# Check ArgoCD app health
+argocd app get external-dns --grpc-web
+
+# View all pods with details
+kubectl get pods -n external-dns -o wide
+```
+
+**Check Logs:**
+
+```bash
+# Cloudflare external-dns logs (last 50 lines)
+kubectl logs -n external-dns deployment/external-dns-cloudflare --tail=50
+
+# UniFi external-dns logs (last 50 lines)
+kubectl logs -n external-dns deployment/external-dns-unifi --tail=50
+
+# UniFi webhook provider logs
+kubectl logs -n external-dns deployment/external-dns-unifi-webhook --tail=50
+
+# Follow logs in real-time
+kubectl logs -n external-dns deployment/external-dns-unifi -f
+```
+
+**Verify Ingress Annotations:**
+
+```bash
+# Check all ingresses with external-dns annotations
+kubectl get ingress -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.metadata.annotations.external-dns\.alpha\.kubernetes\.io/hostname}{"\n"}{end}'
+
+# View specific ingress annotations
+kubectl get ingress argocd-ingress -n argocd -o yaml | grep -A 5 annotations
+```
+
+**Test DNS Resolution:**
+
+```bash
+# Test Cloudflare DNS (public)
+dig @1.1.1.1 argocd.k8s.n37.ca
+dig @1.1.1.1 grafana.k8s.n37.ca
+dig @1.1.1.1 localstack.k8s.n37.ca
+
+# Test UniFi DNS (internal)
+dig @10.0.1.1 argocd.k8s.n37.ca
+dig @10.0.1.1 grafana.k8s.n37.ca
+dig @10.0.1.1 localstack.k8s.n37.ca
+
+# Check TXT ownership records
+dig @1.1.1.1 TXT external-dns-argocd.k8s.n37.ca
+dig @10.0.1.1 TXT external-dns-argocd.k8s.n37.ca
+```
+
+**Verify Webhook Connectivity:**
+
+```bash
+# Test webhook health endpoint
+kubectl exec -n external-dns deployment/external-dns-unifi-webhook -- \
+  wget -qO- http://localhost:8080/healthz
+
+# Test webhook API endpoint (from external-dns pod)
+kubectl exec -n external-dns deployment/external-dns-unifi -- \
+  wget -qO- http://external-dns-unifi-webhook:8888/
+
+# Check webhook service endpoints
+kubectl get endpoints -n external-dns external-dns-unifi-webhook
+```
+
+**Force Sync:**
+
+```bash
+# Restart deployments to trigger immediate sync
+kubectl rollout restart deployment/external-dns-cloudflare -n external-dns
+kubectl rollout restart deployment/external-dns-unifi -n external-dns
+
+# Watch pod status during restart
+kubectl get pods -n external-dns -w
+```
+
+**Check Secrets:**
+
+```bash
+# Verify Cloudflare secret exists
+kubectl get secret cloudflare-api-token -n external-dns
+
+# Verify UniFi secret exists
+kubectl get secret unifi-credentials -n external-dns
+
+# View secret keys (not values)
+kubectl get secret unifi-credentials -n external-dns -o jsonpath='{.data}' | jq 'keys'
+```
+
+**Monitor External-DNS Activity:**
+
+```bash
+# Watch for DNS changes in logs
+kubectl logs -n external-dns deployment/external-dns-unifi -f | grep -i "create\|update\|delete"
+
+# Check sync cycle timing
+kubectl logs -n external-dns deployment/external-dns-cloudflare | grep "All records are already up to date"
+```
 
 ## Performance Considerations
 

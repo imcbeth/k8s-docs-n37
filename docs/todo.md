@@ -145,18 +145,20 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 ## 🌐 **Network & Access Management**
 
-### 13. **DNS & Service Discovery** ✅ COMPLETED (2025-12-26)
+### 13. **DNS & Service Discovery** ✅ COMPLETED (2025-12-27)
 
 - [x] **External-DNS** - Automatic DNS record creation with dual provider support
   - [x] Deployed Cloudflare provider for public DNS
-  - [x] Deployed UniFi webhook provider for internal DNS
+  - [x] Deployed UniFi webhook provider (kashalls v0.7.0) for internal DNS
   - [x] Split-horizon DNS configuration (k8s.n37.ca)
   - [x] TXT registry for ownership tracking
+  - [x] Configured ingress annotations for ArgoCD, Grafana, Localstack
+  - [x] Verified DNS record creation in both providers
 - [ ] **CoreDNS** customization for internal service discovery
 - [ ] DNS-based load balancing configuration
 - [ ] DNS monitoring and troubleshooting tools
 
-**Note:** External-DNS is fully deployed with dual providers (Cloudflare + UniFi webhook). See [External-DNS documentation](./applications/external-dns.md) and homelab `manifests/base/external-dns/UNIFI-WEBHOOK-SETUP.md`.
+**Note:** External-DNS is fully operational with dual providers (Cloudflare + kashalls UniFi webhook). All ingress resources have external-dns annotations for automatic DNS management. See [External-DNS documentation](./applications/external-dns.md) for complete details.
 
 ### 14. **VPN & Remote Access**
 
