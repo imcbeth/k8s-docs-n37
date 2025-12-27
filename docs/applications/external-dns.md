@@ -258,22 +258,24 @@ stringData:
 
 **Required Permissions:** DNS:Edit for `k8s.n37.ca` zone
 
-### UniFi RFC2136 Secret
+### UniFi Webhook Secret
 
-**Secret:** `rfc2136-credentials` (in `external-dns` namespace)
+**Secret:** `unifi-credentials` (in `external-dns` namespace)
 
-**TSIG Authentication:**
+**UniFi API Authentication:**
 
 ```yaml
 apiVersion: v1
 kind: Secret
 metadata:
-  name: rfc2136-credentials
+  name: unifi-credentials
   namespace: external-dns
+type: Opaque
 stringData:
-  tsig-keyname: external-dns
-  tsig-secret: <base64-encoded-key>
-  tsig-algorithm: hmac-sha256
+  UNIFI_HOST: "https://10.0.1.1"
+  UNIFI_API_KEY: "<your-unifi-api-key>"
+  UNIFI_SITE_NAME: "default"
+  UNIFI_TLS_INSECURE: "true"
 ```
 
 ## UniFi Webhook Setup
@@ -600,7 +602,7 @@ kubectl logs -n external-dns deployment/external-dns-unifi-webhook
 
    ```bash
    kubectl rollout restart deployment/external-dns-cloudflare -n external-dns
-   kubectl rollout restart deployment/external-dns-rfc2136 -n external-dns
+   kubectl rollout restart deployment/external-dns-unifi -n external-dns
    ```
 
 2. **Check TXT ownership:**
@@ -695,11 +697,12 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 - HTTPS API calls to Cloudflare
 - Token transmitted securely
 
-**RFC2136:**
+**UniFi Webhook:**
 
-- DNS protocol to UniFi (10.0.1.1:53)
-- TSIG authentication prevents spoofing
-- Consider VPN/firewall rules for additional security
+- HTTP API calls to webhook provider (internal cluster communication)
+- HTTPS API calls from webhook to UniFi controller (10.0.1.1:443)
+- API key authentication for UniFi API access
+- Consider firewall rules to restrict UniFi controller API access
 
 ## Related Documentation
 
