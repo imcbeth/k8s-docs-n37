@@ -301,19 +301,27 @@ Log into UniFi Console at `https://10.0.1.1`:
 
 Edit the UniFi credentials secret:
 
-```bash
-# Edit the secret file (git-crypt encrypted)
-vim manifests/base/external-dns/secret-unifi.yaml
+Edit the secret file (git-crypt encrypted) using your preferred editor:
 
-# Update these values:
+```bash
+# Example editors: vim, nano, code, or any text editor
+$EDITOR manifests/base/external-dns/secret-unifi.yaml
+```
+
+Update the following values in the secret:
+
+```yaml
 # UNIFI_HOST: "https://10.0.1.1"
 # UNIFI_API_KEY: "YOUR_ACTUAL_API_KEY_HERE"  # Long alphanumeric API key from UniFi Console (e.g., "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4")
 # UNIFI_SITE_NAME: "default"  # Commonly "default", but verify in your UniFi Console URL:
-#                           # if the URL contains /site/mysite, the site name is "mysite".
-#                           # You can also confirm the site name via the UniFi API if needed.
+#                              # if the URL contains /site/mysite, the site name is "mysite".
+#                              # You can also confirm the site name via the UniFi API if needed.
 # UNIFI_TLS_INSECURE: "false"  # Recommended: use a valid or trusted cert; only set to "true" temporarily in non-production if you must skip TLS verification
+```
 
-# Apply the updated secret
+Apply the updated secret:
+
+```bash
 kubectl apply -f manifests/base/external-dns/secret-unifi.yaml
 ```
 
@@ -552,6 +560,7 @@ kubectl logs -n external-dns deployment/external-dns-unifi-webhook
    - Check key hasn't expired or been revoked
 
    ```bash
+   # Inspect the UniFi credentials secret created by secret-unifi.yaml
    kubectl get secret unifi-credentials -n external-dns -o yaml
    ```
 
@@ -669,6 +678,9 @@ dig @10.0.1.1 myapp.k8s.n37.ca
 **UniFi Webhook:**
 
 - Use dedicated API key with minimal permissions (DNS management only)
+  - Ensure only DNS-related permissions are enabled when creating the API key in the UniFi Console
+  - Select the **Network** application with **Read/Write** access (required to create, update, and delete DNS records)
+  - Do not grant access to other applications unless explicitly needed
 - Store API key in encrypted Kubernetes secrets (git-crypt)
 - Rotate API keys periodically
 - Configure the UniFi controller with a trusted certificate/CA so TLS verification remains enabled (avoid `UNIFI_TLS_INSECURE: "true"`, especially in production)
