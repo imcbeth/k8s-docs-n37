@@ -56,7 +56,8 @@ This document describes the complete network architecture for the Raspberry Pi K
   - Threat intelligence and reputation filtering
   - Content filtering
 - **Status:** Integrated into UniFi OS, active across all VLANs
-- **Previous Solution:** Pi-hole (deprecated, migrated to CyberSecure Enhanced)
+- **Previous Solution:** Pi-hole (deprecated and not deployed - migrated to CyberSecure Enhanced)
+  - **Note:** Pi-hole manifests remain in the homelab repository for historical reference but are not deployed to the cluster
 
 ## Kubernetes Cluster Network (VLAN 10)
 

@@ -145,19 +145,18 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 ## 🌐 **Network & Access Management**
 
-### 13. **DNS & Service Discovery**
+### 13. **DNS & Service Discovery** ✅ COMPLETED (2025-12-26)
 
+- [x] **External-DNS** - Automatic DNS record creation with dual provider support
+  - [x] Deployed Cloudflare provider for public DNS
+  - [x] Deployed UniFi webhook provider for internal DNS
+  - [x] Split-horizon DNS configuration (k8s.n37.ca)
+  - [x] TXT registry for ownership tracking
 - [ ] **CoreDNS** customization for internal service discovery
-- [ ] **External-DNS** - Automatic DNS record creation (manifest exists, needs UniFi RFC2136 configuration)
-  - [ ] Complete UniFi UDR7 RFC2136 setup (TSIG key generation)
-  - [ ] Apply external-dns ArgoCD Application
-  - [ ] Configure Cloudflare provider for public DNS
-  - [ ] Configure UniFi RFC2136 provider for internal DNS
-- [ ] Internal domain setup (k8s.n37.ca for split-horizon DNS)
 - [ ] DNS-based load balancing configuration
 - [ ] DNS monitoring and troubleshooting tools
 
-**Note:** External-DNS manifest is ready but not deployed. See homelab CLAUDE_NOTES.md 2025-12-26 Afternoon session.
+**Note:** External-DNS is fully deployed with dual providers (Cloudflare + UniFi webhook). See [External-DNS documentation](./applications/external-dns.md) and homelab `manifests/base/external-dns/UNIFI-WEBHOOK-SETUP.md`.
 
 ### 14. **VPN & Remote Access**
 
