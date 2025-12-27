@@ -185,11 +185,14 @@ npm run build
 
 **Solution:**
 ```bash
-# Run markdownlint manually
-npx markdownlint-cli docs/**/*.md
+# Run markdownlint manually (use quotes for reliable globbing)
+npx markdownlint-cli "docs/**/*.md"
 
 # Auto-fix issues
-npx markdownlint-cli --fix docs/**/*.md
+npx markdownlint-cli --fix "docs/**/*.md"
+
+# Alternatively, use find for maximum compatibility
+# find docs -name "*.md" -exec npx markdownlint-cli --fix {} +
 ```
 
 ### Node Modules Issues
