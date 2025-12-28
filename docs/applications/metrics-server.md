@@ -154,15 +154,34 @@ Ensures metrics-server pods are not evicted under resource pressure.
 
 ### Prometheus ServiceMonitor
 
-Metrics Server exports its own metrics for monitoring:
+Metrics Server exports its own metrics for monitoring via a standalone ServiceMonitor manifest.
+
+**Note:** The metrics-server Helm chart v3.13.0 has `serviceMonitor.enabled: false` by default, and configuring it via values.yaml did not create the resource. A standalone ServiceMonitor manifest is deployed instead.
+
+**ServiceMonitor Configuration:**
+
+**File:** `manifests/base/metrics-server/servicemonitor.yaml`
 
 ```yaml
-serviceMonitor:
-  enabled: true
-  additionalLabels:
-    release: kube-prometheus-stack
-  interval: 1m
-  scrapeTimeout: 10s
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: metrics-server
+  namespace: kube-system
+  labels:
+    release: kube-prometheus-stack  # Required for Prometheus discovery
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: metrics-server
+  endpoints:
+  - port: https
+    scheme: https
+    interval: 1m
+    scrapeTimeout: 10s
+    tlsConfig:
+      insecureSkipVerify: true
+      # Required because metrics-server uses self-signed certificates
 ```
 
 **Exposed Metrics:**
@@ -172,12 +191,24 @@ serviceMonitor:
 - `metrics_server_api_metric_freshness_seconds` - Metric age
 - `rest_client_requests_total` - Kubelet scrape count/errors
 
+**Verification:**
+
+```bash
+# Check ServiceMonitor exists
+kubectl get servicemonitor -n kube-system metrics-server
+
+# Query metrics in Prometheus
+# Port-forward to Prometheus UI
+kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
+# Navigate to http://localhost:9090 and query: up{job="metrics-server"}
+```
+
 **Grafana Dashboards:**
 
 View metrics-server performance in Grafana:
 
 - Kubernetes / API Server dashboard
-- Custom metrics-server dashboard (TODO)
+- Custom metrics-server dashboard (create from exposed metrics)
 
 ## Usage
 
