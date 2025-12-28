@@ -72,7 +72,7 @@ The generator creates Terraform configurations for:
 ### Prerequisites
 
 - **UniFi Controller** with admin access
-- **Terraform** v1.6.3 or later
+- **Terraform** v1.6.3+ (recommended v1.7.0 or later)
 - **Bash 4.0+** with associative arrays
 - **curl** and **jq** for API communication
 
@@ -86,12 +86,17 @@ cd unifi-tf-generator
 # Test connectivity to UniFi controller
 make test
 
-# Generate complete Terraform configuration
-./scripts/all.sh -i <CONTROLLER_IP> -u <USERNAME> -p <PASSWORD>
+# Prompt for UniFi controller password (input will be hidden)
+read -s -p "Enter UniFi controller password: " UNIFI_PASSWORD
+echo
+
+# Generate complete Terraform configuration without exposing the password on the command line
+UNIFI_PASSWORD="$UNIFI_PASSWORD" ./scripts/all.sh -i <CONTROLLER_IP> -u <USERNAME>
 
 # Initialize and import existing infrastructure
 terraform init
-bash ./scripts/terraform_import_all.sh
+# Use the generated `*_import.tf` files for terraform import commands
+# (see the unifi-tf-generator README for detailed import instructions)
 
 # Plan and apply changes
 terraform plan
@@ -223,8 +228,8 @@ Network metrics from UniFi devices are collected via:
 **Connection Failures**
 
 ```bash
-# Test controller connectivity
-curl -k https://<CONTROLLER_IP>/api/auth/login
+# Test controller connectivity (requires valid/trusted certificate)
+curl https://<CONTROLLER_IP>/api/auth/login
 
 # Check network accessibility
 ./scripts/test_connectivity.sh -i <CONTROLLER_IP>
