@@ -24,6 +24,30 @@ This homelab project is organized across multiple repositories:
 - **[k8s-docs-n37](https://github.com/imcbeth/k8s-docs-n37)** - This documentation site built with Docusaurus
 - **[unifi-tf-generator](https://github.com/imcbeth/unifi-tf-generator)** - Terraform automation for UniFi network infrastructure management
 
+## 💡 Skills Useful for Similar Setups
+
+If you're interested in building something similar, these skills would be helpful:
+
+**Core Infrastructure:**
+
+- **Linux basics** - Command line, SSH, file management
+- **Docker & Kubernetes** - Container concepts and orchestration
+- **Git** - Version control and collaboration workflows
+
+**Homelab Specific:**
+
+- **Hardware setup** - Raspberry Pi, networking equipment, storage devices
+- **Networking** - VLANs, DNS, DHCP configuration
+- **Monitoring tools** - Prometheus, Grafana for observability
+
+**Advanced (Optional):**
+
+- **GitOps** - ArgoCD for automated deployments
+- **Terraform** - Infrastructure as code for network management
+- **Storage systems** - NAS configuration and iSCSI
+
+Start with the core skills and gradually work your way up as you expand your homelab!
+
 ## 🎓 Prerequisites & Recommended Skills
 
 ### Essential Skills
