@@ -16,7 +16,7 @@ All dashboards are deployed via ConfigMap sidecar provisioning and auto-discover
 ## Access
 
 **URL:** [https://grafana.k8s.n37.ca](https://grafana.k8s.n37.ca)
-**Credentials:** `admin` / `grafana123`
+**Credentials:** `<grafana-username>` / `<grafana-password>` (example only — set your own secure credentials in Grafana or your secret management system)
 
 ## Dashboard Deployment
 
@@ -68,7 +68,7 @@ The Grafana deployment includes a sidecar container (`grafana-sc-dashboard`) tha
 
 ### Dashboard Provisioning
 
-Dashboards are **read-only** (`editable: false`) because they're provisioned via ConfigMaps. To modify:
+Dashboards are **read-only in the Grafana UI** (`editable: false`) because they're provisioned via ConfigMaps, but they remain configurable via the ConfigMap definitions. To modify:
 
 1. Edit the dashboard ConfigMap YAML file
 2. Commit and push changes
@@ -301,7 +301,7 @@ Raspberry Pi CPU thermal monitoring and cooling efficiency analysis.
 
 **4. Max Temperature (24h) (Stat)**
 
-- **Query:** `max_over_time(max(node_hwmon_temp_celsius{chip="thermal_thermal_zone0",sensor="temp1"})[24h:])`
+- **Query:** `max_over_time(node_hwmon_temp_celsius{chip="thermal_thermal_zone0",sensor="temp1"}[24h])`
 - **Shows:** Peak temperature in last 24 hours
 - **Use:** Identify thermal spikes during heavy workloads
 
@@ -458,7 +458,7 @@ Log aggregation monitoring and analysis for cluster-wide log insights.
 
 **9. Recent Error Logs (Logs Panel)**
 
-- **Query:** `{namespace!=""} |~ "(?i)(error|err|failed|fatal)"`
+- **Query:** `{cluster="$cluster", namespace=~"$namespace"} |~ "(?i)(error|err|failed|fatal)"`
 - **Shows:** Live stream of error-level logs from all namespaces
 - **Features:**
   - Filterable by namespace/pod
@@ -483,7 +483,7 @@ Log aggregation monitoring and analysis for cluster-wide log insights.
    {namespace!=""}  # Excludes empty namespace
 
    # Avoid
-   {namespace=~".+"}  # Permissive regex (slower)
+   {namespace=~".+"}  # permissive regex (slower)
    ```
 
 2. **Limit time ranges for expensive queries:**
@@ -537,10 +537,9 @@ Log aggregation monitoring and analysis for cluster-wide log insights.
    data:
      <name>.json: |
        {
-         "dashboard": { ... }
+         "id": 1,
+         "title": "Example dashboard"
        }
-   ```
-
 4. Add to `manifests/base/grafana/dashboards/kustomization.yaml`
 5. Commit, push, and ArgoCD will sync automatically
 
@@ -592,13 +591,11 @@ kubectl port-forward -n default prometheus-kube-prometheus-stack-prometheus-0 90
 **Temperature metrics missing:**
 
 ```bash
-# Check available hwmon chips
-kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
-  wget -qO- 'http://localhost:9090/api/v1/label/chip/values' | jq
+# With the port-forward from above still running, check available hwmon chips
+curl -s 'http://localhost:9090/api/v1/label/chip/values' | jq
 
 # Query all temperature sensors
-kubectl exec -n default prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
-  wget -qO- 'http://localhost:9090/api/v1/query?query=node_hwmon_temp_celsius' | jq
+curl -s 'http://localhost:9090/api/v1/query?query=node_hwmon_temp_celsius' | jq
 ```
 
 ## Dashboard Configuration
