@@ -16,7 +16,128 @@ This homelab is built around a **5-node Raspberry Pi 5 cluster** running Kuberne
 - **GitOps workflow**: ArgoCD for declarative application management
 - **Network infrastructure**: UniFi networking with comprehensive monitoring
 
-## 🚀 Quick Start
+## 🎓 Prerequisites & Recommended Skills
+
+### Essential Skills
+
+Before diving into this homelab setup, these foundational skills will be invaluable:
+
+#### 🐧 **Linux System Administration**
+
+- Command line proficiency (bash, file permissions, process management)
+- Package management and service configuration
+- SSH and remote system management
+- Basic troubleshooting and log analysis
+
+#### 🐳 **Containerization & Orchestration**
+
+- **Docker**: Container concepts, Dockerfile creation, image management
+- **Kubernetes**: Pods, Services, Deployments, ConfigMaps, Secrets
+- **YAML**: Configuration file syntax and structure
+- **Container registries**: Image versioning and management
+
+#### 🌐 **Networking Fundamentals**
+
+- TCP/IP, DNS, DHCP concepts
+- VLANs and network segmentation
+- Port forwarding and firewall rules
+- Load balancing and ingress concepts
+
+### Intermediate Skills
+
+#### 🔄 **GitOps & Infrastructure as Code**
+
+- **Git**: Version control, branching, pull requests
+- **ArgoCD**: Application deployment and synchronization
+- **Terraform**: Infrastructure automation and state management
+- **Helm**: Kubernetes package management
+
+#### 📊 **Monitoring & Observability**
+
+- **Prometheus**: Metrics collection and PromQL queries
+- **Grafana**: Dashboard creation and data visualization
+- **Alert management**: Notification rules and escalation policies
+- **Log aggregation**: Centralized logging concepts
+
+#### 💾 **Storage & Data Management**
+
+- **Persistent Volumes**: Kubernetes storage concepts
+- **iSCSI**: Network storage protocols
+- **Backup strategies**: Data protection and recovery
+- **Database administration**: Basic SQL and NoSQL concepts
+
+### 🚀 Getting Started Path
+
+#### **Beginner Track** (2-4 weeks)
+
+1. **Linux Basics**: Set up a virtual machine, practice command line
+2. **Docker Fundamentals**: Run containers, build simple images
+3. **Git Basics**: Create repositories, make commits, understand workflows
+4. **YAML Syntax**: Practice writing configuration files
+
+#### **Intermediate Track** (1-2 months)
+
+1. **Kubernetes Basics**: Deploy applications, understand core concepts
+2. **Network Setup**: Configure home networking, understand VLANs
+3. **Monitoring Setup**: Install Prometheus and Grafana locally
+4. **GitOps Workflow**: Set up ArgoCD, deploy from Git
+
+#### **Advanced Track** (Ongoing)
+
+1. **Production Practices**: Security, backup strategies, high availability
+2. **Custom Applications**: Deploy your own services and databases
+3. **Advanced Networking**: Complex routing, security policies
+4. **Automation**: Infrastructure as Code, CI/CD pipelines
+
+## 📚 Learning Resources
+
+### 🎯 **Recommended Starting Points**
+
+- **Kubernetes**: [Official Kubernetes Tutorial](https://kubernetes.io/docs/tutorials/)
+- **Docker**: [Docker Get Started Guide](https://docs.docker.com/get-started/)
+- **Prometheus**: [Prometheus Getting Started](https://prometheus.io/docs/prometheus/latest/getting_started/)
+- **ArgoCD**: [ArgoCD Getting Started Guide](https://argo-cd.readthedocs.io/en/stable/getting_started/)
+
+### 🏠 **Homelab-Specific Resources**
+
+- **Raspberry Pi Clusters**: Hardware setup and clustering guides
+- **UniFi Networking**: Network design and monitoring setup
+- **Synology NAS**: iSCSI configuration and integration
+- **GitOps Practices**: Repository structure and workflow design
+
+## � Project Structure
+
+This homelab infrastructure is organized across multiple repositories:
+
+### 🏠 [homelab](https://github.com/your-username/homelab)
+
+The main repository containing:
+
+- **Kubernetes Manifests**: All application deployments and configurations
+- **ArgoCD Applications**: GitOps workflow definitions
+- **Secrets Management**: Encrypted secrets for services (external-dns, cert-manager, etc.)
+- **Scripts**: Validation and maintenance utilities
+- **Hardware Documentation**: Network topology and hardware specifications
+
+### 📚 [k8s-docs-n37](https://github.com/your-username/k8s-docs-n37)
+
+This documentation site built with Docusaurus:
+
+- **Comprehensive Guides**: Step-by-step setup and configuration instructions
+- **Troubleshooting**: Common issues and solutions
+- **Architecture Documentation**: System design and component relationships
+- **Best Practices**: Lessons learned and recommended approaches
+
+### 🌐 [unifi-tf-generator](https://github.com/your-username/unifi-tf-generator)
+
+Terraform automation for UniFi network management:
+
+- **Infrastructure as Code**: Network configuration through Terraform
+- **Automated Imports**: Scripts to import existing UniFi configurations
+- **Resource Management**: Networks, firewall rules, port forwarding, and more
+- **Version Control**: Track and manage network infrastructure changes
+
+## �🚀 Quick Start
 
 If you're new to this setup, start here:
 
@@ -63,3 +184,26 @@ If you're new to this setup, start here:
 - **Professional Networking**: UniFi-based network infrastructure
 - **Automated Deployments**: Self-healing applications with ArgoCD
 - **Enterprise Storage**: Synology NAS integration for persistent data
+
+## 🤝 Getting Involved
+
+### Exploring the Codebase
+
+- Browse the [homelab repository](https://github.com/your-username/homelab) for Kubernetes manifests and configurations
+- Check out the [unifi-tf-generator](https://github.com/your-username/unifi-tf-generator) for network automation examples
+- Contribute to this documentation by submitting PRs to [k8s-docs-n37](https://github.com/your-username/k8s-docs-n37)
+
+### Local Development
+
+- **Documentation**: Clone this repository and run `npm start` for local development
+- **Manifests**: Use the validation scripts in the homelab repo to test changes
+- **Network Config**: Use the Terraform generator to manage UniFi infrastructure
+
+### 📋 What's Next?
+
+Ready to dive deeper? Here are some recommended paths:
+
+- **Infrastructure Admins**: Start with [Kubernetes Installation](kubernetes/installation) and [ArgoCD Setup](applications/argocd)
+- **Monitoring Enthusiasts**: Jump to [Monitoring Overview](monitoring/overview) and explore [Grafana Dashboards](monitoring/grafana-dashboards)
+- **Network Engineers**: Explore [Networking Overview](networking/overview) and [Terraform Automation](networking/terraform)
+- **Storage Administrators**: Learn about [Synology CSI](storage/synology-csi) and persistent volume management
