@@ -70,6 +70,7 @@ const sidebars: SidebarsConfig = {
       label: 'Monitoring',
       items: [
         'monitoring/overview',
+        'monitoring/grafana-dashboards',
       ],
     },
     {
