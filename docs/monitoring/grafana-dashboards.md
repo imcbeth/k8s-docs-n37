@@ -517,13 +517,111 @@ Log aggregation monitoring and analysis for cluster-wide log insights.
 - **Capacity planning** - Monitor log volume growth
 - **Incident investigation** - Filter logs by time range and keywords
 
+## Dashboard Audit (2025-12-28)
+
+### Current State
+
+**Total Dashboards:** 30 (all provisioned via ConfigMap)
+**Custom Dashboards:** 4
+**Kube-Prometheus-Stack Dashboards:** 26
+**Uncommitted Dashboards:** 0 ✅
+
+All dashboards are managed as code - there are **no manually created or uncommitted dashboards** in the Grafana UI.
+
+### Audit Process
+
+The following audit was performed to verify all dashboards are in GitOps:
+
+1. **Verified Dashboard Provisioning Configuration:**
+
+   ```bash
+   # Check sidecar provisioning config
+   kubectl exec -n default deployment/kube-prometheus-stack-grafana \
+     -c grafana -- cat /etc/grafana/provisioning/dashboards/sc-dashboardproviders.yaml
+   ```
+
+   **Key Settings:**
+   - `allowUiUpdates: false` - **UI modifications are disabled**
+   - `disableDeletion: false` - Dashboards can be deleted but will be recreated by sidecar
+   - `path: /tmp/dashboards` - All dashboards loaded from this directory
+
+2. **Listed All Provisioned Dashboards:**
+
+   ```bash
+   # List all dashboard files
+   kubectl exec -n default deployment/kube-prometheus-stack-grafana \
+     -c grafana -- ls -1 /tmp/dashboards/ | sort
+   ```
+
+   **Custom Dashboards (4):**
+   - `loki-log-analytics.json`
+   - `node-resource-monitoring.json`
+   - `pi-cluster-overview.json`
+   - `temperature-monitoring.json`
+
+   **Kube-Prometheus-Stack Dashboards (26):**
+   - `alertmanager-overview.json`
+   - `apiserver.json`
+   - `cluster-total.json`
+   - `controller-manager.json`
+   - `grafana-overview.json`
+   - `k8s-coredns.json`
+   - `k8s-resources-cluster.json`
+   - `k8s-resources-multicluster.json`
+   - `k8s-resources-namespace.json`
+   - `k8s-resources-node.json`
+   - `k8s-resources-pod.json`
+   - `k8s-resources-workload.json`
+   - `k8s-resources-workloads-namespace.json`
+   - `kubelet.json`
+   - `namespace-by-pod.json`
+   - `namespace-by-workload.json`
+   - `node-cluster-rsrc-use.json`
+   - `node-rsrc-use.json`
+   - `nodes-aix.json`
+   - `nodes-darwin.json`
+   - `nodes.json`
+   - `persistentvolumesusage.json`
+   - `pod-total.json`
+   - `prometheus.json`
+   - `scheduler.json`
+   - `workload-total.json`
+
+3. **Verified All Dashboards Have ConfigMap Sources:**
+
+   ```bash
+   # Count dashboard ConfigMaps
+   kubectl get configmap -n default -l grafana_dashboard=1 | wc -l
+   ```
+
+   **Result:** 30 ConfigMaps (matches 30 dashboard files)
+
+### Audit Conclusion
+
+✅ **All dashboards are managed as code via GitOps**
+✅ **UI dashboard creation is disabled** (`allowUiUpdates: false`)
+✅ **No manual migrations needed** - all existing dashboards already have ConfigMap sources
+✅ **Sidecar auto-discovery is working** - all ConfigMaps are loaded automatically
+
+**Recommendation:** Maintain this GitOps-only workflow for all future dashboard changes.
+
 ## Common Tasks
 
 ### Adding a New Dashboard
 
-1. Create dashboard JSON in Grafana UI (if desired)
-2. Export dashboard JSON (Settings → JSON Model)
-3. Create ConfigMap YAML:
+**Note:** Dashboard creation through the Grafana UI is **disabled** (`allowUiUpdates: false`). All dashboards must be created as ConfigMaps.
+
+**Workflow:**
+
+1. **Option A: Create JSON manually** or **Option B: Create locally and export**
+
+   If using Option B:
+   - Temporarily enable `allowUiUpdates: true` in values.yaml
+   - Create dashboard in Grafana UI
+   - Export JSON (Settings → JSON Model)
+   - Disable `allowUiUpdates: false` again
+
+2. Create ConfigMap YAML:
 
    ```yaml
    apiVersion: v1
@@ -532,16 +630,32 @@ Log aggregation monitoring and analysis for cluster-wide log insights.
      name: grafana-dashboard-<name>
      namespace: default
      labels:
-       grafana_dashboard: "1"
+       grafana_dashboard: "1"  # Required for sidecar discovery
        app: grafana
    data:
      <name>.json: |
        {
-         "id": 1,
-         "title": "Example dashboard"
+         "editable": false,
+         "title": "Dashboard Title",
+         "uid": "unique-dashboard-id",
+         ...
        }
-4. Add to `manifests/base/grafana/dashboards/kustomization.yaml`
-5. Commit, push, and ArgoCD will sync automatically
+   ```
+
+3. Add to `manifests/base/grafana/dashboards/kustomization.yaml`:
+
+   ```yaml
+   resources:
+     - pi-cluster-overview.yaml
+     - node-resource-monitoring.yaml
+     - temperature-monitoring.yaml
+     - loki-log-analytics.yaml
+     - <your-new-dashboard>.yaml  # Add here
+   ```
+
+4. Commit and push changes
+5. ArgoCD syncs automatically (~3 minutes)
+6. Grafana sidecar discovers and loads dashboard (~30 seconds)
 
 ### Modifying an Existing Dashboard
 
