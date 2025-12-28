@@ -64,7 +64,7 @@ npm run serve
 ### Application Guides
 
 - **[ArgoCD](docs/applications/argocd.md)** - GitOps deployment platform
-- **[Grafana Dashboards](docs/applications/grafana-dashboards.md)** - Monitoring visualizations
+- **[Grafana Dashboards](docs/monitoring/grafana-dashboards.md)** - Monitoring visualizations
 - **[Loki](docs/applications/loki.md)** - Log aggregation and analysis
 - **[External-DNS](docs/applications/external-dns.md)** - Automated DNS record management
 - **[Blackbox Exporter](docs/applications/blackbox-exporter.md)** - Endpoint monitoring
