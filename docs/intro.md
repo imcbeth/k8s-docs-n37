@@ -16,6 +16,14 @@ This homelab is built around a **5-node Raspberry Pi 5 cluster** running Kuberne
 - **GitOps workflow**: ArgoCD for declarative application management
 - **Network infrastructure**: UniFi networking with comprehensive monitoring
 
+## 📂 Project Repositories
+
+This homelab project is organized across multiple repositories:
+
+- **[homelab](https://github.com/imcbeth/homelab)** - Main repository containing Kubernetes manifests, ArgoCD applications, and infrastructure configurations
+- **[k8s-docs-n37](https://github.com/imcbeth/k8s-docs-n37)** - This documentation site built with Docusaurus
+- **[unifi-tf-generator](https://github.com/imcbeth/unifi-tf-generator)** - Terraform automation for UniFi network infrastructure management
+
 ## 🎓 Prerequisites & Recommended Skills
 
 ### Essential Skills
