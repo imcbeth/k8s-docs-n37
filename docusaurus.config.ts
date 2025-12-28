@@ -77,7 +77,7 @@ const config: Config = {
     navbar: {
       title: 'N37 Homelab Infrastructure Documentation',
       logo: {
-        alt: 'My Site Logo',
+        alt: 'N37 Homelab Infrastructure Logo',
         src: 'img/logo.svg',
       },
       items: [
