@@ -105,7 +105,7 @@ Before diving into this homelab setup, these foundational skills will be invalua
 - **Synology NAS**: iSCSI configuration and integration
 - **GitOps Practices**: Repository structure and workflow design
 
-## � Project Structure
+## 📁 Project Structure
 
 This homelab infrastructure is organized across multiple repositories:
 
@@ -137,7 +137,7 @@ Terraform automation for UniFi network management:
 - **Resource Management**: Networks, firewall rules, port forwarding, and more
 - **Version Control**: Track and manage network infrastructure changes
 
-## �🚀 Quick Start
+## 🚀 Quick Start
 
 If you're new to this setup, start here:
 
