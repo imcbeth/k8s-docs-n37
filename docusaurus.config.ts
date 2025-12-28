@@ -108,19 +108,19 @@ const config: Config = {
           ],
         },
         {
-          title: 'Community',
+          title: 'Related Projects',
           items: [
             {
-              label: 'Stack Overflow',
-              href: 'https://stackoverflow.com/questions/tagged/docusaurus',
+              label: 'Homelab Repository',
+              href: 'https://github.com/imcbeth/homelab',
             },
             {
-              label: 'Discord',
-              href: 'https://discordapp.com/invite/docusaurus',
+              label: 'UniFi Terraform Generator',
+              href: 'https://github.com/imcbeth/unifi-tf-generator',
             },
             {
-              label: 'X',
-              href: 'https://x.com/docusaurus',
+              label: 'Kubernetes',
+              href: 'https://kubernetes.io/',
             },
           ],
         },
@@ -138,7 +138,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} N37 Homelab Infrastructure. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,
