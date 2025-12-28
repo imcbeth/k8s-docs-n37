@@ -38,6 +38,7 @@ const sidebars: SidebarsConfig = {
       label: 'Networking',
       items: [
         'networking/overview',
+        'networking/terraform',
       ],
     },
     {
