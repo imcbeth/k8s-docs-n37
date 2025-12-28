@@ -269,15 +269,166 @@ PrometheusRule CRDs define alerting rules:
 - Persistent volume alerts
 - API server alerts
 
+**Custom Alert Rules:**
+
+Additional PrometheusRule resources deployed:
+
+- **Blackbox Exporter Alerts**: Endpoint monitoring, SSL certificate expiry (see [Blackbox Exporter](./blackbox-exporter.md))
+- **Velero Alerts**: Backup failure detection, storage location health (see [Velero](./velero.md))
+
 ### Notification Channels
 
-Configure notification channels in AlertManager config:
+#### SMTP Email Notifications (Configured)
+
+**Date Implemented:** 2025-12-27
+
+AlertManager is configured to send critical alerts via SMTP email using Gmail:
+
+**Configuration:**
+
+```yaml
+alertmanager:
+  config:
+    global:
+      smtp_from: 'alertmanager@n37.ca'
+      smtp_smarthost: 'smtp.gmail.com:587'
+      smtp_auth_username: 'imcbeth1980@gmail.com'
+      smtp_auth_password_file: '/etc/alertmanager/secrets/alertmanager-smtp-credentials/smtp_password'
+      smtp_require_tls: true
+
+    route:
+      receiver: 'null'
+      routes:
+        - receiver: 'null'
+          matchers:
+            - alertname = "Watchdog"
+        - receiver: 'email-critical'
+          matchers:
+            - severity = "critical"
+
+    receivers:
+      - name: 'email-critical'
+        email_configs:
+          - to: 'imcbeth1980@gmail.com'
+            headers:
+              Subject: '[CRITICAL] {{ .GroupLabels.alertname }} - K8s Homelab'
+            html: |
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <style>
+                  body { font-family: Arial, sans-serif; }
+                  .alert { border-left: 4px solid #d9534f; padding: 10px; margin: 10px 0; background-color: #f2dede; }
+                  .summary { font-weight: bold; font-size: 16px; }
+                </style>
+              </head>
+              <body>
+                <h2>🚨 Critical Alert - Kubernetes Homelab</h2>
+                {{ range .Alerts }}
+                <div class="alert">
+                  <div class="summary">{{ .Annotations.summary }}</div>
+                  <pre style="white-space: pre-wrap; margin: 0;">{{ .Annotations.description }}</pre>
+                </div>
+                {{ end }}
+              </body>
+              </html>
+```
+
+**Alert Routing:**
+
+- **Critical Severity**: Routed to `email-critical` receiver (emails sent)
+- **Warning/Info Severity**: Routed to `null` receiver (silenced)
+- **Watchdog Alert**: Always silenced (heartbeat alert, not actionable)
+
+**SMTP Credentials:**
+
+Stored in Kubernetes Secret (git-crypt encrypted):
+
+```bash
+# Secret: alertmanager-smtp-credentials
+# Location: /Users/imcbeth/homelab/secrets/alertmanager-smtp-secret.yaml
+# Fields:
+#   - smtp_username: Gmail address
+#   - smtp_password: Gmail app password (2FA required)
+```
+
+**Secret Mount:**
+
+```yaml
+alertmanagerSpec:
+  secrets:
+    - alertmanager-smtp-credentials
+```
+
+**Email Template Features:**
+
+- HTML-formatted emails with alert styling
+- Custom subject line with alert name
+- Alert summary and description
+- Grouped by namespace and alertname
+
+**Testing:**
+
+```bash
+# Create test alert (fires immediately)
+cat > /tmp/test-alert.yaml <<EOF
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: test-email-alert
+  namespace: default
+  labels:
+    release: kube-prometheus-stack  # Required for Prometheus to pick up
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+  - name: test
+    interval: 30s
+    rules:
+    - alert: TestEmailAlert
+      expr: vector(1)
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Test email notification"
+        description: "This is a test alert to verify SMTP delivery."
+EOF
+
+kubectl apply -f /tmp/test-alert.yaml
+
+# Wait 2-3 minutes for email
+# Check AlertManager UI: http://localhost:9093 (port-forward)
+
+# Cleanup
+kubectl delete -f /tmp/test-alert.yaml
+```
+
+**Troubleshooting:**
+
+```bash
+# Check AlertManager logs for SMTP errors
+kubectl logs -n default -l app.kubernetes.io/name=alertmanager | grep -i smtp
+
+# Verify secret is mounted
+kubectl exec -n default alertmanager-kube-prometheus-stack-alertmanager-0 -- \
+  ls -la /etc/alertmanager/secrets/alertmanager-smtp-credentials/
+
+# Port-forward to AlertManager UI
+kubectl port-forward -n default svc/kube-prometheus-stack-alertmanager 9093:9093
+# Navigate to http://localhost:9093 to see active alerts and routing
+```
+
+#### Other Notification Channels (Available)
+
+AlertManager supports additional notification channels (not yet configured):
 
 - Slack
-- Email
 - PagerDuty
 - Discord
 - Webhook
+- Microsoft Teams
 
 ## Monitoring the Raspberry Pi Cluster
 
@@ -553,6 +704,195 @@ kubeScheduler:
 
 ---
 
+### Issue 4: AlertManager SMTP Configuration and Deployment
+
+**Date Resolved:** 2025-12-27/28
+**Severity:** Medium (multiple deployment blockers)
+
+This issue encompasses a series of configuration and deployment challenges encountered while implementing AlertManager SMTP email notifications.
+
+#### Sub-issue 4a: Git-crypt Encrypted Secrets in ArgoCD Kustomization
+
+**Symptoms:**
+
+```
+MalformedYAMLError: yaml: control characters are not allowed in File: grafana-secret.yaml
+```
+
+**Root Cause:**
+
+- ArgoCD cannot read git-crypt encrypted files
+- `kustomization.yaml` included encrypted `grafana-secret.yaml` and `snmp-exporter-secret.yaml`
+- Git-crypt files appear as binary/garbled to ArgoCD
+
+**Solution:**
+
+Excluded encrypted secrets from `kustomization.yaml`:
+
+```yaml
+# Explicitly list resources to deploy
+# Excluded:
+#  - values.yaml (used by Helm chart source only)
+#  - grafana-secret.yaml (git-crypt encrypted, apply manually)
+#  - snmp-exporter-secret.yaml (git-crypt encrypted, apply manually)
+resources:
+  - blackbox-exporter-alerts.yaml
+  - blackbox-exporter-configmap.yaml
+  - ...
+  - velero-alerts.yaml
+```
+
+Git-crypt encrypted secrets must be applied manually: `kubectl apply -f secrets/`
+
+**Related PRs:**
+
+- homelab#154: Exclude git-crypt encrypted secrets from kustomization
+
+---
+
+#### Sub-issue 4b: Control Characters in Base64-Encoded Secrets
+
+**Symptoms:**
+
+```
+MalformedYAMLError: yaml: control characters are not allowed
+```
+
+When decoding grafana-secret values:
+
+```bash
+echo "YWRtaW4K" | base64 -d  # → "admin\n" (includes newline)
+```
+
+**Root Cause:**
+
+Base64 values included trailing newlines (`\n`), which are control characters in YAML:
+
+```yaml
+data:
+  admin-user: YWRtaW4K          # Includes \n
+  admin-password: Z3JhZmFuYTEyMwo=  # Includes \n
+```
+
+**Solution:**
+
+Re-encoded without trailing newlines:
+
+```bash
+echo -n "admin" | base64        # → YWRtaW4=
+echo -n "grafana123" | base64   # → Z3JhZmFuYTEyMw==
+```
+
+```yaml
+data:
+  admin-user: YWRtaW4=
+  admin-password: Z3JhZmFuYTEyMw==
+```
+
+**Related PRs:**
+
+- homelab#153: Fix control characters in grafana-secret base64 values
+
+---
+
+#### Sub-issue 4c: AlertManager smtp_auth_username_file Not Supported
+
+**Symptoms:**
+
+```
+level=error msg="Unhandled Error" err="sync \"default/kube-prometheus-stack-alertmanager\" failed: provision alertmanager configuration: failed to initialize from secret: yaml: unmarshal errors:\n  line 4: field smtp_auth_username_file not found in type config.plain"
+```
+
+**Root Cause:**
+
+AlertManager only supports:
+
+- `smtp_auth_username`: Plain string (no file reference)
+- `smtp_auth_password_file`: File-based reference to mounted secret
+
+There is **NO** `smtp_auth_username_file` option in AlertManager configuration.
+
+**Initial Attempt (Failed):**
+
+```yaml
+smtp_auth_username_file: '/etc/alertmanager/secrets/alertmanager-smtp-credentials/smtp_username'
+smtp_auth_password_file: '/etc/alertmanager/secrets/alertmanager-smtp-credentials/smtp_password'
+```
+
+**Solution:**
+
+Mixed authentication approach:
+
+```yaml
+smtp_auth_username: 'imcbeth1980@gmail.com'  # Plain string
+smtp_auth_password_file: '/etc/alertmanager/secrets/alertmanager-smtp-credentials/smtp_password'  # File reference
+```
+
+**Why This Is Correct:**
+
+- Username is not sensitive (visible in SMTP handshake)
+- Password remains protected via file-based secret mount
+- Follows AlertManager's supported authentication fields
+
+**Related PRs:**
+
+- homelab#155: Fix AlertManager SMTP auth by using smtp_auth_username (not _file)
+
+**References:**
+
+- [Prometheus AlertManager Configuration](https://prometheus.io/docs/alerting/latest/configuration/)
+
+---
+
+#### Sub-issue 4d: PrometheusRule Label Selector Missing
+
+**Symptoms:**
+
+- PrometheusRule created but not loaded by Prometheus
+- Test alert not firing
+- Rule not visible in Prometheus UI targets
+
+**Root Cause:**
+
+Prometheus requires specific label selector to pick up PrometheusRule resources:
+
+```yaml
+# Missing required label
+labels:
+  prometheus: kube-prometheus
+  role: alert-rules
+```
+
+**Solution:**
+
+Added required label:
+
+```yaml
+labels:
+  release: kube-prometheus-stack  # Required!
+  prometheus: kube-prometheus
+  role: alert-rules
+```
+
+**Verification:**
+
+```bash
+# Check if Prometheus picked up the rule
+kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
+# Navigate to http://localhost:9090/alerts
+# Rule should appear in "Firing" state
+```
+
+**Applies To:**
+
+All custom PrometheusRule resources:
+
+- Blackbox exporter alerts
+- Velero alerts
+- Any future custom alert rules
+
+---
+
 ### Configuration Best Practices
 
 Based on the above issues, follow these practices for Raspberry Pi clusters with Calico CNI:
@@ -576,7 +916,32 @@ Based on the above issues, follow these practices for Raspberry Pi clusters with
 - Focus monitoring on kubelet, API server, kube-state-metrics
 - Don't try to modify kubeadm config for metric access
 
-**4. Test connectivity from Prometheus pod:**
+**4. AlertManager SMTP configuration:**
+
+- Use `smtp_auth_username` (plain string) for username
+- Use `smtp_auth_password_file` (file reference) for password
+- Mount credentials via `alertmanagerSpec.secrets`
+- Never commit credentials in plaintext (use git-crypt)
+
+**5. PrometheusRule label requirements:**
+
+- Always include `release: kube-prometheus-stack` label
+- Required for Prometheus to pick up custom alert rules
+- Verify rules appear in Prometheus UI after deployment
+
+**6. Git-crypt encrypted secrets with ArgoCD:**
+
+- Exclude encrypted files from `kustomization.yaml`
+- Apply encrypted secrets manually: `kubectl apply -f secrets/`
+- ArgoCD cannot read git-crypt files
+
+**7. Base64-encode secrets without control characters:**
+
+- Always use `echo -n` to avoid trailing newlines
+- Example: `echo -n "value" | base64`
+- Trailing newlines cause YAML parsing errors
+
+**8. Test connectivity from Prometheus pod:**
 
 ```bash
 # Test if Prometheus can reach a target
