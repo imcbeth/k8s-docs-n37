@@ -5,26 +5,70 @@
  */
 
 /* You can override the default Infima variables here. */
+/* Colors aligned with N37 cluster logo theme */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
+  --ifm-color-primary: #326ce5;
+  --ifm-color-primary-dark: #2c5ec6;
+  --ifm-color-primary-darker: #2959ba;
+  --ifm-color-primary-darkest: #204a99;
+  --ifm-color-primary-light: #4a7ae8;
+  --ifm-color-primary-lighter: #5584ea;
+  --ifm-color-primary-lightest: #6b92ee;
   --ifm-code-font-size: 95%;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
-}
+  /* N37 cluster brand colors from logo */
+  --n37-kubernetes-blue: #326ce5;
+  --n37-raspberry-red: #c51a4a;
+  --n37-accent-green: #0eab8c;
+  --n37-dark-bg: #1a1a2e;}
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
+/* Dark mode uses accent green from N37 logo */
 [data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
+  --ifm-color-primary: #0eab8c;
+  --ifm-color-primary-dark: #0d9a7e;
+  --ifm-color-primary-darker: #0c9176;
+  --ifm-color-primary-darkest: #0a7862;
+  --ifm-color-primary-light: #18bc9a;
+  --ifm-color-primary-lighter: #22c5a3;
+  --ifm-color-primary-lightest: #3dd6b4;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* Custom styling for N37 branding */
+.navbar__logo {
+  margin-right: 0.75rem;
+}
+
+/* Enhance code blocks with subtle N37 theme accents */
+.theme-code-block {
+  border-left: 3px solid var(--ifm-color-primary);
+}
+
+/* Style the hero section with gradient background */
+.hero {
+  background: linear-gradient(135deg,
+    var(--n37-dark-bg) 0%,
+    rgba(50, 108, 229, 0.1) 100%);
+}
+
+[data-theme='dark'] .hero {
+  background: linear-gradient(135deg,
+    var(--n37-dark-bg) 0%,
+    rgba(14, 171, 140, 0.1) 100%);
+}
+
+/* Add subtle accent to cards and containers */
+.card {
+  border-top: 2px solid var(--ifm-color-primary);
+}
+
+/* Style tables with brand colors */
+.table th {
+  border-bottom: 2px solid var(--ifm-color-primary);
+}
+
+/* Add hover effects matching brand */
+.button--primary:hover {
+  background-color: var(--ifm-color-primary-dark);
 }
