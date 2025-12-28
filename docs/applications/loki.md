@@ -540,6 +540,303 @@ kubectl exec -n loki loki-0 -c loki -- wget -qO- http://localhost:3100/ready
 kubectl exec -n loki loki-0 -c loki -- wget -qO- http://localhost:3100/metrics | head
 ```
 
+## Log-Based Alerting
+
+Loki includes a **Ruler** component that evaluates LogQL expressions and sends alerts to AlertManager, enabling log-based monitoring and proactive incident detection.
+
+### Loki Ruler Overview
+
+**Deployment:**
+
+- **Enabled:** Yes (as of 2025-12-28)
+- **Mode:** Deployment (1 replica)
+- **Namespace:** `loki`
+- **Resources:**
+  - Requests: 50m CPU, 128Mi memory
+  - Limits: 200m CPU, 256Mi memory
+- **Persistence:** 1Gi PVC on `synology-iscsi-retain`
+
+**Purpose:** Evaluates log-based alerting rules and sends alerts to AlertManager for notification routing (email, Slack, etc.)
+
+### AlertManager Integration
+
+The Loki Ruler is configured to send alerts to the kube-prometheus-stack AlertManager:
+
+```yaml
+loki:
+  rulerConfig:
+    alertmanager_url: http://kube-prometheus-stack-alertmanager.default.svc.cluster.local:9093
+    enable_api: true
+    enable_alertmanager_v2: true
+```
+
+**Alert Flow:**
+
+```
+Loki Logs → Ruler (LogQL evaluation) → AlertManager → Email/Slack/etc.
+```
+
+### Alert Rules Configuration
+
+Alert rules are defined using PrometheusRule CRDs with the following labels for Prometheus Operator discovery:
+
+```yaml
+metadata:
+  namespace: loki
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+    app: loki
+```
+
+**Configuration File:** `manifests/base/loki/loki-alerts.yaml` in homelab repository
+
+### Implemented Alert Rules
+
+The following 11 alert rules are deployed across 4 categories:
+
+#### 1. Log Errors (Group: loki.log_errors)
+
+**HighErrorLogRate:**
+
+- **Expression:** Error log rate > 1/sec for 5 minutes
+- **Severity:** Warning
+- **Pattern:** Matches "error", "err", "fatal", "exception", "panic", "fail" (case-insensitive)
+- **Purpose:** Detect elevated error rates across all namespaces
+
+**CriticalErrorLogs:**
+
+- **Expression:** Critical error rate > 0.1/sec for 2 minutes
+- **Severity:** Critical
+- **Pattern:** Matches "critical", "fatal", "panic", "emergency" (case-insensitive)
+- **Purpose:** Immediate notification for severe errors
+
+#### 2. Pod Failures (Group: loki.pod_failures)
+
+**CrashLoopBackOffDetected:**
+
+- **Expression:** CrashLoopBackOff messages detected for 5 minutes
+- **Severity:** Critical
+- **Pattern:** Matches "back-off restarting failed container", "crashloopbackoff"
+- **Purpose:** Alert on pods unable to start successfully
+
+**OOMKilledDetected:**
+
+- **Expression:** Out-of-memory kill events detected for 1 minute
+- **Severity:** Critical
+- **Pattern:** Matches "oomkilled", "out of memory", "memory cgroup out of memory"
+- **Purpose:** Identify pods exceeding memory limits
+
+**PersistentPodRestarts:**
+
+- **Expression:** More than 5 restart messages in 15 minutes
+- **Severity:** Warning
+- **Pattern:** Matches "restarting container", "restart count"
+- **Purpose:** Detect unstable pods with frequent restarts
+
+#### 3. Application Errors (Group: loki.application_errors)
+
+**HighHTTP5xxErrorRate:**
+
+- **Expression:** HTTP 5xx error rate > 1/sec for 5 minutes
+- **Severity:** Warning
+- **Pattern:** Matches "status[= :]5[0-9]{2}", "http.*5[0-9]{2}"
+- **Purpose:** Monitor application-level server errors
+
+**DatabaseConnectionErrors:**
+
+- **Expression:** Database error rate > 0.5/sec for 5 minutes
+- **Severity:** Warning
+- **Pattern:** Matches "connection.*refused", "connection.*timeout", "database.*error", "sql.*error"
+- **Purpose:** Detect database connectivity issues
+
+#### 4. Security Events (Group: loki.security_events)
+
+**AuthenticationFailures:**
+
+- **Expression:** Authentication failure rate > 5/sec for 5 minutes
+- **Severity:** Warning
+- **Pattern:** Matches "authentication.*failed", "auth.*failed", "unauthorized", "invalid.*credentials"
+- **Purpose:** Detect potential brute-force or misconfiguration
+
+**SuspiciousActivity:**
+
+- **Expression:** Any suspicious keywords detected for 2 minutes
+- **Severity:** Critical
+- **Pattern:** Matches "attack", "intrusion", "exploit", "malicious", "suspicious"
+- **Purpose:** Early detection of potential security incidents
+
+### Verifying Alerting Setup
+
+**Check Ruler Pod:**
+
+```bash
+kubectl get pods -n loki -l app.kubernetes.io/component=ruler
+# Expected: 1 running pod
+```
+
+**Check Ruler Logs:**
+
+```bash
+kubectl logs -n loki -l app.kubernetes.io/component=ruler --tail=50
+# Look for "ruler started" and "evaluating rules"
+```
+
+**Verify PrometheusRule Created:**
+
+```bash
+kubectl get prometheusrule -n loki loki-log-based-alerts
+# Should show the alert rules resource
+```
+
+**Check Alert Rules in Prometheus:**
+
+```bash
+# Port-forward to Prometheus
+kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
+
+# Navigate to: http://localhost:9090/alerts
+# Look for alerts with prefix "loki" or check "loki.log_errors" group
+```
+
+**Verify AlertManager Integration:**
+
+```bash
+# Port-forward to AlertManager
+kubectl port-forward -n default svc/kube-prometheus-stack-alertmanager 9093:9093
+
+# Navigate to: http://localhost:9093
+# Check for any firing Loki alerts
+```
+
+### Testing Alert Rules
+
+**Trigger a Test Alert (HighErrorLogRate):**
+
+```bash
+# Generate error logs in a test pod
+kubectl run test-error-logs --image=busybox --restart=Never -- \
+  sh -c 'for i in $(seq 1 100); do echo "ERROR: Test error message $i"; sleep 1; done'
+
+# Wait 5-6 minutes for alert to fire
+# Check AlertManager UI for the alert
+```
+
+**Clean Up Test Pod:**
+
+```bash
+kubectl delete pod test-error-logs
+```
+
+### Tuning Alert Thresholds
+
+Alert thresholds can be adjusted in `manifests/base/loki/loki-alerts.yaml`:
+
+**Example - Reduce HighErrorLogRate sensitivity:**
+
+```yaml
+- alert: HighErrorLogRate
+  expr: |
+    sum by (namespace, pod) (
+      rate({namespace=~".+"} |~ "(?i)(error|err|fatal|exception|panic|fail)" [5m])
+    ) > 5  # Changed from 1 to 5 errors/sec
+  for: 10m  # Changed from 5m to 10m
+```
+
+After editing, commit and push changes - ArgoCD will auto-sync the new rules.
+
+### Monitoring Ruler Performance
+
+**Ruler Metrics (via Prometheus):**
+
+```promql
+# Rules evaluated per second
+rate(loki_prometheus_rule_evaluations_total[5m])
+
+# Rule evaluation duration
+histogram_quantile(0.99, rate(loki_prometheus_rule_evaluation_duration_seconds_bucket[5m]))
+
+# Failed rule evaluations
+rate(loki_prometheus_rule_evaluation_failures_total[5m])
+```
+
+**Resource Usage:**
+
+```bash
+kubectl top pod -n loki -l app.kubernetes.io/component=ruler
+```
+
+### Alert Notification Channels
+
+Alerts are routed through AlertManager, which supports:
+
+- **Email:** Configured for homelab (Gmail SMTP)
+- **Slack:** Can be configured for team notifications
+- **Discord:** Alternative messaging platform
+- **Webhook:** Custom integrations
+- **PagerDuty:** For production on-call rotations
+
+**Email Configuration:** See `manifests/base/kube-prometheus-stack/alertmanager-secret.yaml` in homelab repository
+
+### Troubleshooting Alerts
+
+**Alert Not Firing:**
+
+1. Check if logs match the pattern:
+
+   ```logql
+   {namespace=~".+"} |~ "(?i)(error|err|fatal|exception|panic|fail)"
+   ```
+
+2. Verify threshold is exceeded:
+
+   ```logql
+   sum by (namespace, pod) (
+     rate({namespace=~".+"} |~ "(?i)(error|err|fatal|exception|panic|fail)" [5m])
+   )
+   ```
+
+3. Check Ruler logs for evaluation errors
+
+**Too Many False Positives:**
+
+- Adjust pattern to be more specific
+- Increase threshold or evaluation duration
+- Add exclusions for known noisy patterns
+
+**Alert Not Reaching Email/Slack:**
+
+- Verify AlertManager configuration
+- Check AlertManager logs for routing errors
+- Test AlertManager notification channels
+
+### Best Practices
+
+**When Creating Custom Alert Rules:**
+
+1. **Test LogQL queries in Grafana Explore** before creating alert rules
+2. **Use appropriate `for` duration** to avoid flapping alerts
+3. **Set meaningful annotations** with runbook links
+4. **Include helpful context** in alert descriptions (namespace, pod, error rate)
+5. **Use label-based routing** in AlertManager for different severities
+6. **Monitor alert evaluation performance** to avoid overloading Ruler
+
+**Alert Naming Convention:**
+
+- Use descriptive names: `HighErrorLogRate`, not `Alert1`
+- Include severity in name when appropriate: `CriticalErrorLogs`
+- Group related alerts with common prefix
+
+### Future Enhancements
+
+Potential improvements for log-based alerting:
+
+- **SLO-Based Alerting:** Define error budget and alert when budget is exhausted
+- **Anomaly Detection:** ML-based detection of unusual log patterns
+- **Log Correlation:** Combine log patterns with metric thresholds
+- **Dynamic Thresholds:** Adjust thresholds based on time of day or traffic volume
+- **Custom Runbooks:** Detailed troubleshooting guides for each alert type
+
 ## Configuration Files
 
 ### ArgoCD Applications
