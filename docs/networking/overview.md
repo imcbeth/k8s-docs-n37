@@ -49,6 +49,13 @@ This document describes the complete network architecture for the Raspberry Pi K
 
 ### DNS & Security
 
+**Infrastructure as Code Management:**
+
+- **[UniFi Terraform Configuration](terraform.md)** - Automated network infrastructure management
+- Complete Terraform generation toolkit for UniFi components
+- Version-controlled network policies and VLAN configurations
+- Automated import and management of existing infrastructure
+
 - **Primary DNS:** Cloudflare (1.1.1.1, 1.0.0.1)
 - **Security Services:** UniFi CyberSecure Enhanced by Proofpoint
   - Intrusion Detection System (IDS)
