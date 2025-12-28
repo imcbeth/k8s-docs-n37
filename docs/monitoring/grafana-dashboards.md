@@ -517,12 +517,113 @@ Log aggregation monitoring and analysis for cluster-wide log insights.
 - **Capacity planning** - Monitor log volume growth
 - **Incident investigation** - Filter logs by time range and keywords
 
+## Migrated Community Dashboards
+
+In addition to the 4 custom dashboards above, 13 community/vendor dashboards that were previously manually imported have been migrated to ConfigMaps for GitOps management.
+
+### Loki Dashboards (4)
+
+**1. Logging Dashboard via Loki**
+
+- **Source:** Community dashboard
+- **Purpose:** Comprehensive log search and visualization
+- **Features:** Multi-namespace log filtering, live log tailing, pattern detection
+
+**2. Loki Dashboard**
+
+- **Source:** Grafana Labs
+- **Purpose:** Quick search and log volume overview
+- **Features:** Log volume by namespace, ingestion rate, query performance
+
+**3. Loki Stack Monitoring (Promtail, Loki)**
+
+- **Source:** Community dashboard
+- **Purpose:** Monitor Loki and Promtail components
+- **Features:** Ingester metrics, distributor stats, Promtail scrape status
+
+**4. Loki 2.0 Global Metrics**
+
+- **Source:** Grafana Labs
+- **Purpose:** Loki internal metrics and performance
+- **Features:** Memory usage, query duration, chunk operations
+
+### Synology NAS Dashboards (2)
+
+**1. Synology Dashboard**
+
+- **Source:** Community SNMP dashboard
+- **Purpose:** NAS health and storage monitoring
+- **Features:** Volume capacity, disk temperatures, RAID status, iSCSI targets
+
+**2. Synology Dashboard2**
+
+- **Source:** Alternative SNMP dashboard layout
+- **Purpose:** Detailed NAS performance metrics
+- **Features:** Network throughput, CPU/memory, disk I/O, service status
+
+### UniFi Network Dashboards (7)
+
+**1. UniFi Access Points**
+
+- **Purpose:** Wireless access point monitoring
+- **Features:** AP status, client connections, channel utilization, signal strength
+
+**2. UniFi Clients**
+
+- **Purpose:** Client device tracking
+- **Features:** Connected clients, bandwidth usage, connection history
+
+**3. UniFi DPI (Deep Packet Inspection)**
+
+- **Purpose:** Application-level traffic analysis
+- **Features:** Traffic by application, protocol distribution, top talkers
+
+**4. UniFi Gateway**
+
+- **Purpose:** USG/UDM gateway monitoring
+- **Features:** WAN/LAN throughput, firewall statistics, threat detection
+
+**5. UniFi PDU**
+
+- **Purpose:** Power Distribution Unit monitoring (if applicable)
+- **Features:** Power consumption, outlet status, voltage/current
+
+**6. UniFi Sites**
+
+- **Purpose:** Multi-site UniFi deployment overview
+- **Features:** Site health, device counts, aggregate statistics
+
+**7. UniFi Switches**
+
+- **Purpose:** Switch monitoring
+- **Features:** Port status, PoE usage, bandwidth per port, STP topology
+
+**Data Source:** All UniFi dashboards use metrics from **UniFi Poller** (deployed in `unipoller` namespace)
+
+### Dashboard Organization
+
+These dashboards are organized in **Grafana folders** for easier navigation:
+
+- **Folder: Loki** - 4 log monitoring dashboards
+- **Folder: Synology** - 2 NAS monitoring dashboards
+- **Folder: UniFi** - 7 network infrastructure dashboards
+- **Folder: General** - 4 custom Pi cluster dashboards (Pi Cluster Overview, Node Resource Monitoring, Temperature Monitoring, Loki Log Analytics)
+
+**ConfigMap Label for Folders:**
+
+```yaml
+labels:
+  grafana_dashboard: "1"
+  folder: "loki"  # or "synology", "unifi"
+```
+
 ## Dashboard Audit (2025-12-28)
 
 ### Current State
 
-**Total Dashboards:** 30 (all provisioned via ConfigMap)
+**Total Dashboards:** 43 (all provisioned via ConfigMap) ✅
 **Custom Dashboards:** 4
+**Migrated Community Dashboards:** 13 (Loki: 4, Synology: 2, UniFi: 7)
 **Kube-Prometheus-Stack Dashboards:** 26
 **Uncommitted Dashboards:** 0 ✅
 
@@ -559,6 +660,21 @@ The following audit was performed to verify all dashboards are in GitOps:
    - `pi-cluster-overview.json`
    - `temperature-monitoring.json`
 
+   **Migrated Community Dashboards (13):**
+   - `logging-dashboard-via-loki.json` (Loki folder)
+   - `loki-dashboard.json` (Loki folder)
+   - `loki-stack-monitoring.json` (Loki folder)
+   - `loki2-global-metrics.json` (Loki folder)
+   - `synology-dashboard.json` (Synology folder)
+   - `synology-dashboard2.json` (Synology folder)
+   - `unifi-access-points.json` (UniFi folder)
+   - `unifi-clients.json` (UniFi folder)
+   - `unifi-dpi.json` (UniFi folder)
+   - `unifi-gateway.json` (UniFi folder)
+   - `unifi-pdu.json` (UniFi folder)
+   - `unifi-sites.json` (UniFi folder)
+   - `unifi-switches.json` (UniFi folder)
+
    **Kube-Prometheus-Stack Dashboards (26):**
    - `alertmanager-overview.json`
    - `apiserver.json`
@@ -594,7 +710,7 @@ The following audit was performed to verify all dashboards are in GitOps:
    kubectl get configmap -n default -l grafana_dashboard=1 | wc -l
    ```
 
-   **Result:** 30 ConfigMaps (matches 30 dashboard files)
+   **Result:** 43 ConfigMaps (matches 43 dashboard files)
 
 ### Audit Conclusion
 
