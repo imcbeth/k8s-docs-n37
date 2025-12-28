@@ -21,7 +21,7 @@ This homelab is built around a **5-node Raspberry Pi 5 cluster** running Kuberne
 This homelab project is organized across multiple repositories:
 
 - **[homelab](https://github.com/imcbeth/homelab)** - Main repository containing Kubernetes manifests, ArgoCD applications, and infrastructure configurations
-- **[k8s-docs-n37](https://github.com/imcbeth/k8s-docs-n37)** - This documentation site built with Docusaurus
+- **[k8s-docs-n37](https://github.com/imcbeth/k8s-docs-n37)** - This documentation site built with Docusaurus (what you're reading right now)
 - **[unifi-tf-generator](https://github.com/imcbeth/unifi-tf-generator)** - Terraform automation for UniFi network infrastructure management
 
 ## 💡 Skills Useful for Similar Setups
