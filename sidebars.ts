@@ -64,6 +64,14 @@ const sidebars: SidebarsConfig = {
         'applications/velero',
         'applications/blackbox-exporter',
         'applications/ingress-nginx',
+        {
+          type: 'category',
+          label: 'Trivy Operator',
+          items: [
+            'applications/trivy-operator',
+            'applications/trivy-vulnerability-remediation',
+          ],
+        },
       ],
     },
     {
