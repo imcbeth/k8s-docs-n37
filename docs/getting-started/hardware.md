@@ -64,7 +64,7 @@ Legend:
 
 **Total Cluster Resources:**
 
-- **CPU:** 20 cores (80 vCPUs with hyperthreading)
+- **CPU:** 20 cores (20 vCPUs, no hyperthreading; 4 cores per node × 5 nodes)
 - **RAM:** 80GB
 - **Local Storage:** 1.28TB NVMe (ephemeral)
 - **Architecture:** ARM64 (aarch64)
@@ -106,7 +106,7 @@ Legend:
 **NVMe Storage:**
 
 - **Model:** [Raspberry Pi SSD](https://www.raspberrypi.com/products/ssd/) 256GB
-- **Interface:** NVMe 1.4 (PCIe Gen 3 x4 capable, limited to Gen 2 x1 by Pi 5)
+- **Interface:** NVMe 1.3 (PCIe Gen 3 x4 capable, limited to Gen 2 x1 by Pi 5)
 - **Actual Speed:** ~400 MB/s read/write (PCIe Gen 2 x1 limitation)
 - **Form Factor:** M.2 2280 NVMe
 - **Usage:** Root filesystem, container image cache, ephemeral storage
@@ -129,7 +129,7 @@ Legend:
 
 - **IP Address:** 10.0.1.204 (VLAN 1 - Home network)
 - **Hostname:** synology-nas.local
-- **Management:** DSM 7.x (HTTPS port 5001)
+- **Management:** DSM 7.2.1 (HTTPS port 5001)
 - **Protocols:**
   - iSCSI Target (port 3260) - Primary Kubernetes storage
   - NFS v3/v4
@@ -148,11 +148,11 @@ Legend:
 
 **Kubernetes Integration:**
 
-- **CSI Driver:** Synology CSI v1.x
+- **CSI Driver:** Synology CSI v1.1.0
 - **Features:**
   - Dynamic PVC provisioning
   - Volume expansion
-  - Volume snapshots (CSI v1 API)
+  - Volume snapshots (Kubernetes VolumeSnapshot v1 API - snapshot.storage.k8s.io/v1)
   - Volume cloning
 - **Backup:** Velero with CSI snapshots (storage-native)
 
@@ -372,14 +372,14 @@ Legend:
 
 **Redundancy:**
 
-- **Compute:** 5 nodes (4 workers + 1 control plane) - can lose 1-2 workers
+- **Compute:** 5 nodes (4 workers + 1 control plane) - can tolerate loss of 1–2 worker nodes without workload disruption
 - **Storage:** RAID on NAS (can lose 1 drive without data loss)
 - **Network:** Single switch (planned: add redundant uplink)
 - **Power:** Single PoE switch (planned: add UPS)
 
 **Maintenance Schedule:**
 
-- **Firmware Updates:** Quarterly (Raspberry Pi EEPROM)
+- **Firmware Updates:** As needed (monitor for critical Raspberry Pi EEPROM updates)
 - **OS Updates:** Monthly (Ubuntu security patches)
 - **Kubernetes:** Every 3-6 months (tested in staging first)
 - **NAS DSM:** Quarterly or on security advisories
@@ -434,9 +434,11 @@ Legend:
 **Break-even Analysis:**
 
 - Hardware cost: ~$3,000
-- Monthly power: ~$15-20
+- Monthly power: ~$12.50-16.67 (≈$150-200/year)
 - Break-even vs cloud: 6-7 months
-- 5-year TCO savings: ~$25,000+
+- 5-year TCO savings: ~$25,000+- 5-year cloud cost: ~$27,000-36,000
+- 5-year hardware + power: ~$3,900-4,200
+- 5-year TCO savings: ~$23,000-32,000
 
 **Advantages over Cloud:**
 
