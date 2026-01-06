@@ -129,7 +129,7 @@ Legend:
 
 - **IP Address:** 10.0.1.204 (VLAN 1 - Home network)
 - **Hostname:** synology-nas.local
-- **Management:** DSM 7.2.1 (HTTPS port 5001)
+- **Management:** DSM 7.3-x (HTTPS port 5001)
 - **Protocols:**
   - iSCSI Target (port 3260) - Primary Kubernetes storage
   - NFS v3/v4

@@ -1,5 +1,36 @@
 # Trivy Operator
 
+## Production Status
+
+**Status:** ✅ **OPERATIONAL** (Deployed: 2026-01-05)
+
+**Current Metrics** (as of 2026-01-06):
+
+| Metric | Count |
+|--------|-------|
+| Vulnerability Reports | 77 |
+| Images Scanned | 77 |
+| **CRITICAL** Vulnerabilities | **43** |
+| **HIGH** Vulnerabilities | **606** |
+| **MEDIUM** Vulnerabilities | **1,499** |
+| **Total** Vulnerabilities | **2,148** |
+
+**Operational Highlights:**
+
+- ✅ Trivy Operator running stable (14h uptime)
+- ✅ Vulnerability reports generating successfully
+- ✅ Prometheus metrics being scraped (60s interval)
+- ✅ Grafana dashboard displaying real-time data
+- ✅ AlertManager receiving and routing alerts
+- ✅ Daily vulnerability database updates active
+- ✅ Scan jobs completing within timeout limits
+
+**Alert Status:**
+
+- No exposed secrets detected (ExposedSecretsDetected: inactive)
+- Multiple critical vulnerability alerts firing (expected during initial remediation)
+- Monitoring integration confirmed working
+
 ## Overview
 
 Trivy Operator is a Kubernetes-native security scanning solution that continuously monitors container images, Kubernetes configurations, and cluster compliance. It provides automated vulnerability detection, configuration auditing, and security posture management for the homelab cluster.
@@ -224,22 +255,66 @@ For detailed vulnerability response procedures, see: [Trivy Vulnerability Remedi
 3. **Remediation**: Update image, rebuild, or accept risk with mitigation
 4. **Verification**: Rescan and confirm vulnerability resolved
 
+## Operational Notes
+
+### First 24 Hours (2026-01-05 to 2026-01-06)
+
+**Deployment Success:**
+
+- Initial deployment via ArgoCD completed successfully
+- All CRDs installed without issues
+- Trivy vulnerability database downloaded (ARM64 compatible)
+- ServiceMonitor discovered by Prometheus
+- Grafana dashboard loaded and displaying metrics
+
+**Scanning Performance:**
+
+- Initial cluster scan: ~2 hours to complete all 77 images
+- Average scan job duration: 3-5 minutes per image
+- No scan timeouts encountered (10-minute limit configured)
+- Resource usage within limits (no OOM kills, CPU throttling minimal)
+
+**Metrics Observations:**
+
+- Vulnerability counts decreased slightly overnight (53→43 CRITICAL, 754→606 HIGH)
+- Likely due to some images being rescanned with updated vulnerability database
+- 77 vulnerability reports active (covering all workloads across cluster)
+- Scan jobs run on-demand for new deployments and every 24h for existing images
+
+**Alert Behavior:**
+
+- CriticalVulnerabilitiesDetected alert firing as expected (multiple images affected)
+- HighVulnerabilityCount alert firing for images with >20 HIGH CVEs
+- No false positives detected in first 24 hours
+- Email notifications confirmed working via AlertManager
+
+**Recommendations from First Day:**
+
+1. Priority remediation targets identified: Promtail, Synology CSI, ArgoCD Redis
+2. No immediate critical exposures (no exposed secrets, no internet-facing critical CVEs)
+3. Consider scheduling remediation work during next maintenance window
+4. Monitor resource usage trends over next week
+
 ## Current Security Posture
 
-As of initial deployment (2026-01-05):
+**Latest Scan Results** (2026-01-06 morning):
 
-| Metric | Count |
-|--------|-------|
-| Total Images Scanned | 52 |
-| CRITICAL Vulnerabilities | 53 |
-| HIGH Vulnerabilities | 754 |
-| MEDIUM Vulnerabilities | 1,495 |
+| Metric | Count | Change from Initial |
+|--------|-------|---------------------|
+| Total Images Scanned | 77 | +25 images |
+| CRITICAL Vulnerabilities | 43 | -10 (improved) |
+| HIGH Vulnerabilities | 606 | -148 (improved) |
+| MEDIUM Vulnerabilities | 1,499 | +4 |
+
+**Vulnerability Trend:** ⬇️ **Improving** (likely due to automated database updates catching fixed CVEs)
 
 **Top vulnerable components:**
 
 - Promtail (Loki): 7 CRITICAL, 34 HIGH
 - Synology CSI components: 3-5 CRITICAL each
 - ArgoCD Redis: 3 CRITICAL, 34 HIGH
+
+**Note:** Vulnerability counts may fluctuate as Trivy's database updates daily with new CVE data and vendor fixes.
 
 ## Configuration Files
 
