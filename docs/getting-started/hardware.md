@@ -120,10 +120,10 @@ Legend:
 **Specifications:**
 
 - **CPU:** AMD Ryzen R1600 (dual-core @ 2.6 GHz, turbo to 3.1 GHz)
-- **RAM:** 4GB DDR4 ECC (upgradeable to 32GB)
+- **RAM:** 12GB DDR4 ECC (upgraded from 4GB, upgradeable to 32GB)
 - **Drive Bays:** 4x 3.5"/2.5" SATA (hot-swappable)
-- **Network:** 2x Gigabit Ethernet (link aggregation capable)
-- **Expansion:** 2x M.2 NVMe slots for SSD cache (not populated)
+- **Network:** 2x Gigabit Ethernet (link aggregation active on switch ports 2 & 3)
+- **Expansion:** 2x M.2 NVMe slots - 1x 1.6TB NVMe cache deployed (`synology-iscsi-retain-ssd`)
 
 **Network Configuration:**
 
@@ -251,6 +251,22 @@ Legend:
 - **PUE (Power Usage Effectiveness):** ~1.05-1.1 (no additional cooling)
 - **Annual Energy Cost:** ~$150-200 USD (at $0.12/kWh, 24/7 operation)
 
+**Uninterruptible Power Supply (UPS):**
+
+- **Model:** APC 1500C (APC Back-UPS Pro 1500VA)
+- **Capacity:** 1500VA / 900W
+- **Runtime:** ~30-45 minutes at typical load (140-180W)
+- **Protected Equipment:**
+  - UniFi USW-Pro-24-PoE Switch
+  - Synology DS925+ NAS
+  - UniFi Dream Router (UDR7)
+- **Features:**
+  - Automatic Voltage Regulation (AVR)
+  - LCD status display
+  - USB monitoring connection
+  - Graceful shutdown support for NAS
+- **Purpose:** Protects against power outages, ensures clean shutdown of critical storage
+
 ### Thermal Management
 
 **Raspberry Pi Cooling:**
@@ -371,12 +387,12 @@ Legend:
 
 ## Upgrade Path
 
-**Near-term Upgrades:**
+**Completed Upgrades:**
 
-- [ ] UPS (Uninterruptible Power Supply) for graceful shutdown
-- [ ] Redundant network uplink (second switch or LAG)
-- [ ] NAS RAM upgrade (4GB → 16-32GB for better cache)
-- [ ] M.2 NVMe cache on NAS for read acceleration
+- [x] UPS (Uninterruptible Power Supply) for graceful shutdown - **APC 1500C** deployed
+- [x] Redundant network uplink (second switch or LAG) - **Active** on switch ports 2 and 3
+- [x] NAS RAM upgrade (4GB → 12GB for better cache) - **Upgraded** to 12GB DDR4 ECC
+- [x] M.2 NVMe cache on NAS for read acceleration - **1.6TB drive** deployed (volume: `synology-iscsi-retain-ssd`)
 
 **Future Expansion:**
 
@@ -395,12 +411,15 @@ Legend:
 | | Raspberry Pi NVMe SSD 256GB | 5 | $200 |
 | **Storage** | Synology DS925+ | 1 | $550 |
 | | HDD/SSD (varies by config) | 4 | $400-800 |
+| | NAS RAM Upgrade (8GB module) | 1 | $40 |
+| | M.2 NVMe SSD 1.6TB (cache) | 1 | $150 |
 | **Network** | UniFi USW-Pro-24-PoE | 1 | $600 |
 | | UniFi Dream Router (UDR7) | 1 | $200 |
 | | Cat 6 Ethernet Cables | 10 | $30 |
+| **Power** | APC Back-UPS Pro 1500VA | 1 | $250 |
 | **Accessories** | 19" Rack or Shelf | 1 | $50-150 |
 | | Cable Management | - | $20 |
-| **Total** | | | **~$2,725-3,225** |
+| **Total** | | | **~$3,215-3,715** |
 
 *Prices approximate and subject to change. Excludes shipping, taxes, and optional accessories.*
 
@@ -437,4 +456,4 @@ Legend:
 ---
 
 **Last Updated:** 2026-01-05
-**Hardware Version:** v2.0 (Post UniFi migration)
+**Hardware Version:** v2.1 (UPS deployed, NAS upgraded: 12GB RAM + 1.6TB NVMe cache, LAG active)
