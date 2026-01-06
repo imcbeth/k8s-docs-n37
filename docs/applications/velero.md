@@ -23,30 +23,35 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 │ Velero Server (1 pod)                                   │
 │ - 100m CPU / 256Mi RAM                                  │
 │ - Manages backup/restore operations                     │
-└─────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────┐
-│ Node-Agent DaemonSet (5 pods, one per node)            │
-│ - 100m CPU / 256Mi RAM per pod                          │
-│ - Kopia file-level backup                              │
-│ - Tolerates control-plane taint                        │
+│ - CSI snapshot coordination                            │
 └─────────────────────────────────────────────────────────┘
                           ↓
         ┌─────────────────┴──────────────────┐
         ↓                                    ↓
-┌──────────────────┐              ┌──────────────────────┐
-│ CSI Snapshots    │              │ S3 Storage           │
-│ - Synology CSI   │              │ - LocalStack (test)  │
-│ - Fast recovery  │              │ - Future: B2 (prod)  │
-└──────────────────┘              └──────────────────────┘
+┌──────────────────────────────────┐  ┌──────────────────────┐
+│ CSI Snapshots (Primary Method)  │  │ S3 Storage           │
+│ - snapshot-controller v6.3.1    │  │ - LocalStack (test)  │
+│ - Synology CSI driver            │  │ - Future: B2 (prod)  │
+│ - Storage-native snapshots       │  │ - Backup metadata    │
+│ - Fast backup/restore            │  └──────────────────────┘
+└──────────────────────────────────┘
+                ↓
+┌──────────────────────────────────┐
+│ Synology NAS Storage             │
+│ - iSCSI LUN snapshots            │
+│ - Hardware-accelerated           │
+│ - Instant snapshot creation      │
+└──────────────────────────────────┘
 ```
 
 **Components:**
 
-- **Velero Server**: Manages backup/restore operations, schedules
-- **Node-Agent (Kopia)**: DaemonSet on all 5 nodes for file-level PVC backup
-- **CSI Snapshots**: Storage-native snapshots via Synology CSI
-- **S3 Storage**: Object storage for backup data (LocalStack for testing, Backblaze B2 for production)
+- **Velero Server**: Manages backup/restore operations, schedules, creates VolumeSnapshot resources
+- **snapshot-controller v6.3.1**: Kubernetes controller that processes VolumeSnapshot requests
+- **Synology CSI Driver**: Creates storage-native snapshots on Synology NAS
+- **S3 Storage**: Object storage for backup metadata (LocalStack for testing, Backblaze B2 for production)
+
+**Note:** Kopia file-level backups were disabled (2026-01-05) in favor of CSI snapshots, which are more efficient for block storage.
 
 ## Backup Strategy
 
@@ -55,8 +60,9 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 - **Schedule**: Every day at 2:00 AM
 - **Retention**: 30 days
 - **Namespaces**: default (Prometheus, Grafana), loki, pihole
-- **Method**: Kopia file-level + CSI snapshots
+- **Method**: CSI snapshots only (storage-native snapshots on Synology NAS)
 - **Total Data**: ~80Gi (Prometheus 50Gi, Loki 20Gi, Grafana 5Gi, Pi-hole 5Gi)
+- **Backup Duration**: ~20 seconds (instant snapshot creation)
 
 ### Weekly Cluster Resource Backup (3 AM Sunday)
 
@@ -173,45 +179,44 @@ resources:
     memory: 512Mi
 ```
 
-### Node-Agent (per node)
-
-```yaml
-resources:
-  requests:
-    cpu: 100m
-    memory: 256Mi
-  limits:
-    cpu: 500m
-    memory: 1Gi
-```
-
 **Total Cluster Overhead:**
 
-- CPU: 600m (100m server + 500m node-agents) (~3% of 20 cores)
-- Memory: 1.53Gi (256Mi server + 1.28Gi node-agents) (~1.9% of 80GB)
+- CPU: 100m (~0.5% of 20 cores)
+- Memory: 256Mi (~0.3% of 80GB)
+
+**Note:** With CSI snapshots, no node-agent DaemonSet is required, significantly reducing resource overhead compared to Kopia file-level backups.
 
 ## Manual Backup Commands
 
 ### Create Backups
 
 ```bash
-# Backup specific namespace
+# Backup specific namespace with CSI snapshots
 velero backup create grafana-manual \
   --include-namespaces default \
   --selector app.kubernetes.io/name=grafana \
-  --default-volumes-to-fs-backup
+  --snapshot-volumes=true
 
-# Backup entire cluster
+# Backup entire cluster with resources
 velero backup create cluster-backup-$(date +%Y%m%d) \
   --include-cluster-resources=true \
-  --default-volumes-to-fs-backup
+  --snapshot-volumes=true
 
-# Backup single PVC
-velero backup create loki-pvc-backup \
-  --include-namespaces loki \
-  --default-volumes-to-fs-backup \
+# Backup namespaces with PVCs (CSI snapshots)
+velero backup create critical-pvcs-manual \
+  --include-namespaces default,loki,pihole \
+  --snapshot-volumes=true \
   --wait
+
+# Check backup status
+velero backup describe critical-pvcs-manual
 ```
+
+**CSI Snapshot Configuration:**
+
+- `--snapshot-volumes=true`: Use CSI snapshots for PVCs
+- `--default-volumes-to-fs-backup=false`: Disable Kopia file-level backups (default in current config)
+- VolumeSnapshots are created automatically for PVCs with CSI storage class
 
 ### View Backups
 
@@ -565,11 +570,14 @@ EOF
 kubectl run test-pod -n velero-test --image=busybox --restart=Never \
   --overrides='{"spec":{"containers":[{"name":"busybox","image":"busybox","command":["/bin/sh","-c","echo test-data > /data/test.txt && sleep 3600"],"volumeMounts":[{"name":"data","mountPath":"/data"}]}],"volumes":[{"name":"data","persistentVolumeClaim":{"claimName":"test-pvc"}}]}}'
 
-# Backup with Kopia
+# Backup with CSI snapshots
 velero backup create test-pvc-backup \
   --include-namespaces velero-test \
-  --default-volumes-to-fs-backup \
+  --snapshot-volumes=true \
   --wait
+
+# Check VolumeSnapshot was created
+kubectl get volumesnapshot -n velero-test
 
 # Delete namespace
 kubectl delete namespace velero-test
@@ -599,7 +607,108 @@ kubectl delete namespace velero-test
 
 ## Known Issues and Solutions
 
-### Issue 1: LocalStack Connection Required for Initial Deployment
+### Issue 1: snapshot-controller v8.x VolumeSnapshot Failures
+
+**Date Noted:** 2026-01-05
+**Severity:** Critical (backup failure)
+**Status:** Resolved by downgrading to v6.3.1
+
+**Symptoms:**
+
+- All VolumeSnapshots stuck with `READYTOUSE: false`
+- Velero backups showing `PartiallyFailed` status
+- Error message: `VolumeSnapshotContent is invalid: spec: Invalid value: sourceVolumeMode is required once set`
+- VolumeSnapshotContent objects unable to be updated by snapshot-controller
+
+**Root Cause:**
+
+snapshot-controller v8.2.0 has strict immutability validation on the `sourceVolumeMode` field. When the controller attempts to add annotations to VolumeSnapshotContent objects during snapshot creation, the Kubernetes API server rejects the updates due to field validation rules that treat any update as potentially modifying the immutable field.
+
+This is a known issue with the v8.x series: [kubernetes-csi/external-snapshotter#866](https://github.com/kubernetes-csi/external-snapshotter/issues/866)
+
+**Investigation Commands:**
+
+```bash
+# Check VolumeSnapshot status
+kubectl get volumesnapshot -A
+
+# Describe failed snapshot
+kubectl describe volumesnapshot -n default <snapshot-name>
+
+# Check snapshot-controller version
+kubectl get deployment -n synology-csi snapshot-controller -o yaml | grep "image:"
+
+# View snapshot-controller logs
+kubectl logs -n synology-csi deployment/snapshot-controller
+```
+
+**Solution:**
+
+Downgrade to snapshot-controller v6.3.1 or v7.0.2, which are stable and compatible with Kubernetes 1.35:
+
+**Step 1: Clean up stuck VolumeSnapshot resources**
+
+```bash
+# Remove finalizers to allow deletion
+kubectl patch volumesnapshot -n <namespace> <snapshot-name> \
+  -p '{"metadata":{"finalizers":null}}' --type=merge
+
+# Repeat for all stuck VolumeSnapshotContent objects
+kubectl patch volumesnapshotcontent <snapcontent-name> \
+  -p '{"metadata":{"finalizers":null}}' --type=merge
+```
+
+**Step 2: Update snapshot-controller version**
+
+In `manifests/base/synology-csi/kustomization.yaml`:
+
+```yaml
+resources:
+  - github.com/kubernetes-csi/external-snapshotter/client/config/crd?ref=v7.0.2
+  - github.com/kubernetes-csi/external-snapshotter/deploy/kubernetes/snapshot-controller?ref=v7.0.2
+```
+
+**Step 3: Deploy and verify**
+
+```bash
+# ArgoCD will auto-sync
+argocd app sync synology-csi
+
+# Wait for new snapshot-controller pods
+kubectl get pods -n synology-csi -l app.kubernetes.io/name=snapshot-controller
+
+# Test VolumeSnapshot creation
+kubectl apply -f - <<EOF
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: test-snapshot
+  namespace: default
+spec:
+  volumeSnapshotClassName: synology-snapshot-class
+  source:
+    persistentVolumeClaimName: <your-pvc-name>
+EOF
+
+# Verify snapshot reaches READYTOUSE: true
+kubectl get volumesnapshot -n default test-snapshot
+```
+
+**Expected Result:**
+
+- VolumeSnapshots reach `READYTOUSE: true` in 8-10 seconds
+- Velero backups complete with status `Completed` (not `PartiallyFailed`)
+- CSI snapshots: `csiVolumeSnapshotsCompleted: 3`, `Errors: 0`
+
+**Related PRs:**
+
+- homelab#189: Downgrade snapshot-controller to v7.0.2 for stability
+- homelab#188: Add snapshot-controller to Synology CSI deployment (introduced issue)
+- homelab#187: Configure Velero to use CSI snapshots only
+
+---
+
+### Issue 2: LocalStack Connection Required for Initial Deployment
 
 **Date Noted:** 2025-12-27
 **Severity:** Medium (deployment blocker)
