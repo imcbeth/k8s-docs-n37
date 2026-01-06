@@ -4,7 +4,7 @@
 
 **Status:** ✅ **OPERATIONAL** (Deployed: 2026-01-05)
 
-**Current Metrics** (as of 2026-01-06):
+**Current Metrics** (as of 2026-01-06 morning):
 
 | Metric | Count |
 |--------|-------|
@@ -17,7 +17,7 @@
 
 **Operational Highlights:**
 
-- ✅ Trivy Operator running stable (14h uptime)
+- ✅ Trivy Operator running stable (since 2026-01-05 deployment)
 - ✅ Vulnerability reports generating successfully
 - ✅ Prometheus metrics being scraped (60s interval)
 - ✅ Grafana dashboard displaying real-time data
@@ -277,7 +277,7 @@ For detailed vulnerability response procedures, see: [Trivy Vulnerability Remedi
 **Metrics Observations:**
 
 - Vulnerability counts decreased slightly overnight (53→43 CRITICAL, 754→606 HIGH)
-- Likely due to some images being rescanned with updated vulnerability database
+- Vulnerability reduction attributed to images being rescanned with the updated vulnerability database
 - 77 vulnerability reports active (covering all workloads across cluster)
 - Scan jobs run on-demand for new deployments and every 24h for existing images
 
@@ -301,12 +301,12 @@ For detailed vulnerability response procedures, see: [Trivy Vulnerability Remedi
 
 | Metric | Count | Change from Initial |
 |--------|-------|---------------------|
-| Total Images Scanned | 77 | +25 images |
-| CRITICAL Vulnerabilities | 43 | -10 (improved) |
-| HIGH Vulnerabilities | 606 | -148 (improved) |
-| MEDIUM Vulnerabilities | 1,499 | +4 |
+| Total Images Scanned | 77 | +25 images (+48%) |
+| CRITICAL Vulnerabilities | 43 | -10 (-19%) (improved) |
+| HIGH Vulnerabilities | 606 | -148 (-20%) (improved) |
+| MEDIUM Vulnerabilities | 1,499 | +4 (+0.3%) |
 
-**Vulnerability Trend:** ⬇️ **Improving** (likely due to automated database updates catching fixed CVEs)
+**Vulnerability Trend:** ⬇️ **Improving** (due to automated database updates catching fixed CVEs in base images and dependencies)
 
 **Top vulnerable components:**
 
