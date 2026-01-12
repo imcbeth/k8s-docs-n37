@@ -144,6 +144,67 @@ storageClassName: synology-iscsi-delete-ssd
 - Creates point-in-time copies
 - Supports snapshot-based backups
 
+## Version History
+
+### Current Versions (2026-01-12)
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| synology-csi | v1.2.1 | Requires iscsiadm-path configuration |
+| csi-attacher | v4.10.0 | Upgraded 2026-01-07 |
+| csi-node-driver-registrar | v2.15.0 | Upgraded 2026-01-07 |
+| csi-provisioner | v6.1.0 | Latest stable |
+| csi-resizer | v2.0.0 | Latest stable |
+| csi-snapshotter | v8.4.0 | Upgraded 2026-01-11 |
+| snapshot-controller | v8.2.1 | Upgraded 2026-01-11 |
+
+### Upgrade Notes
+
+#### v1.2.1 Node Plugin Configuration (2026-01-12)
+
+Synology CSI v1.2.1 changed how it locates the `iscsiadm` binary for Talos Linux compatibility. Without explicit configuration, new PVC mounts fail.
+
+**Required Configuration:**
+
+The node plugin must include these arguments:
+
+```yaml
+args:
+  - --nodeid=$(KUBE_NODE_NAME)
+  - --endpoint=$(CSI_ENDPOINT)
+  - --client-info
+  - /etc/synology/client-info.yml
+  - --log-level=info
+  - --chroot-dir=/host           # Required for v1.2.1+
+  - --iscsiadm-path=/usr/sbin/iscsiadm  # Path on host filesystem
+```
+
+**References:**
+
+- [GitHub Issue #111](https://github.com/SynologyOpenSource/synology-csi/issues/111) - Mount failure report
+- [GitHub Issue #89](https://github.com/SynologyOpenSource/synology-csi/issues/89) - Configuration fix
+
+#### Snapshot-Controller v8.x Upgrade (2026-01-11)
+
+The snapshot-controller was upgraded from v6.3.1 to v8.2.1. This requires updated RBAC permissions.
+
+**RBAC Requirements for v8.x:**
+
+The CSI snapshotter ClusterRole must include `patch` verb for volumesnapshotcontents:
+
+```yaml
+rules:
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents"]
+    verbs: ["get", "list", "watch", "update", "patch"]  # patch added
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents/status"]
+    verbs: ["update", "patch"]  # patch added
+  - apiGroups: ["groupsnapshot.storage.k8s.io"]  # New API group
+    resources: ["volumegroupsnapshotcontents", "volumegroupsnapshotclasses"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+```
+
 ## Network Configuration
 
 ### iSCSI Connection
@@ -475,6 +536,53 @@ kubectl describe pod <pod-name>
 ```bash
 # SSH to the node
 sudo iscsiadm -m session
+```
+
+### iscsiadm "No such file or directory" Error (v1.2.1)
+
+**Error message:**
+
+```
+MountVolume.SetUp failed: env: can't execute 'iscsiadm': No such file or directory (exit status 127)
+```
+
+**Cause:** Synology CSI v1.2.1 changed how it locates the `iscsiadm` binary. Without explicit configuration, the container cannot find the host's iscsiadm.
+
+**Solution:** Add these arguments to the CSI node plugin container:
+
+```yaml
+args:
+  - --chroot-dir=/host
+  - --iscsiadm-path=/usr/sbin/iscsiadm
+```
+
+**Verify fix:**
+
+```bash
+# Check node plugin args
+kubectl get daemonset synology-csi-node -n synology-csi \
+  -o jsonpath='{.spec.template.spec.containers[?(@.name=="csi-plugin")].args}'
+
+# Test PVC mount by restarting a pod
+kubectl delete pod <pod-with-pvc>
+```
+
+**Reference:** See [Version History](#version-history) for full configuration details.
+
+### VolumeSnapshot Stuck with Finalizers
+
+**Symptoms:** VolumeSnapshot shows `READYTOUSE: false` and cannot be deleted.
+
+**Solution:**
+
+```bash
+# Remove finalizers to allow deletion
+kubectl patch volumesnapshot -n <namespace> <snapshot-name> \
+  -p '{"metadata":{"finalizers":null}}' --type=merge
+
+# Also patch the VolumeSnapshotContent if needed
+kubectl patch volumesnapshotcontent <content-name> \
+  -p '{"metadata":{"finalizers":null}}' --type=merge
 ```
 
 ### Volume Not Expanding

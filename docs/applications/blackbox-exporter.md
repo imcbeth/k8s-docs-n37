@@ -62,9 +62,13 @@ description: "Endpoint monitoring, SSL certificate expiry tracking, and service 
 
 ### Container Image
 
-- **Image**: `prom/blackbox-exporter:v0.25.0`
+- **Image**: `prom/blackbox-exporter:v0.28.0`
 - **Port**: 9115 (HTTP metrics and probes)
 - **Probes**: Liveness and readiness checks on `/health`
+
+:::info Version Update (2026-01-11)
+Upgraded from v0.25.0 to v0.28.0 to address 2 CRITICAL and 7 HIGH vulnerabilities. Now has 0 vulnerabilities.
+:::
 
 ### Resource Allocation
 

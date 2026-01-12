@@ -11,10 +11,17 @@ ArgoCD is a declarative, GitOps continuous delivery tool for Kubernetes that aut
 
 - **Namespace:** `argocd`
 - **Helm Chart:** `argoproj/argo-cd`
-- **Chart Version:** `9.0.5`
+- **Chart Version:** `9.2.4`
+- **App Version:** `v3.2.3`
 - **Deployment:** Self-managed via ArgoCD
 - **Sync Wave:** `-50` (first application to deploy)
 - **URL:** `https://argocd.k8s.n37.ca`
+
+:::info Version Update (2026-01-11)
+Upgraded from chart 9.0.5 to 9.2.4. Redis upgraded to 8.2.2-alpine, eliminating 3 CRITICAL and 34 HIGH vulnerabilities.
+
+**Note:** Redis 8.x uses RSALv2/SSPLv1/AGPLv3 licensing (accepted by ArgoCD project).
+:::
 
 ## Purpose
 
@@ -78,7 +85,7 @@ spec:
   sources:
     - chart: argo-cd
       repoURL: https://argoproj.github.io/argo-helm
-      targetRevision: 9.0.5
+      targetRevision: 9.2.4
       helm:
         valueFiles:
           - $argocd/manifests/base/argocd/argocd-config.yaml

@@ -30,7 +30,7 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
         ↓                                    ↓
 ┌──────────────────────────────────┐  ┌──────────────────────┐
 │ CSI Snapshots (Primary Method)  │  │ S3 Storage           │
-│ - snapshot-controller v6.3.1    │  │ - LocalStack (test)  │
+│ - snapshot-controller v8.2.1    │  │ - LocalStack (test)  │
 │ - Synology CSI driver            │  │ - Future: B2 (prod)  │
 │ - Storage-native snapshots       │  │ - Backup metadata    │
 │ - Fast backup/restore            │  └──────────────────────┘
@@ -47,7 +47,7 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 **Components:**
 
 - **Velero Server**: Manages backup/restore operations, schedules, creates VolumeSnapshot resources
-- **snapshot-controller v6.3.1**: Kubernetes controller that processes VolumeSnapshot requests
+- **snapshot-controller v8.2.1**: Kubernetes controller that processes VolumeSnapshot requests
 - **Synology CSI Driver**: Creates storage-native snapshots on Synology NAS
 - **S3 Storage**: Object storage for backup metadata (LocalStack for testing, Backblaze B2 for production)
 
@@ -644,7 +644,7 @@ kubectl logs -n synology-csi deployment/snapshot-controller
 
 **Solution:**
 
-Downgrade to snapshot-controller v6.3.1 or v7.0.2, which are stable and compatible with Kubernetes 1.35:
+Downgrade to snapshot-controller v8.2.1 or v7.0.2, which are stable and compatible with Kubernetes 1.35:
 
 **Step 1: Clean up stuck VolumeSnapshot resources**
 

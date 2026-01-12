@@ -26,7 +26,7 @@ MetalLB is a load-balancer implementation for bare-metal Kubernetes clusters. It
 - **Namespace:** metallb-system
 - **Project:** infrastructure
 - **Sync Wave:** -35
-- **Helm Chart:** metallb/metallb v0.14.9
+- **Helm Chart:** metallb/metallb v0.15.3
 - **Auto-Sync:** Enabled (prune, selfHeal)
 
 ### Components

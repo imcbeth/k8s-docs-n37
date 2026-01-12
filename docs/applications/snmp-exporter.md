@@ -10,9 +10,15 @@ The SNMP Exporter enables Prometheus to collect metrics from SNMP-enabled device
 ## Overview
 
 - **Namespace:** `default`
-- **Image:** `prom/snmp-exporter:v0.26.0`
+- **Image:** `prom/snmp-exporter:v0.30.0`
 - **Deployment:** Managed by ArgoCD as part of kube-prometheus-stack
 - **Target Device:** Synology DS925+ NAS (10.0.1.204)
+
+:::info Version Update (2026-01-11)
+Upgraded from v0.26.0 to v0.30.0 to address 2 CRITICAL and 6 HIGH vulnerabilities.
+
+**Breaking Change:** The `/health` endpoint was removed in v0.30.0. Liveness and readiness probes now use `/` instead.
+:::
 
 ## Purpose
 
