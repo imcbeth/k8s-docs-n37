@@ -4,16 +4,20 @@
 
 **Status:** ✅ **OPERATIONAL** (Deployed: 2026-01-05)
 
-**Current Metrics** (as of 2026-01-06 morning):
+**Current Metrics** (as of 2026-01-12):
 
-| Metric | Count |
-|--------|-------|
-| Vulnerability Reports | 77 |
-| Images Scanned | 77 |
-| **CRITICAL** Vulnerabilities | **43** |
-| **HIGH** Vulnerabilities | **606** |
-| **MEDIUM** Vulnerabilities | **1,499** |
-| **Total** Vulnerabilities | **2,148** |
+| Metric | Count | Change from Initial |
+|--------|-------|---------------------|
+| Vulnerability Reports | 95 | +18 |
+| Images Scanned | 95 | +18 |
+| **CRITICAL** Vulnerabilities | **10** | ⬇️ **-81%** |
+| **HIGH** Vulnerabilities | **332** | ⬇️ **-56%** |
+| **MEDIUM** Vulnerabilities | **1,074** | ⬇️ **-28%** |
+| **Total** Vulnerabilities | **~1,416** | ⬇️ **-39%** |
+
+:::tip Vulnerability Remediation Progress
+Major vulnerability remediation completed 2026-01-07 through 2026-01-11. See [Trivy Vulnerability Remediation](./trivy-vulnerability-remediation.md) for details on components upgraded and remaining blockers.
+:::
 
 **Operational Highlights:**
 
@@ -297,24 +301,32 @@ For detailed vulnerability response procedures, see: [Trivy Vulnerability Remedi
 
 ## Current Security Posture
 
-**Latest Scan Results** (2026-01-06 morning):
+**Latest Scan Results** (2026-01-12):
 
-| Metric | Count | Change from Initial |
-|--------|-------|---------------------|
-| Total Images Scanned | 77 | +25 images (+48%) |
-| CRITICAL Vulnerabilities | 43 | -10 (-19%) (improved) |
-| HIGH Vulnerabilities | 606 | -148 (-20%) (improved) |
-| MEDIUM Vulnerabilities | 1,499 | +4 (+0.3%) |
+| Metric | Count | Change from Initial (2026-01-05) |
+|--------|-------|----------------------------------|
+| Total Images Scanned | 95 | +18 images |
+| CRITICAL Vulnerabilities | 10 | **-81%** (43 → 10) |
+| HIGH Vulnerabilities | 332 | **-56%** (754 → 332) |
+| MEDIUM Vulnerabilities | 1,074 | **-28%** (1,499 → 1,074) |
 
-**Vulnerability Trend:** ⬇️ **Improving** (due to automated database updates catching fixed CVEs in base images and dependencies)
+**Vulnerability Trend:** ⬇️ **EXCELLENT** (Major remediation effort 2026-01-07 through 2026-01-11)
 
-**Top vulnerable components:**
+**Remaining CRITICAL vulnerabilities (10 total):**
 
-- Promtail (Loki): 7 CRITICAL, 34 HIGH
-- Synology CSI components: 3-5 CRITICAL each
-- ArgoCD Redis: 3 CRITICAL, 34 HIGH
+| Component | CRITICAL | Blocker |
+|-----------|----------|---------|
+| Synology CSI (3 images) | 9 | Awaiting upstream v1.2.2 |
+| Trivy Server | 1 | Awaiting Alpine base image fix |
 
-**Note:** Vulnerability counts may fluctuate as Trivy's database updates daily with new CVE data and vendor fixes.
+**Recently remediated:**
+
+- ✅ Promtail: 7 → 0 CRITICAL (2026-01-07)
+- ✅ ArgoCD Redis: 3 → 0 CRITICAL (2026-01-11)
+- ✅ MetalLB FRR: 8 → 0 CRITICAL (2026-01-11)
+- ✅ Blackbox/SNMP Exporters: 4 → 0 CRITICAL (2026-01-11)
+
+**Note:** Remaining vulnerabilities blocked on upstream vendor releases.
 
 ## Configuration Files
 
@@ -413,6 +425,62 @@ kubectl logs -n trivy-system deployment/trivy-operator
 
 # Manually trigger scan by deleting report
 kubectl delete vulnerabilityreport -n <namespace> <report>
+```
+
+### ServiceMonitor Not Discovered by Prometheus
+
+**Symptom:** Grafana Trivy dashboard shows no data, but Trivy metrics endpoint is accessible.
+
+**Cause:** Trivy Helm chart uses `serviceMonitor.labels` (not `serviceMonitor.additionalLabels`).
+
+**Solution:**
+
+```yaml
+# In values.yaml - CORRECT
+serviceMonitor:
+  enabled: true
+  labels:  # NOT additionalLabels
+    release: kube-prometheus-stack
+  interval: "60s"
+```
+
+**Manual fix:**
+
+```bash
+kubectl label servicemonitor -n trivy-system trivy-operator release=kube-prometheus-stack
+```
+
+### ARM64 Image Registry Issues
+
+**Symptom:** Trivy pods fail to start with image pull errors.
+
+**Cause:** ghcr.io doesn't have ARM64 Trivy images.
+
+**Solution:** Use `mirror.gcr.io` for ARM64 compatibility:
+
+```yaml
+# In values.yaml
+trivy:
+  image:
+    registry: mirror.gcr.io
+    repository: aquasecurity/trivy
+```
+
+### Metrics Cardinality Too High
+
+**Symptom:** Prometheus memory usage spiking, slow queries on Trivy metrics.
+
+**Cause:** Per-CVE metrics enabled (creates thousands of unique metric series).
+
+**Solution:** Disable high-cardinality metrics:
+
+```yaml
+# In values.yaml
+operator:
+  metricsFindingsEnabled: true      # Keep aggregate counts
+  metricsVulnIdEnabled: false       # Disable per-CVE ID (high cardinality)
+  metricsExposedSecretInfo: false   # Disable secret details
+  metricsConfigAuditInfo: false     # Disable detailed audit info
 ```
 
 ## Security Considerations

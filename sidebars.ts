@@ -87,6 +87,7 @@ const sidebars: SidebarsConfig = {
       label: 'Troubleshooting',
       items: [
         'troubleshooting/monitoring',
+        'troubleshooting/common-issues',
       ],
     },
     {
