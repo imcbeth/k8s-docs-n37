@@ -11,9 +11,10 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 
 - **Namespace:** `velero`
 - **Helm Chart:** `vmware-tanzu/velero`
-- **Chart Version:** `8.3.1`
-- **App Version:** `v1.15.0`
+- **Chart Version:** `8.2.0`
+- **App Version:** `v1.16.0`
 - **Deployment:** Managed by ArgoCD
+- **Backup Storage:** Backblaze B2 (production)
 - **Backup Strategy:** Daily PVC backups + Weekly cluster resource backups
 
 ## Architecture
@@ -30,11 +31,11 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
         ↓                                    ↓
 ┌──────────────────────────────────┐  ┌──────────────────────┐
 │ CSI Snapshots (Primary Method)  │  │ S3 Storage           │
-│ - snapshot-controller v8.2.1    │  │ - LocalStack (test)  │
-│ - Synology CSI driver            │  │ - Future: B2 (prod)  │
+│ - snapshot-controller v8.2.1    │  │ - Backblaze B2 (prod)│
+│ - Synology CSI driver            │  │ - 11 nines durability│
 │ - Storage-native snapshots       │  │ - Backup metadata    │
-│ - Fast backup/restore            │  └──────────────────────┘
-└──────────────────────────────────┘
+│ - Fast backup/restore            │  │ - Offsite DR         │
+└──────────────────────────────────┘  └──────────────────────┘
                 ↓
 ┌──────────────────────────────────┐
 │ Synology NAS Storage             │
@@ -82,7 +83,42 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 
 ## Storage Backends
 
-### LocalStack (Testing - Default Configuration)
+### Backblaze B2 (Production - Active)
+
+**Current Configuration (as of 2026-01-15):**
+
+```yaml
+configuration:
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: velero-backups-homelab-n37
+      config:
+        region: us-west-004
+        s3Url: https://s3.us-west-004.backblazeb2.com
+
+credentials:
+  useSecret: true
+  existingSecret: "velero-b2-credentials"  # SealedSecret
+```
+
+**Features:**
+
+- ✅ 11 nines (99.999999999%) data durability
+- ✅ Offsite disaster recovery
+- ✅ S3-compatible API
+- ✅ Credentials managed via SealedSecret (GitOps-compatible)
+
+**Cost Estimate:**
+
+- Storage: $0.006/GB/month ($6/TB)
+- ~100Gi stored ≈ $0.60/month
+- Egress: $0.01/GB (first 1GB/day free)
+- Total: ~$2-6/month for homelab
+
+### LocalStack (Testing - Available)
+
+LocalStack remains deployed for local testing purposes:
 
 ```yaml
 config:
@@ -96,42 +132,15 @@ credentials:
   aws_secret_access_key: test
 ```
 
-**Use Case:** Testing and validation
+**Use Case:** Testing backup/restore procedures locally
 **Limitations:**
 
-- ⚠️ Ephemeral storage - backups lost on LocalStack pod restart
-- ✅ Good for testing backup/restore procedures
+- ⚠️ Ephemeral storage - backups lost on pod restart
 - ❌ NOT suitable for production disaster recovery
-
-### Backblaze B2 (Production - Recommended)
-
-**Setup Steps:**
-
-1. Sign up at [https://www.backblaze.com/b2/](https://www.backblaze.com/b2/)
-2. Create bucket: `velero-backups-<YOUR-IDENTIFIER>` (e.g., `velero-backups-homelab-n37`)
-3. Generate application key with read/write permissions
-4. Update `values.yaml`:
-
-```yaml
-config:
-  region: us-west-004  # Your B2 region
-  s3Url: https://s3.us-west-004.backblazeb2.com
-
-credentials:
-  aws_access_key_id: <B2_KEY_ID>
-  aws_secret_access_key: <B2_APPLICATION_KEY>
-```
-
-**Cost Estimate:**
-
-- Storage: $6/TB/month
-- ~100Gi stored ≈ $0.60/month
-- Egress: Free for first 3× of stored data
-- Total: ~$1–2/month for homelab
 
 ## Deployment via ArgoCD
 
-The Velero deployment is managed through GitOps with ArgoCD:
+The Velero deployment is managed through GitOps with ArgoCD using a multi-source configuration:
 
 **Application Manifest:** `manifests/applications/velero.yaml`
 
@@ -141,19 +150,28 @@ kind: Application
 metadata:
   name: velero
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
 spec:
   project: infrastructure
   sources:
+    # Source 1: Helm chart from VMware Tanzu
     - repoURL: https://vmware-tanzu.github.io/helm-charts
       chart: velero
-      targetRevision: 8.3.1
+      targetRevision: 8.2.0
       helm:
+        releaseName: velero
         valueFiles:
           - $values/manifests/base/velero/values.yaml
+    # Source 2: Values file reference
     - repoURL: git@github.com:imcbeth/homelab.git
       path: manifests/base/velero
       targetRevision: HEAD
       ref: values
+    # Source 3: Additional resources (SealedSecrets for B2 credentials)
+    - repoURL: git@github.com:imcbeth/homelab.git
+      path: manifests/base/velero
+      targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
     namespace: velero
@@ -163,7 +181,10 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
 ```
+
+**Note:** The third source deploys the kustomization resources including the SealedSecret for B2 credentials.
 
 ## Resource Allocation
 
@@ -371,8 +392,11 @@ Deploy LocalStack first, OR reconfigure Velero for production S3 (see Backblaze 
 ### General S3 Connection Issues
 
 ```bash
-# Verify S3 credentials
-kubectl -n velero get secret cloud-credentials -o yaml
+# Verify B2 credentials secret exists
+kubectl -n velero get secret velero-b2-credentials
+
+# Check SealedSecret status
+kubectl -n velero get sealedsecret velero-b2-credentials
 
 # Test S3 connectivity from Velero pod
 kubectl -n velero exec deployment/velero -- velero backup-location get
@@ -380,6 +404,12 @@ kubectl -n velero exec deployment/velero -- velero backup-location get
 # Check backup storage location status
 kubectl get backupstoragelocation -n velero -o yaml
 ```
+
+**Common B2 Issues:**
+
+- **Invalid credentials**: Verify keyID and applicationKey are correct
+- **Bucket permissions**: Ensure the application key has read/write access to the bucket
+- **Region mismatch**: Check the region matches your B2 bucket location
 
 ### Backup Failing
 
@@ -443,73 +473,130 @@ containerSecurityContext:
 
 ### Credential Management
 
-**Production Best Practice:**
+**Current Implementation (SealedSecrets):**
 
-- **Do NOT commit real S3 credentials in plaintext**
-- Use git-crypt encryption for secrets
-- Or use external secret management (Vault, External Secrets Operator)
-- The example `values.yaml` uses plaintext for LocalStack testing only
+B2 credentials are managed via SealedSecret for GitOps compatibility:
+
+- **SealedSecret:** `manifests/base/velero/b2-credentials-sealed.yaml`
+- **Decrypted Secret:** `velero-b2-credentials` in `velero` namespace
+- **Kustomization:** `manifests/base/velero/kustomization.yaml`
+
+```bash
+# View credential secret (base64 encoded)
+kubectl get secret velero-b2-credentials -n velero -o yaml
+
+# Check SealedSecret status
+kubectl get sealedsecret velero-b2-credentials -n velero
+```
+
+**Updating B2 Credentials:**
+
+```bash
+# 1. Create temporary secret file (DO NOT COMMIT)
+cat > /tmp/velero-b2-credentials.yaml <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: velero-b2-credentials
+  namespace: velero
+type: Opaque
+stringData:
+  cloud: |
+    [default]
+    aws_access_key_id=<NEW_B2_KEY_ID>
+    aws_secret_access_key=<NEW_B2_APPLICATION_KEY>
+EOF
+
+# 2. Seal the secret
+kubeseal --cert <(kubectl get secret -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key=active \
+  -o jsonpath='{.items[0].data.tls\.crt}' | base64 -d) \
+  --format yaml < /tmp/velero-b2-credentials.yaml > manifests/base/velero/b2-credentials-sealed.yaml
+
+# 3. Delete temporary file and commit
+rm /tmp/velero-b2-credentials.yaml
+git add manifests/base/velero/b2-credentials-sealed.yaml
+git commit -m "feat: Update Velero B2 credentials"
+git push
+```
+
+See [Secrets Management](../security/secrets-management.md) for more details on SealedSecrets.
 
 ## Migration from LocalStack to Production S3
 
-### Prerequisites
+### Migration Status: ✅ Completed (2026-01-15)
 
-1. ✅ LocalStack testing completed successfully
-2. ✅ At least 3 successful backup/restore cycles
-3. ✅ External S3 account created (Backblaze B2 recommended)
-4. ✅ S3 bucket created
+The migration from LocalStack to Backblaze B2 has been completed successfully:
 
-### Migration Steps
+- **PR #239:** feat: Migrate Velero backups from LocalStack to Backblaze B2
+- **Bucket:** velero-backups-homelab-n37
+- **Region:** us-west-004
+- **Credentials:** Managed via SealedSecret
 
-**Step 1: Update values.yaml**
+### Verification Results
+
+```bash
+# BackupStorageLocation status
+$ kubectl get backupstoragelocation -n velero
+NAME      PHASE       LAST VALIDATED   AGE   DEFAULT
+default   Available   1s               17d   true
+
+# Test backup completed successfully
+$ velero backup create test-b2-migration --include-namespaces velero --wait
+Backup completed with status: Completed
+Items backed up: 54
+```
+
+### Migration Reference (For Future Providers)
+
+If you need to migrate to a different S3 provider in the future:
+
+**Step 1: Create SealedSecret for new credentials**
+
+```bash
+# Create temporary secret
+cat > /tmp/velero-new-credentials.yaml <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: velero-new-credentials
+  namespace: velero
+type: Opaque
+stringData:
+  cloud: |
+    [default]
+    aws_access_key_id=<NEW_KEY_ID>
+    aws_secret_access_key=<NEW_SECRET_KEY>
+EOF
+
+# Seal and commit
+kubeseal ... < /tmp/velero-new-credentials.yaml > manifests/base/velero/new-credentials-sealed.yaml
+rm /tmp/velero-new-credentials.yaml
+```
+
+**Step 2: Update values.yaml**
 
 ```yaml
 configuration:
   backupStorageLocation:
     - name: default
       provider: aws
-      bucket: velero-backups-homelab-n37
+      bucket: <new-bucket-name>
       config:
-        region: us-west-004
-        s3Url: https://s3.us-west-004.backblazeb2.com
-        # Remove: s3ForcePathStyle, insecureSkipTLSVerify
+        region: <new-region>
+        s3Url: <new-s3-endpoint>
 
 credentials:
   useSecret: true
-  existingSecret: velero-b2-credentials
+  existingSecret: "velero-new-credentials"
 ```
 
-**Step 2: Create Production Secret**
+**Step 3: Update kustomization.yaml and deploy**
 
 ```bash
-kubectl create secret generic velero-b2-credentials -n velero \
-  --from-literal=cloud=$'[default]\naws_access_key_id=<YOUR_B2_KEY_ID>\naws_secret_access_key=<YOUR_B2_APPLICATION_KEY>'
-```
-
-**Step 3: Deploy Changes**
-
-```bash
-git add manifests/base/velero/values.yaml
-git commit -m "feat: Migrate Velero to production Backblaze B2 storage"
+git add manifests/base/velero/
+git commit -m "feat: Migrate Velero to new S3 provider"
 git push
-
-# ArgoCD will auto-sync
-argocd app sync velero
-```
-
-**Step 4: Verify Migration**
-
-```bash
-# Check backup storage location
-kubectl get backupstoragelocation -n velero
-# Status should be "Available"
-
-# Create test backup
-velero backup create test-production-s3 \
-  --include-namespaces velero-test \
-  --wait
-
-# Verify in B2 web UI or CLI
 ```
 
 ## Testing Procedures
