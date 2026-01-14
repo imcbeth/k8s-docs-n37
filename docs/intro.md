@@ -115,7 +115,7 @@ The main repository containing:
 
 - **Kubernetes Manifests**: All application deployments and configurations
 - **ArgoCD Applications**: GitOps workflow definitions
-- **Secrets Management**: Encrypted secrets for services (external-dns, cert-manager, etc.)
+- **Secrets Management**: SealedSecrets for GitOps-compatible encrypted secrets
 - **Scripts**: Validation and maintenance utilities
 - **Hardware Documentation**: Network topology and hardware specifications
 
@@ -146,6 +146,14 @@ If you're new to this setup, start here:
 3. **[Kubernetes Installation](kubernetes/installation)** - Step-by-step cluster setup
 
 ## 📊 Recent Infrastructure Updates
+
+### Secrets Management Migration (January 2026)
+
+- **Sealed Secrets**: Migrated from git-crypt to Bitnami Sealed Secrets
+- **GitOps-Compatible**: All secrets now stored as encrypted SealedSecrets in Git
+- **Automatic Decryption**: Sealed Secrets controller decrypts at runtime
+- **8 Secrets Migrated**: unipoller, external-dns, cert-manager, alertmanager, snmp-exporter, synology-csi, pihole
+- **Full GitOps**: No more manual `kubectl apply` for secrets (except bootstrap)
 
 ### GitOps Migration (December 2025)
 
