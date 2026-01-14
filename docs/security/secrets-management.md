@@ -41,26 +41,23 @@ Sealed Secrets solves this by:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Secrets Management                           │
+│                    Sealed Secrets Flow                          │
 ├─────────────────────────────────────────────────────────────────┤
-│ Sealed Secrets Controller (kube-system)                         │
-│   └─ Decrypts SealedSecret CRDs at runtime                     │
 │                                                                 │
-│ SealedSecrets in Git (8 total):                                │
-│   ├─ manifests/base/unipoller/unipoller-sealed.yaml            │
-│   ├─ manifests/base/external-dns/cloudflare-sealed.yaml        │
-│   ├─ manifests/base/external-dns/unifi-sealed.yaml             │
-│   ├─ manifests/base/kube-prometheus-stack/alertmanager-smtp-sealed.yaml │
-│   ├─ manifests/base/kube-prometheus-stack/snmp-exporter-sealed.yaml    │
-│   ├─ manifests/base/cert-manager/cloudflare-sealed.yaml        │
-│   ├─ manifests/base/synology-csi/client-info-sealed.yaml       │
-│   └─ manifests/base/pihole/pihole-web-sealed.yaml              │
+│  Developer Workstation              Kubernetes Cluster          │
+│  ┌──────────────────┐              ┌──────────────────────┐    │
+│  │                  │   kubeseal   │  Sealed Secrets      │    │
+│  │  Plain Secret    │ ──────────►  │  Controller          │    │
+│  │  (local only)    │              │  (kube-system)       │    │
+│  └──────────────────┘              └──────────┬───────────┘    │
+│           │                                   │                 │
+│           ▼                                   ▼                 │
+│  ┌──────────────────┐              ┌──────────────────────┐    │
+│  │  SealedSecret    │   Git Push   │  Decrypted Secret    │    │
+│  │  (encrypted)     │ ──────────►  │  (runtime only)      │    │
+│  │  Stored in Git   │   ArgoCD     │  Used by Pods        │    │
+│  └──────────────────┘              └──────────────────────┘    │
 │                                                                 │
-│ Bootstrap Secret (manual apply required):                      │
-│   └─ secrets/argocd-git-access.yaml                            │
-│                                                                 │
-│ Helm-Managed Secrets (auto-generated):                         │
-│   └─ kube-prometheus-stack-grafana                             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -120,11 +117,11 @@ stringData:
 **Step 2: Seal the secret using kubeseal:**
 
 ```bash
-# Fetch the public certificate and seal the secret
-kubeseal --cert <(kubectl get secret -n kube-system \
-  -l sealedsecrets.bitnami.com/sealed-secrets-key=active \
-  -o jsonpath='{.items[0].data.tls\.crt}' | base64 -d) \
-  --format yaml < my-secret.yaml > my-sealed.yaml
+kubeseal --controller-name=sealed-secrets-controller \
+         --controller-namespace=kube-system \
+         --format yaml \
+         < my-secret.yaml \
+         > my-sealed.yaml
 ```
 
 **Step 3: Commit the SealedSecret:**
@@ -141,14 +138,321 @@ git commit -m "feat: Add my-secret as SealedSecret"
 rm my-secret.yaml
 ```
 
-### Updating an Existing Secret
+## Secret Rotation Procedures
 
-To update a secret, create a new SealedSecret with the same name and namespace. The Sealed Secrets controller will update the underlying Secret.
+### Rotating a Secret Value
+
+Use this procedure when a credential needs to be updated (e.g., password change, API token refresh, compromised secret).
+
+#### Step 1: Create the New Plain Secret
+
+Create a temporary file with the new secret value. **Never commit this file to Git.**
 
 ```bash
-# Create updated secret YAML with new values
-# Seal it with kubeseal
-# Commit and push - ArgoCD will sync the update
+# Example: Rotating cloudflare-api-token for external-dns
+cat > /tmp/new-secret.yaml <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-api-token
+  namespace: external-dns
+type: Opaque
+stringData:
+  cloudflare_api_token: "NEW_TOKEN_VALUE_HERE"
+EOF
+```
+
+#### Step 2: Seal the New Secret
+
+```bash
+kubeseal --controller-name=sealed-secrets-controller \
+         --controller-namespace=kube-system \
+         --format yaml \
+         < /tmp/new-secret.yaml \
+         > manifests/base/external-dns/cloudflare-sealed.yaml
+```
+
+#### Step 3: Clean Up Plain Secret
+
+```bash
+rm /tmp/new-secret.yaml
+```
+
+#### Step 4: Commit and Deploy
+
+```bash
+# Create feature branch
+git checkout -b rotate/external-dns-cloudflare-token
+
+# Commit the updated sealed secret
+git add manifests/base/external-dns/cloudflare-sealed.yaml
+git commit -m "chore: Rotate cloudflare-api-token for external-dns"
+
+# Push and create PR
+git push -u origin rotate/external-dns-cloudflare-token
+gh pr create --title "chore: Rotate cloudflare-api-token" \
+             --body "Rotates the Cloudflare API token for external-dns."
+```
+
+#### Step 5: Verify Deployment
+
+After the PR is merged and ArgoCD syncs:
+
+```bash
+# Verify the secret was updated (check annotation timestamp)
+kubectl get secret cloudflare-api-token -n external-dns -o jsonpath='{.metadata.annotations}'
+
+# Verify the application is working
+kubectl logs -n external-dns deployment/external-dns-cloudflare | tail -20
+```
+
+#### Step 6: Restart Affected Pods (if needed)
+
+Some applications cache secrets and need a restart to pick up new values:
+
+```bash
+kubectl rollout restart deployment/external-dns-cloudflare -n external-dns
+kubectl rollout status deployment/external-dns-cloudflare -n external-dns
+```
+
+### Batch Secret Rotation
+
+For rotating multiple secrets at once (e.g., after a security incident):
+
+```bash
+#!/bin/bash
+# batch-rotate-secrets.sh
+
+SECRETS=(
+  "unipoller:unipoller-secret:manifests/base/unipoller/unipoller-sealed.yaml"
+  "external-dns:cloudflare-api-token:manifests/base/external-dns/cloudflare-sealed.yaml"
+  "external-dns:unifi-credentials:manifests/base/external-dns/unifi-sealed.yaml"
+)
+
+for entry in "${SECRETS[@]}"; do
+  IFS=':' read -r namespace name path <<< "$entry"
+  echo "Processing: $name in $namespace"
+  echo "  - Update /tmp/${name}.yaml with new values"
+  echo "  - Then run: kubeseal --controller-name=sealed-secrets-controller --controller-namespace=kube-system --format yaml < /tmp/${name}.yaml > $path"
+done
+```
+
+## Sealing Key Management
+
+The sealing key is an RSA key pair stored as a Kubernetes Secret in `kube-system`. The controller uses the private key to decrypt SealedSecrets.
+
+### Backup Sealing Key
+
+:::danger Critical
+Back up the sealing key immediately after cluster creation. Without this backup, all SealedSecrets become unrecoverable if the cluster is rebuilt.
+:::
+
+```bash
+# Export all sealing keys
+kubectl get secret -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key=active \
+  -o yaml > sealed-secrets-key-backup.yaml
+
+# Verify the backup contains the key
+grep -c "tls.crt" sealed-secrets-key-backup.yaml
+grep -c "tls.key" sealed-secrets-key-backup.yaml
+```
+
+**Store securely:**
+
+- Password manager (1Password, Bitwarden)
+- Encrypted USB drive
+- Cloud storage with client-side encryption
+
+### Rotate Sealing Key
+
+Key rotation creates a new sealing key while keeping old keys for decryption.
+
+#### Manual Key Rotation (Recommended)
+
+```bash
+# 1. Backup current key first
+kubectl get secret -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key=active \
+  -o yaml > sealed-secrets-key-backup-$(date +%Y%m%d).yaml
+
+# 2. Delete the controller pod to trigger new key generation
+kubectl delete pod -n kube-system -l app.kubernetes.io/name=sealed-secrets
+
+# 3. Wait for controller to restart
+kubectl wait --for=condition=ready pod \
+  -l app.kubernetes.io/name=sealed-secrets \
+  -n kube-system \
+  --timeout=60s
+
+# 4. Verify new key was created
+kubectl get secret -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key \
+  --show-labels
+```
+
+#### Re-seal All Secrets After Key Rotation
+
+After rotating the sealing key, re-seal all secrets to use the new key:
+
+```bash
+#!/bin/bash
+# reseal-all-secrets.sh
+
+SEALED_SECRETS=(
+  "manifests/base/unipoller/unipoller-sealed.yaml:unipoller-secret:unipoller"
+  "manifests/base/external-dns/cloudflare-sealed.yaml:cloudflare-api-token:external-dns"
+  "manifests/base/external-dns/unifi-sealed.yaml:unifi-credentials:external-dns"
+  "manifests/base/kube-prometheus-stack/alertmanager-smtp-sealed.yaml:alertmanager-smtp-credentials:default"
+  "manifests/base/kube-prometheus-stack/snmp-exporter-sealed.yaml:snmp-exporter-credentials:default"
+  "manifests/base/cert-manager/cloudflare-sealed.yaml:cloudflare-api-token-secret:cert-manager"
+  "manifests/base/synology-csi/client-info-sealed.yaml:client-info-secret:synology-csi"
+  "manifests/base/pihole/pihole-web-sealed.yaml:pihole-web-password:pihole"
+)
+
+for entry in "${SEALED_SECRETS[@]}"; do
+  IFS=':' read -r path name namespace <<< "$entry"
+  echo "Re-sealing: $name ($namespace)"
+
+  # Get current decrypted secret from cluster and re-seal
+  kubectl get secret "$name" -n "$namespace" -o yaml | \
+    kubectl neat | \
+    kubeseal --controller-name=sealed-secrets-controller \
+             --controller-namespace=kube-system \
+             --format yaml > "$path"
+
+  echo "  Updated: $path"
+done
+
+echo "Done! Review changes with: git diff"
+```
+
+:::note
+This script requires `kubectl-neat` plugin: `kubectl krew install neat`
+:::
+
+### Restore Sealing Key
+
+Use this procedure when rebuilding the cluster:
+
+```bash
+# 1. Install Sealed Secrets controller first (ArgoCD will do this)
+
+# 2. Delete the auto-generated key
+kubectl delete secret -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key
+
+# 3. Restore from backup
+kubectl apply -f sealed-secrets-key-backup.yaml
+
+# 4. Restart the controller to load the restored key
+kubectl delete pod -n kube-system -l app.kubernetes.io/name=sealed-secrets
+
+# 5. Verify restoration
+kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets | grep -i "sealed secrets"
+```
+
+## Disaster Recovery
+
+### Scenario 1: Cluster Rebuilt, Backup Available
+
+1. Deploy new cluster with ArgoCD
+2. Restore sealing key backup (see above)
+3. ArgoCD will sync all SealedSecrets
+4. Verify secrets are decrypted:
+
+   ```bash
+   kubectl get secrets -A | grep -v default-token
+   ```
+
+### Scenario 2: Cluster Rebuilt, No Backup
+
+:::warning
+If the sealing key backup is lost, all SealedSecrets are unrecoverable. You must regenerate all credentials.
+:::
+
+| Secret | Service | Rotation Procedure |
+|--------|---------|-------------------|
+| cloudflare-api-token | External DNS | Generate new API token in Cloudflare dashboard |
+| cloudflare-api-token-secret | Cert Manager | Use same token as External DNS or create dedicated one |
+| unifi-credentials | External DNS | Create new local user in UniFi controller |
+| unipoller-secret | UniPoller | Use existing UniFi read-only user or create new one |
+| alertmanager-smtp-credentials | AlertManager | Generate app password in email provider |
+| snmp-exporter-credentials | SNMP Exporter | SNMP community string from Synology NAS |
+| client-info-secret | Synology CSI | Client credentials from Synology DSM |
+| pihole-web-password | Pi-hole | Set new password in Pi-hole admin |
+
+### Scenario 3: Single Secret Corrupted
+
+If a single SealedSecret is corrupted in Git:
+
+```bash
+# Get the current decrypted secret from cluster
+kubectl get secret <name> -n <namespace> -o yaml | kubectl neat > /tmp/current-secret.yaml
+
+# Re-seal
+kubeseal --controller-name=sealed-secrets-controller \
+         --controller-namespace=kube-system \
+         --format yaml \
+         < /tmp/current-secret.yaml \
+         > path/to/sealed-secret.yaml
+
+# Clean up and commit
+rm /tmp/current-secret.yaml
+git add path/to/sealed-secret.yaml
+git commit -m "fix: Regenerate corrupted sealed secret"
+```
+
+## Troubleshooting
+
+### SealedSecret Not Decrypting
+
+**Symptoms:** Secret not created, SealedSecret shows error in events
+
+```bash
+# Check SealedSecret status
+kubectl describe sealedsecret <name> -n <namespace>
+
+# Check controller logs
+kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets --tail=50
+```
+
+**Common causes:**
+
+- Wrong namespace (SealedSecrets are namespace-scoped by default)
+- Sealing key mismatch (sealed with different key)
+- Corrupted encrypted data (re-seal from plain secret)
+
+### "Unable to decrypt" Error
+
+```bash
+# Error: "no key could decrypt secret"
+
+# Verify available keys
+kubectl get secret -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key
+
+# If key was rotated, re-seal the secret with current key
+```
+
+### kubeseal Connection Failed
+
+```bash
+# Error: "cannot fetch certificate"
+
+# Verify controller is running
+kubectl get pods -n kube-system -l app.kubernetes.io/name=sealed-secrets
+
+# Verify service exists
+kubectl get svc -n kube-system sealed-secrets-controller
+```
+
+### Secret Updated But Application Uses Old Value
+
+Some applications cache secrets. Force a refresh:
+
+```bash
+kubectl rollout restart deployment/<name> -n <namespace>
 ```
 
 ## Controller Deployment
@@ -190,100 +494,45 @@ Optimized for Raspberry Pi cluster:
 ```yaml
 resources:
   requests:
-    cpu: 10m
+    cpu: 25m
     memory: 32Mi
   limits:
     cpu: 100m
-    memory: 128Mi
+    memory: 64Mi
 ```
 
 **Actual usage:** ~1m CPU, ~9Mi memory
 
-## Operations
+## Quick Reference
 
-### Verify Controller Status
+### Seal a New Secret
 
 ```bash
-# Check controller pod
-kubectl get pods -n kube-system -l app.kubernetes.io/name=sealed-secrets
+kubeseal --controller-name=sealed-secrets-controller \
+         --controller-namespace=kube-system \
+         --format yaml \
+         < plain-secret.yaml \
+         > sealed-secret.yaml
+```
 
-# View controller logs
-kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets
+### Backup Sealing Key
+
+```bash
+kubectl get secret -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key=active \
+  -o yaml > sealed-secrets-key-backup.yaml
+```
+
+### View Controller Logs
+
+```bash
+kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets -f
 ```
 
 ### List All SealedSecrets
 
 ```bash
-# List SealedSecrets in all namespaces
 kubectl get sealedsecrets -A
-```
-
-### Verify Secret Decryption
-
-```bash
-# Check if the corresponding Secret was created
-kubectl get secret my-secret -n my-namespace
-
-# View secret details (base64 encoded)
-kubectl get secret my-secret -n my-namespace -o yaml
-```
-
-### Troubleshooting Decryption
-
-If a SealedSecret isn't being decrypted:
-
-```bash
-# Check SealedSecret status
-kubectl describe sealedsecret my-sealed -n my-namespace
-
-# Check controller logs for errors
-kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets | grep -i error
-```
-
-**Common issues:**
-
-- **"no key could decrypt secret"** - Secret was sealed with a different cluster's key
-- **"already exists and is not managed"** - Delete existing secret first, then let SealedSecret recreate it
-
-## Backup and Disaster Recovery
-
-### Backing Up the Sealing Key
-
-The sealing key pair is critical for disaster recovery. Back it up securely:
-
-```bash
-# Export the sealing key (KEEP THIS SECURE!)
-kubectl get secret -n kube-system \
-  -l sealedsecrets.bitnami.com/sealed-secrets-key=active \
-  -o yaml > sealed-secrets-key-backup.yaml
-
-# Store securely (encrypted, offline, or in a vault)
-```
-
-### Restoring After Cluster Rebuild
-
-1. Install Sealed Secrets controller
-2. Apply the backed-up sealing key:
-
-   ```bash
-   kubectl apply -f sealed-secrets-key-backup.yaml
-   ```
-
-3. Restart the controller to pick up the restored key
-4. ArgoCD will sync all SealedSecrets automatically
-
-### Key Rotation
-
-To rotate the sealing key (recommended periodically):
-
-```bash
-# Generate new key pair
-kubectl annotate sealedsecret -n kube-system \
-  -l sealedsecrets.bitnami.com/sealed-secrets-key \
-  sealedsecrets.bitnami.com/managed="true"
-
-# Re-seal all secrets with new key
-# Old secrets continue working until they're re-sealed
 ```
 
 ## Best Practices
@@ -310,25 +559,6 @@ Don't use SealedSecrets for secrets managed by Helm charts:
 - Other chart-created secrets
 
 These secrets are created by Helm and would conflict with SealedSecrets.
-
-## Migration from git-crypt
-
-As of January 2026, all secrets were migrated from git-crypt to Sealed Secrets:
-
-**Migrated:**
-
-- unipoller-secret
-- external-dns cloudflare and unifi credentials
-- alertmanager SMTP credentials
-- snmp-exporter credentials
-- cert-manager cloudflare token
-- synology-csi client info
-- pihole web password
-
-**Not migrated (by design):**
-
-- ArgoCD SSH key (bootstrap dependency)
-- Grafana password (Helm-managed)
 
 ## Related Documentation
 
