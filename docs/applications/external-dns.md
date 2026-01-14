@@ -240,42 +240,41 @@ Runs with minimal privileges and no root access.
 
 ## Secrets Management
 
+Both secrets are managed via **SealedSecrets** for GitOps compatibility. See [Secrets Management](../security/secrets-management.md) for details.
+
 ### Cloudflare Secret
 
-**Secret:** `cloudflare-api-token` (in `external-dns` namespace)
+**SealedSecret:** `manifests/base/external-dns/cloudflare-sealed.yaml`
+**Decrypted Secret:** `cloudflare-api-token` in `external-dns` namespace
 
-**Reuses cert-manager token:**
+```bash
+# View decrypted secret
+kubectl get secret cloudflare-api-token -n external-dns -o yaml
 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: cloudflare-api-token
-  namespace: external-dns
-stringData:
-  api-token: <same-token-as-cert-manager>
+# Check SealedSecret status
+kubectl get sealedsecret cloudflare-api-token -n external-dns
 ```
 
 **Required Permissions:** DNS:Edit for `k8s.n37.ca` zone
 
 ### UniFi Webhook Secret
 
-**Secret:** `unifi-credentials` (in `external-dns` namespace)
+**SealedSecret:** `manifests/base/external-dns/unifi-sealed.yaml`
+**Decrypted Secret:** `unifi-credentials` in `external-dns` namespace
 
-**UniFi API Authentication:**
+**Contains:**
 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: unifi-credentials
-  namespace: external-dns
-type: Opaque
-stringData:
-  UNIFI_HOST: "https://10.0.1.1"
-  UNIFI_API_KEY: "<your-unifi-api-key>"
-  UNIFI_SITE_NAME: "default"
-  UNIFI_TLS_INSECURE: "true"
+- `UNIFI_HOST`: UniFi controller URL (e.g., `https://10.0.1.1`)
+- `UNIFI_API_KEY`: UniFi API key with DNS permissions
+- `UNIFI_SITE_NAME`: UniFi site name (default)
+- `UNIFI_TLS_INSECURE`: TLS verification setting
+
+```bash
+# View decrypted secret
+kubectl get secret unifi-credentials -n external-dns -o yaml
+
+# Check SealedSecret status
+kubectl get sealedsecret unifi-credentials -n external-dns
 ```
 
 ## UniFi Webhook Setup
@@ -301,31 +300,45 @@ Log into UniFi Console at `https://10.0.1.1`:
 
 **2. Update Kubernetes Secret:**
 
-Edit the UniFi credentials secret:
-
-Edit the secret file (git-crypt encrypted) using your preferred editor:
+Create or update the UniFi credentials SealedSecret:
 
 ```bash
-# Example editors: vim, nano, code, or any text editor
-$EDITOR manifests/base/external-dns/secret-unifi.yaml
+# 1. Create a temporary secret YAML (DO NOT commit this)
+cat > /tmp/unifi-secret.yaml <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: unifi-credentials
+  namespace: external-dns
+type: Opaque
+stringData:
+  UNIFI_HOST: "https://10.0.1.1"
+  UNIFI_API_KEY: "YOUR_ACTUAL_API_KEY_HERE"
+  UNIFI_SITE_NAME: "default"
+  UNIFI_TLS_INSECURE: "true"
+EOF
+
+# 2. Seal the secret using kubeseal
+kubeseal --cert <(kubectl get secret -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key=active \
+  -o jsonpath='{.items[0].data.tls\.crt}' | base64 -d) \
+  --format yaml < /tmp/unifi-secret.yaml > manifests/base/external-dns/unifi-sealed.yaml
+
+# 3. Delete the temporary unencrypted secret
+rm /tmp/unifi-secret.yaml
+
+# 4. Commit and push the SealedSecret
+git add manifests/base/external-dns/unifi-sealed.yaml
+git commit -m "feat: Update UniFi credentials SealedSecret"
+git push
 ```
 
-Update the following values in the secret:
+**Configuration values:**
 
-```yaml
-# UNIFI_HOST: "https://10.0.1.1"
-# UNIFI_API_KEY: "YOUR_ACTUAL_API_KEY_HERE"  # Long alphanumeric API key from UniFi Console (e.g., "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4")
-# UNIFI_SITE_NAME: "default"  # Commonly "default", but verify in your UniFi Console URL:
-#                              # if the URL contains /site/mysite, the site name is "mysite".
-#                              # You can also confirm the site name via the UniFi API if needed.
-# UNIFI_TLS_INSECURE: "false"  # Recommended: use a valid or trusted cert; only set to "true" temporarily in non-production if you must skip TLS verification
-```
-
-Apply the updated secret:
-
-```bash
-kubectl apply -f manifests/base/external-dns/secret-unifi.yaml
-```
+- `UNIFI_HOST`: Your UniFi controller URL (e.g., `https://10.0.1.1`)
+- `UNIFI_API_KEY`: Long alphanumeric API key from UniFi Console
+- `UNIFI_SITE_NAME`: Usually "default", check your UniFi Console URL
+- `UNIFI_TLS_INSECURE`: Set to "true" for self-signed certs, "false" for trusted certs
 
 **3. Deploy via ArgoCD:**
 
@@ -562,8 +575,11 @@ kubectl logs -n external-dns deployment/external-dns-unifi-webhook
    - Check key hasn't expired or been revoked
 
    ```bash
-   # Inspect the UniFi credentials secret created by secret-unifi.yaml
-   # Inspect the UniFi credentials secret created by secret-unifi.yaml
+   # Check SealedSecret status
+   kubectl get sealedsecret unifi-credentials -n external-dns
+   kubectl describe sealedsecret unifi-credentials -n external-dns
+
+   # Inspect the decrypted secret
    kubectl get secret unifi-credentials -n external-dns -o yaml
    ```
 
@@ -784,19 +800,20 @@ kubectl logs -n external-dns deployment/external-dns-cloudflare | grep "All reco
 - Use scoped API tokens (not Global API Key)
 - Limit to DNS:Edit for specific zone
 - Rotate tokens periodically
-- Store in Kubernetes secrets (git-crypt encrypted in repo)
+- Store as SealedSecrets (encrypted in Git, decrypted at runtime)
 
 **UniFi Webhook:**
 
 - Use dedicated API key with minimal permissions (DNS management only)
-- Note: Ensure only DNS-related permissions are enabled when creating the API key in the UniFi Console.
-  - Ensure only DNS-related permissions are enabled when creating the API key in the UniFi Console
-  - Select the **Network** application with **Read/Write** access (required to create, update, and delete DNS records)
-  - Do not grant access to other applications unless explicitly needed
-- Store API key in encrypted Kubernetes secrets (git-crypt)
-- Rotate API keys periodically
-- Configure the UniFi controller with a trusted certificate/CA so TLS verification remains enabled (avoid `UNIFI_TLS_INSECURE: "true"`, especially in production). This is a UniFi controller prerequisite and should be configured in the UniFi Console following UniFi’s own documentation (see the **References** section below).
+- Ensure only DNS-related permissions are enabled when creating the API key in the UniFi Console
+- Select the **Network** application with **Read/Write** access (required to create, update, and delete DNS records)
+- Do not grant access to other applications unless explicitly needed
+- Store API key as SealedSecret (encrypted in Git)
+- Rotate API keys periodically - create new SealedSecret with `kubeseal`
+- Configure the UniFi controller with a trusted certificate/CA so TLS verification remains enabled (avoid `UNIFI_TLS_INSECURE: "true"`, especially in production)
 - Monitor webhook logs for unauthorized access attempts
+
+See [Secrets Management](../security/secrets-management.md) for details on managing SealedSecrets.
 
 ### Network Security
 

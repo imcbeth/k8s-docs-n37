@@ -152,9 +152,16 @@ UniFi Poller uses **API key authentication** to connect to the UniFi controller.
 
 ### Configuring the Secret
 
-The API key is stored in a Kubernetes Secret:
+The API key is managed via **SealedSecret** for GitOps compatibility:
 
-```yaml
+- **SealedSecret:** `manifests/base/unipoller/unipoller-sealed.yaml`
+- **Decrypted Secret:** `unipoller-secret` in `unipoller` namespace
+
+To update the API key, create a new SealedSecret:
+
+```bash
+# 1. Create temporary secret YAML (DO NOT commit)
+cat > /tmp/unipoller-secret.yaml <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
@@ -162,7 +169,20 @@ metadata:
   namespace: unipoller
 type: Opaque
 stringData:
-  api-key: "YOUR_UNIFI_API_KEY_HERE"
+  api-key: "YOUR_NEW_API_KEY_HERE"
+EOF
+
+# 2. Seal the secret
+kubeseal --cert <(kubectl get secret -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key=active \
+  -o jsonpath='{.items[0].data.tls\.crt}' | base64 -d) \
+  --format yaml < /tmp/unipoller-secret.yaml > manifests/base/unipoller/unipoller-sealed.yaml
+
+# 3. Delete temporary file and commit
+rm /tmp/unipoller-secret.yaml
+git add manifests/base/unipoller/unipoller-sealed.yaml
+git commit -m "feat: Update unipoller API key"
+git push
 ```
 
 The deployment references this secret via environment variable:
@@ -175,6 +195,8 @@ env:
       name: unipoller-secret
       key: api-key
 ```
+
+See [Secrets Management](../security/secrets-management.md) for details on SealedSecrets.
 
 ## Monitoring and Dashboards
 

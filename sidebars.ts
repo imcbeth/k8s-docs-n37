@@ -84,6 +84,13 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Security',
+      items: [
+        'security/secrets-management',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Troubleshooting',
       items: [
         'troubleshooting/monitoring',

@@ -556,8 +556,10 @@ kubectl get pvc -A --sort-by=.spec.resources.requests.storage
 ### Authentication
 
 - CHAP authentication for iSCSI
-- Credentials stored in Kubernetes secrets
-- Secrets encrypted with git-crypt in repository
+- Credentials managed via SealedSecret (`manifests/base/synology-csi/client-info-sealed.yaml`)
+- SealedSecrets safely stored in Git, decrypted at runtime by Sealed Secrets controller
+
+See [Secrets Management](../security/secrets-management.md) for details on managing SealedSecrets.
 
 ### Network Security
 

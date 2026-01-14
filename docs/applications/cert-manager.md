@@ -135,11 +135,17 @@ spec:
 
 ### Cloudflare API Token
 
-The API token is stored in a Kubernetes secret:
+The API token is stored as a **SealedSecret** for GitOps compatibility:
+
+- **SealedSecret:** `manifests/base/cert-manager/cloudflare-sealed.yaml`
+- **Decrypted Secret:** `cloudflare-api-token-secret` in `cert-manager` namespace
 
 ```bash
-# View secret (base64 encoded)
+# View decrypted secret (base64 encoded)
 kubectl get secret cloudflare-api-token-secret -n cert-manager -o yaml
+
+# View SealedSecret status
+kubectl get sealedsecret cloudflare-api-token-secret -n cert-manager
 ```
 
 **Permissions Required:**
@@ -148,6 +154,8 @@ kubectl get secret cloudflare-api-token-secret -n cert-manager -o yaml
 - Zone: Zone: Read
 
 **Token Scope:** k8s.n37.ca zone only
+
+See [Secrets Management](../security/secrets-management.md) for details on managing SealedSecrets.
 
 ---
 
@@ -328,7 +336,7 @@ dig _acme-challenge.grafana.k8s.n37.ca TXT +short
 
 #### Issue: "Secret cloudflare-api-token-secret not found"
 
-**Cause:** Cloudflare API token secret missing or in wrong namespace
+**Cause:** Cloudflare API token secret missing or SealedSecret not synced
 
 **Solution:**
 
@@ -336,9 +344,15 @@ dig _acme-challenge.grafana.k8s.n37.ca TXT +short
 # Verify secret exists
 kubectl get secret cloudflare-api-token-secret -n cert-manager
 
-# If missing, apply from homelab repo
-kubectl apply -f manifests/base/cert-manager/cloudflare-api-token-secret.yaml
+# Check SealedSecret status
+kubectl get sealedsecret cloudflare-api-token-secret -n cert-manager
+kubectl describe sealedsecret cloudflare-api-token-secret -n cert-manager
+
+# If SealedSecret exists but secret doesn't, check Sealed Secrets controller logs
+kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets
 ```
+
+The secret is managed via SealedSecret (`manifests/base/cert-manager/cloudflare-sealed.yaml`) and should be automatically created by the Sealed Secrets controller.
 
 #### Issue: "Rate limit exceeded"
 
@@ -470,11 +484,12 @@ Both use the same Cloudflare API token, no conflict.
 
 ## Security Considerations
 
-- **API Token Security:** Cloudflare token stored as Kubernetes secret (encrypted at rest)
+- **API Token Security:** Cloudflare token managed via SealedSecret (encrypted in Git, decrypted at runtime)
 - **Least Privilege:** Token has minimal required permissions (DNS edit only)
-- **Token Rotation:** Consider rotating Cloudflare API token periodically
+- **Token Rotation:** When rotating, create new SealedSecret with `kubeseal`
 - **ACME Account:** Private key stored securely in cert-manager namespace
 - **Certificate Secrets:** Contain private keys, protect namespace access
+- **GitOps Safe:** SealedSecrets can be safely committed to Git repository
 
 ---
 
@@ -570,6 +585,7 @@ kubectl get secret <cert-secret> -n <namespace> -o jsonpath='{.data.tls\.crt}' |
 
 ---
 
-**Last Updated:** 2025-12-27
+**Last Updated:** 2026-01-14
 **Status:** Production, Healthy
 **Managed By:** ArgoCD (`manifests/applications/cert-manager.yaml`)
+**Secrets:** SealedSecret (`manifests/base/cert-manager/cloudflare-sealed.yaml`)
