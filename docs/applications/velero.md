@@ -56,7 +56,24 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 
 ## Backup Strategy
 
-### Daily Critical PVC Backup (2 AM)
+### Backup Schedule Overview
+
+| Schedule | Time | Retention | Scope | Method |
+|----------|------|-----------|-------|--------|
+| `velero-daily-argocd` | 1:30 AM | 30 days | argocd namespace | Resources only |
+| `velero-daily-critical-pvcs` | 2:00 AM | 30 days | default, loki, pihole | CSI snapshots |
+| `velero-weekly-cluster-resources` | 3:00 AM Sunday | 90 days | All namespaces | Resources only |
+
+### Daily ArgoCD Configuration Backup (1:30 AM)
+
+- **Schedule**: Every day at 1:30 AM
+- **Retention**: 30 days
+- **Namespaces**: argocd only
+- **Method**: Kubernetes resources (Applications, AppProjects, ConfigMaps, Secrets)
+- **Data**: ~50 resources (stateless, no PVCs)
+- **Purpose**: Daily recovery point for ArgoCD configuration changes
+
+### Daily Critical PVC Backup (2:00 AM)
 
 - **Schedule**: Every day at 2:00 AM
 - **Retention**: 30 days
@@ -65,7 +82,7 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 - **Total Data**: ~80Gi (Prometheus 50Gi, Loki 20Gi, Grafana 5Gi, Pi-hole 5Gi)
 - **Backup Duration**: ~20 seconds (instant snapshot creation)
 
-### Weekly Cluster Resource Backup (3 AM Sunday)
+### Weekly Cluster Resource Backup (3:00 AM Sunday)
 
 - **Schedule**: Every Sunday at 3:00 AM
 - **Retention**: 90 days
