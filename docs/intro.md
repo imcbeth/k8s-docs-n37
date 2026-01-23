@@ -147,6 +147,23 @@ If you're new to this setup, start here:
 
 ## 📊 Recent Infrastructure Updates
 
+### Backup Strategy Complete (January 2026)
+
+- **Velero with Backblaze B2**: Production backup storage with 11 nines durability
+- **Daily ArgoCD Backup**: 1:30 AM, 30-day retention
+- **Daily Critical PVC Backup**: 2:00 AM (Prometheus, Loki, Grafana, Pi-hole)
+- **Weekly Cluster Backup**: 3:00 AM Sunday, 90-day retention
+- **CSI Snapshots**: Native Synology NAS snapshots via snapshot-controller
+- **Tested & Verified**: Full backup/restore cycle validated with B2
+
+### Security Scanning Active (January 2026)
+
+- **Trivy Operator**: Continuous container vulnerability scanning
+- **95 Images Scanned**: All cluster workloads monitored
+- **Vulnerability Reduction**: 81% reduction in CRITICAL (53 → 10)
+- **Compliance Reports**: CIS Kubernetes Benchmark, NSA Hardening Guidance
+- **PrometheusRule Alerts**: Critical vulnerability notifications via AlertManager
+
 ### Secrets Management Migration (January 2026)
 
 - **Sealed Secrets**: Migrated from git-crypt to Bitnami Sealed Secrets
