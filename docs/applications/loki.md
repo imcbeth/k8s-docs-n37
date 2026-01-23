@@ -22,9 +22,11 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 
 - **Namespace:** `loki`
 - **Helm Chart:** `grafana/promtail`
-- **Chart Version:** `6.16.6`
+- **Chart Version:** `6.17.1` (App version 3.5.1)
 - **Deployment:** DaemonSet (one pod per node)
 - **Sync Wave:** `-11` (after Loki -12)
+
+**Note:** Promtail upgraded from 6.16.6 → 6.17.1 on 2026-01-07, eliminating 7 CRITICAL vulnerabilities.
 
 ## Architecture
 
@@ -61,8 +63,14 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 - **Retention:** 7 days (168h) with automatic compaction
 - **Schema:** v13 (TSDB store with filesystem backend)
 - **Resources:**
-  - Requests: 200m CPU, 384Mi memory
+  - Requests: 200m CPU, 512Mi memory
   - Limits: 500m CPU, 768Mi memory
+- **Memory Management:**
+  - `GOMEMLIMIT: 700MiB` (Go runtime memory cap)
+  - Ingestion rate limits: 10MB/sec, 20MB burst
+  - Internal caching only (no external memcached)
+
+**Note:** Memory configuration optimized on 2026-01-05 for singleBinary mode stability. Uses internal caching instead of external memcached to prevent distributed mode activation conflicts.
 
 **Service Endpoints:**
 

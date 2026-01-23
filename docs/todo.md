@@ -62,21 +62,28 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 ## 🛡️ **Security & Backup**
 
-### 4. **Backup Strategy**
+### 4. **Backup Strategy** ✅ COMPLETED (2026-01-14)
 
-- [ ] **Velero** - Deploy for Kubernetes cluster backup
-- [ ] **Restic** - Set up application data backup to Synology NAS
-- [ ] **ArgoCD backup** - Automate app-of-apps configuration backup
-- [ ] Schedule regular backup testing and restore procedures
-- [ ] Document backup and restore processes
+- [x] **Velero** - Deployed with CSI snapshot support and Backblaze B2 storage
+- [x] **Daily ArgoCD backup** - Automated at 1:30 AM, 30-day retention
+- [x] **Daily critical PVC backup** - Automated at 2:00 AM (Prometheus, Loki, Grafana, Pi-hole)
+- [x] **Weekly cluster resource backup** - Automated at 3:00 AM Sunday, 90-day retention
+- [x] Backup testing and restore procedures verified with B2
+- [x] Velero documentation complete with monitoring alerts
 
-### 5. **Security Scanning & Runtime Protection**
+**Documentation:** See [Velero Application Guide](./applications/velero.md) for complete deployment details and disaster recovery procedures.
 
-- [ ] **Trivy Operator** - Container vulnerability scanning
-- [ ] **Falco** - Runtime security monitoring and threat detection
-- [ ] **OPA Gatekeeper** - Policy enforcement and admission control
-- [ ] Security policy definitions for workloads
-- [ ] Compliance reporting and alerting
+### 5. **Security Scanning & Runtime Protection** ✅ COMPLETED (2026-01-05)
+
+- [x] **Trivy Operator** - Container vulnerability scanning deployed
+- [x] Vulnerability reports generating for all workloads (95 images)
+- [x] Grafana dashboard for security metrics
+- [x] PrometheusRule alerts for critical vulnerabilities
+- [x] Compliance reporting (CIS Kubernetes Benchmark, NSA Hardening)
+- [ ] **Falco** - Runtime security monitoring (future enhancement)
+- [ ] **OPA Gatekeeper** - Policy enforcement (future enhancement)
+
+**Documentation:** See [Trivy Operator Guide](./applications/trivy-operator.md) and [Vulnerability Remediation Guide](./applications/trivy-vulnerability-remediation.md) for details.
 
 ## 🚀 **Platform Enhancements**
 
@@ -88,42 +95,55 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 - [ ] Implement security policies and mTLS
 - [ ] Circuit breaker and retry policies
 
-### 7. **Log Aggregation** ✅ COMPLETED (2025-12-27)
+### 7. **Log Aggregation** ✅ COMPLETED (2025-12-28)
 
 - [x] Deploy **Loki + Promtail** stack for centralized logging
 - [x] Integrate with existing Grafana instance (auto-discovered datasource)
 - [x] Configure log retention policies (7 days, 20Gi PVC)
 - [x] Promtail DaemonSet on all 5 nodes (including control-plane)
-- [ ] Set up log-based alerting for errors and anomalies (pending)
-- [ ] Create custom log dashboards for application troubleshooting (pending)
+- [x] Set up log-based alerting via Loki ruler (11 alert rules)
+- [x] Loki log analytics dashboard deployed
 
-**Documentation:** See [Loki Application Guide](./applications/loki.md) for complete deployment details.
+**Documentation:** See [Loki Application Guide](./applications/loki.md) for complete deployment details including log-based alerting.
 
-### 8. **Secrets Management**
+### 8. **Secrets Management** ✅ COMPLETED (2026-01-14)
 
-- [ ] **External Secrets Operator** - Use Synology as secrets backend
-- [ ] **Sealed Secrets** - GitOps-friendly encrypted secrets
-- [ ] Migrate existing secrets to managed solution
-- [ ] Set up secret rotation automation
-- [ ] Document secrets management procedures
+- [x] **Sealed Secrets** - GitOps-friendly encrypted secrets (chosen over ESO)
+- [x] Migrate existing secrets to managed solution (8 SealedSecrets deployed)
+- [x] Document secrets management procedures
+- [x] Sealing key backup procedures documented
+- [ ] Set up automated secret rotation reminders (future enhancement)
+
+**Note:** Evaluated both External Secrets Operator and Sealed Secrets. Chose Sealed Secrets for homelab due to 7x less memory usage and simpler architecture.
+
+**Documentation:** See [Secrets Management Guide](./security/secrets-management.md) for complete procedures including rotation and disaster recovery.
 
 ## 📊 **Advanced Monitoring & Dashboards**
 
-### 9. **Custom Dashboards**
+### 9. **Custom Dashboards** ✅ COMPLETED (2025-12-28)
 
-- [ ] Pi cluster temperature monitoring dashboard
+- [x] Pi cluster temperature monitoring dashboard
+- [x] Node resource monitoring dashboard (CPU, memory, disk I/O, network)
+- [x] Loki log analytics dashboard
+- [x] Trivy security scanning dashboard
+- [x] 43 total Grafana dashboards deployed via GitOps
 - [ ] Power consumption tracking (if UPS available)
-- [ ] Network utilization by VLAN/segment
-- [ ] Storage performance metrics (iSCSI latency, IOPS)
-- [ ] Application performance monitoring (APM)
+- [ ] Network utilization by VLAN/segment (advanced)
 
-### 10. **Alerting Improvements**
+**Documentation:** See [Grafana Dashboards Guide](./monitoring/grafana-dashboards.md) for dashboard details.
 
-- [ ] Configure **AlertManager** webhook to Discord/Slack
-- [ ] Implement tiered alerting (warning → critical → page)
-- [ ] Set up predictive alerts for disk space and temperature
-- [ ] Create runbooks for common alert scenarios
-- [ ] Test alert routing and escalation
+### 10. **Alerting Improvements** ✅ PARTIALLY COMPLETED (2026-01-12)
+
+- [x] Configure **AlertManager** email notifications (Gmail SMTP)
+- [x] Implement tiered alerting (warning → critical severity levels)
+- [x] Set up predictive alerts for disk space (`predict_linear()`)
+- [x] Synology NAS health alerts (disk failures, RAID, temperature)
+- [x] Velero backup monitoring alerts (7 alert rules)
+- [x] Log-based alerting via Loki ruler (11 alert rules)
+- [ ] Configure webhook to Discord/Slack (future enhancement)
+- [ ] Create runbooks for common alert scenarios (future enhancement)
+
+**Note:** 121 emails delivered successfully as of 2026-01-14. AlertManager fully operational.
 
 ## 🏗️ **Infrastructure & DevOps**
 
@@ -200,34 +220,34 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 Items are organized by priority. Focus on:
 
-### **Phase 1: Foundation & Reliability**
+### **Phase 1: Foundation & Reliability** ✅ COMPLETED
 
-1. External-DNS deployment (unblock pending work)
-2. Backup strategy (Velero + critical PVC backups)
-3. Enhanced alerting (AlertManager notifications)
-4. Metrics server deployment
+1. ✅ External-DNS deployment (dual provider: Cloudflare + UniFi)
+2. ✅ Backup strategy (Velero + critical PVC backups + B2 storage)
+3. ✅ Enhanced alerting (AlertManager email notifications)
+4. ✅ Metrics server deployment
 
-### **Phase 2: Security & Observability**
+### **Phase 2: Security & Observability** ✅ COMPLETED
 
-1. Security scanning (Trivy Operator)
-2. Secrets management migration
-3. Blackbox exporter for endpoint monitoring
-4. Custom Grafana dashboards
-5. Log-based alerting
+1. ✅ Security scanning (Trivy Operator)
+2. ✅ Secrets management migration (Sealed Secrets)
+3. ✅ Blackbox exporter for endpoint monitoring
+4. ✅ Custom Grafana dashboards (43 total)
+5. ✅ Log-based alerting (Loki ruler)
 
-### **Phase 3: Advanced Features**
+### **Phase 3: Advanced Features** 🚧 IN PROGRESS
 
-1. Service mesh evaluation and potential deployment
-2. GitOps enhancements (Renovate)
-3. Network policies implementation
-4. Development tools and CI/CD
+1. Network policies implementation
+2. GitOps enhancements (Renovate for automated updates)
+3. Argo Workflows for pipeline automation
+4. Service mesh evaluation (Istio vs Linkerd)
 
-### **Phase 4: Optimization & Expansion**
+### **Phase 4: Optimization & Expansion** 📋 PLANNED
 
 1. Resource optimization and VPA
 2. Chaos engineering and resilience testing
-3. Advanced networking and VPN
-4. Additional application deployments
+3. Advanced networking and VPN (Tailscale/WireGuard)
+4. Development tools (Gitea/GitLab, Harbor, Tekton)
 
 ---
 
@@ -244,7 +264,7 @@ Items are organized by priority. Focus on:
 
 ## 🔗 **References**
 
-- **homelab/CLAUDE_NOTES.md** - Detailed session notes and troubleshooting history
+- **homelab/.claude/notes/** - Session notes and context (CURRENT.md, REFERENCE.md, sessions/)
 - **homelab/TODO.md** - Infrastructure repository TODO list (should sync with this)
 - **homelab/Hardware.md** - Cluster hardware specifications
 - **homelab/network-info.md** - Comprehensive network configuration
