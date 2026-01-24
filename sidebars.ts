@@ -87,6 +87,7 @@ const sidebars: SidebarsConfig = {
       label: 'Security',
       items: [
         'security/secrets-management',
+        'security/network-policies',
       ],
     },
     {

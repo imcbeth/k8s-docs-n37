@@ -85,6 +85,20 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 **Documentation:** See [Trivy Operator Guide](./applications/trivy-operator.md) and [Vulnerability Remediation Guide](./applications/trivy-vulnerability-remediation.md) for details.
 
+### 5b. **Network Policies** ✅ PARTIALLY COMPLETED (2026-01-24)
+
+- [x] **Kubernetes NetworkPolicies** - Namespace isolation deployed via ArgoCD
+- [x] 5 namespaces protected: localstack, unipoller, loki, trivy-system, velero
+- [x] Allow-list approach: Default-deny ingress with explicit allow rules
+- [x] Prometheus metrics scraping preserved across all policies
+- [x] DNS egress allowed for all namespaces
+- [x] Documentation complete with testing procedures
+- [ ] Expand to remaining namespaces (cert-manager, external-dns, metallb-system)
+- [ ] Implement Calico GlobalNetworkPolicy for cluster-wide rules
+- [ ] Network policy monitoring dashboard in Grafana
+
+**Documentation:** See [Network Policies Guide](./security/network-policies.md) for complete policy definitions and management procedures.
+
 ## 🚀 **Platform Enhancements**
 
 ### 6. **Service Mesh**
@@ -243,7 +257,7 @@ Items are organized by priority. Focus on:
 
 ### **Phase 3: Advanced Features** 🚧 IN PROGRESS
 
-1. Network policies implementation
+1. ✅ Network policies implementation (5 namespaces isolated 2026-01-24)
 2. ✅ GitOps enhancements (Renovate deployed - automated dependency updates)
 3. Argo Workflows for pipeline automation
 4. Service mesh evaluation (Istio vs Linkerd)

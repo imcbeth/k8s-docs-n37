@@ -201,6 +201,14 @@ If you're new to this setup, start here:
 - **Weekend Schedule**: Sat/Sun 6am-9pm to minimize disruption
 - **PR Workflow**: All updates go through PR review before merging
 
+### Network Policies Implementation (January 2026)
+
+- **Namespace Isolation**: 5 namespaces protected with Kubernetes NetworkPolicies
+- **Allow-List Approach**: Default-deny ingress with explicit allow rules
+- **Namespaces Protected**: localstack, unipoller, loki, trivy-system, velero
+- **Monitoring Preserved**: Prometheus metrics scraping allowed across all policies
+- **GitOps Managed**: ArgoCD Application at sync-wave -40
+
 ### Monitoring Stack Enhancements
 
 - **Prometheus Stack v81.2.2**: Fully GitOps-managed via ArgoCD
