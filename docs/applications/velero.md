@@ -11,8 +11,8 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 
 - **Namespace:** `velero`
 - **Helm Chart:** `vmware-tanzu/velero`
-- **Chart Version:** `8.2.0`
-- **App Version:** `v1.16.0`
+- **Chart Version:** `11.3.2`
+- **App Version:** `v1.17.2`
 - **Deployment:** Managed by ArgoCD
 - **Backup Storage:** Backblaze B2 (production)
 - **Backup Strategy:** Daily PVC backups + Weekly cluster resource backups
@@ -175,7 +175,7 @@ spec:
     # Source 1: Helm chart from VMware Tanzu
     - repoURL: https://vmware-tanzu.github.io/helm-charts
       chart: velero
-      targetRevision: 8.2.0
+      targetRevision: 11.3.2
       helm:
         releaseName: velero
         valueFiles:
@@ -711,7 +711,54 @@ kubectl delete namespace velero-test
 
 ## Known Issues and Solutions
 
-### Issue 1: snapshot-controller v8.x VolumeSnapshot Failures
+### Issue 1: Velero v1.17 Breaking Change - `--keep-latest-maintenance-jobs` Flag Removed
+
+**Date Noted:** 2026-01-23
+**Severity:** Critical (pod crash)
+**Status:** Resolved
+
+**Symptoms:**
+
+- Velero pod in `CrashLoopBackOff` after upgrading to chart v11.x
+- Error in logs: `Error: unknown flag: --keep-latest-maintenance-jobs`
+
+**Root Cause:**
+
+The `--keep-latest-maintenance-jobs` CLI flag was deprecated in Velero v1.14 and removed in v1.17. The Helm chart v11.x uses a ConfigMap-based approach instead (`--repo-maintenance-job-configmap`).
+
+**Solution:**
+
+If ArgoCD isn't picking up the new chart version from git (still showing old targetRevision), recreate the ArgoCD Application:
+
+```bash
+# Delete and recreate the ArgoCD Application to force sync
+kubectl delete application velero -n argocd
+kubectl apply -f manifests/applications/velero.yaml
+
+# Wait for sync and verify
+kubectl get application velero -n argocd
+velero backup-location get
+```
+
+**Configuration Change:**
+
+The new Helm chart uses `configuration.repositoryMaintenanceJob.repositoryConfigData` in values.yaml instead of CLI flags:
+
+```yaml
+configuration:
+  repositoryMaintenanceJob:
+    repositoryConfigData:
+      global:
+        keepLatestMaintenanceJobs: 3  # Previously a CLI flag
+```
+
+**Related PRs:**
+
+- homelab#271: Velero major update to v11.3.2
+
+---
+
+### Issue 2: snapshot-controller v8.x VolumeSnapshot Failures
 
 **Date Noted:** 2026-01-05
 **Severity:** Critical (backup failure)
@@ -812,7 +859,7 @@ kubectl get volumesnapshot -n default test-snapshot
 
 ---
 
-### Issue 2: LocalStack Connection Required for Initial Deployment
+### Issue 3: LocalStack Connection Required for Initial Deployment
 
 **Date Noted:** 2025-12-27
 **Severity:** Medium (deployment blocker)

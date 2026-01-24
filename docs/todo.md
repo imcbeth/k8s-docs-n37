@@ -147,13 +147,19 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 ## 🏗️ **Infrastructure & DevOps**
 
-### 11. **GitOps Enhancements**
+### 11. **GitOps Enhancements** ✅ PARTIALLY COMPLETED (2026-01-23)
 
-- [ ] **Renovate** - Automated dependency updates for manifests
+- [x] **Renovate** - Automated dependency updates for manifests (GitHub App deployed)
+  - [x] ArgoCD Application manifest scanning (Helm charts)
+  - [x] Docker image tag updates in Kubernetes manifests
+  - [x] Grouped updates (ArgoCD, monitoring, networking, security, backup)
+  - [x] Weekend schedule (Sat/Sun 6am-9pm) to minimize disruption
 - [ ] Evaluate **Flux** as ArgoCD complement for specific workflows
 - [ ] Pre-commit hooks for Kubernetes manifest validation
 - [ ] Automated testing pipeline for infrastructure changes
 - [ ] GitOps workflow documentation
+
+**Configuration:** See `renovate.json` in homelab repository for full configuration.
 
 ### 12. **Development & CI/CD Tools**
 
@@ -238,7 +244,7 @@ Items are organized by priority. Focus on:
 ### **Phase 3: Advanced Features** 🚧 IN PROGRESS
 
 1. Network policies implementation
-2. GitOps enhancements (Renovate for automated updates)
+2. ✅ GitOps enhancements (Renovate deployed - automated dependency updates)
 3. Argo Workflows for pipeline automation
 4. Service mesh evaluation (Istio vs Linkerd)
 

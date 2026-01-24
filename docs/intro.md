@@ -194,9 +194,16 @@ If you're new to this setup, start here:
 - **Performance Monitoring**: 20-second metrics collection intervals
 - **Comprehensive Metrics**: Device health, client connections, bandwidth tracking
 
+### Automated Dependency Updates (January 2026)
+
+- **Renovate GitHub App**: Automated Helm chart and Docker image updates
+- **Grouped Updates**: ArgoCD, monitoring, networking, security, backup tools
+- **Weekend Schedule**: Sat/Sun 6am-9pm to minimize disruption
+- **PR Workflow**: All updates go through PR review before merging
+
 ### Monitoring Stack Enhancements
 
-- **Prometheus Stack v80.6.0**: Fully GitOps-managed via ArgoCD
+- **Prometheus Stack v81.2.2**: Fully GitOps-managed via ArgoCD
 - **Grafana Dashboards**: 20+ pre-loaded dashboards for comprehensive visibility
 - **Alert Management**: PrometheusRule CRDs for infrastructure health alerts
 - **Multi-Source Deployment**: Helm chart + custom values managed in git
