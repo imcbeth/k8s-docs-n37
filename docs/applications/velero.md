@@ -275,6 +275,31 @@ kubectl -n localstack exec deployment/localstack -- \
 
 ## Restore Commands
 
+### Finding Available Backups from B2
+
+All backups are stored in Backblaze B2 and can be queried using the Velero CLI:
+
+```bash
+# List all backups (shows status, age, storage location)
+velero backup get
+
+# Filter by schedule name
+velero backup get --selector velero.io/schedule-name=velero-daily-critical-pvcs
+
+# Get backup details including CSI snapshot info
+velero backup describe <backup-name> --details
+
+# Check backup logs for specific PVC snapshots
+velero backup logs <backup-name> | grep -i "volumesnapshot\|storage-loki\|grafana"
+
+# Verify backup phase and items
+velero backup describe <backup-name> | grep -E "Phase|Items backed up"
+```
+
+**Backup naming convention:** `<schedule-name>-<YYYYMMDDHHMMSS>`
+
+- Example: `velero-daily-critical-pvcs-20260124020024` (Jan 24, 2026 at 02:00:24 UTC)
+
 ### Restore from Backup
 
 ```bash
@@ -320,7 +345,69 @@ kubectl -n default scale deployment kube-prometheus-stack-grafana --replicas=1
 # Time to recovery: < 15 minutes
 ```
 
-**Scenario 2: Full Cluster Rebuild**
+**Scenario 2: StatefulSet PVC Restore (Loki Example)**
+
+Use this procedure when a StatefulSet PVC is lost or corrupted (e.g., Loki logs missing).
+
+```bash
+# 1. List available backups and find the one with your data
+velero backup get --selector velero.io/schedule-name=velero-daily-critical-pvcs
+
+# 2. Verify the backup contains your PVC (check for CSI snapshot)
+velero backup logs velero-daily-critical-pvcs-20260124020024 | grep -i "storage-loki"
+# Look for: "Created VolumeSnapshot loki/velero-storage-loki-0-xxxxx"
+
+# 3. Disable ArgoCD auto-sync to prevent reconciliation during restore
+kubectl patch application loki -n argocd \
+  --type=merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
+
+# 4. Scale down the StatefulSet
+kubectl scale statefulset -n loki loki --replicas=0
+
+# 5. Wait for pod termination
+kubectl get pods -n loki -l app.kubernetes.io/name=loki,app.kubernetes.io/component=single-binary -w
+
+# 6. Delete the existing PVC (if it exists)
+kubectl delete pvc -n loki storage-loki-0
+
+# 7. Restore PVC from backup (CSI snapshot)
+velero restore create loki-restore-$(date +%Y%m%d%H%M) \
+  --from-backup velero-daily-critical-pvcs-20260124020024 \
+  --include-namespaces loki \
+  --include-resources persistentvolumeclaims,volumesnapshots.snapshot.storage.k8s.io,volumesnapshotcontents.snapshot.storage.k8s.io \
+  --restore-volumes=true
+
+# 8. Monitor restore progress
+velero restore describe loki-restore-202601251301
+
+# 9. Verify PVC was restored
+kubectl get pvc -n loki
+
+# 10. Scale StatefulSet back up
+kubectl scale statefulset -n loki loki --replicas=1
+
+# 11. Wait for pod to be ready
+kubectl get pods -n loki -l app.kubernetes.io/name=loki -w
+
+# 12. Re-enable ArgoCD auto-sync
+kubectl patch application loki -n argocd \
+  --type=merge -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
+
+# 13. Verify data is accessible
+kubectl run curl-test --image=curlimages/curl --rm -it --restart=Never -- \
+  curl -s 'http://loki.loki.svc.cluster.local:3100/loki/api/v1/labels'
+
+# Time to recovery: ~5-10 minutes
+```
+
+**Important Notes:**
+
+- CSI snapshots are point-in-time; data between backup time and restore will be lost
+- Always disable ArgoCD auto-sync first to prevent race conditions
+- The restore creates a new PV from the CSI snapshot on Synology NAS
+- Verify the backup contains a VolumeSnapshot before attempting restore
+
+**Scenario 3: Full Cluster Rebuild**
 
 ```bash
 # 1. Deploy new Kubernetes cluster (same version)
