@@ -538,6 +538,36 @@ kubectl describe pod <pod-name>
 sudo iscsiadm -m session
 ```
 
+### fsGroup Race Condition with Transient Files
+
+**Error message:**
+
+```
+MountVolume.SetUp failed for volume "pvc-xxx" : applyFSGroup failed for vol xxx:
+lstat /var/lib/kubelet/pods/.../grafana.db-journal: no such file or directory
+```
+
+**Cause:** Kubernetes applies fsGroup ownership recursively to all files in a mounted volume. If a transient file (like SQLite's `.db-journal`) is deleted between directory listing and the `lstat` call, the mount fails.
+
+**Solution:** Add `fsGroupChangePolicy: OnRootMismatch` to the pod's securityContext:
+
+```yaml
+spec:
+  securityContext:
+    fsGroup: 472
+    fsGroupChangePolicy: OnRootMismatch  # Only apply fsGroup at root
+```
+
+This tells Kubernetes to skip recursive ownership changes unless the root directory ownership is incorrect, avoiding race conditions with transient files.
+
+**Affected workloads:**
+
+- Grafana (SQLite database with journal files)
+- Any application using SQLite or similar databases with transient files
+- Applications that create/delete files during startup
+
+---
+
 ### iscsiadm "No such file or directory" Error (v1.2.1)
 
 **Error message:**
