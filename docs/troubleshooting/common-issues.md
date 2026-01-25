@@ -8,7 +8,57 @@ sidebar_position: 2
 
 This page documents frequently encountered issues and their solutions discovered during cluster operations.
 
+## DNS Issues
+
+### External-DNS Not Creating Records for Subdomains
+
+**Symptom:** External-DNS detects ingresses but skips record creation with "no hosted zone matching record DNS Name was detected".
+
+**Cause:** Using `--domain-filter=subdomain.example.com` when the Cloudflare zone is `example.com`. The zone name must match the domain filter.
+
+**Example error (debug log):**
+
+```
+zone "example.com" not in domain filter
+Skipping record "app.subdomain.example.com" because no hosted zone matching record DNS Name was detected
+```
+
+**Solution:** Use the parent zone as domain-filter:
+
+```yaml
+args:
+  - --domain-filter=example.com  # NOT subdomain.example.com
+```
+
+Since ingresses specify exact hostnames, external-dns will only create records for those specific subdomains.
+
+**Note:** At `--log-level=info`, no-op syncs don't produce logs, making it appear stuck. Use debug logging or check metrics to verify sync activity.
+
+---
+
 ## Storage Issues
+
+### Synology CSI fsGroup Race Condition
+
+**Error:**
+
+```
+MountVolume.SetUp failed for volume "pvc-xxx" : applyFSGroup failed for vol xxx:
+lstat /var/lib/kubelet/pods/.../grafana.db-journal: no such file or directory
+```
+
+**Cause:** Race condition between Kubernetes fsGroup recursive application and transient files (like SQLite journal files). The file is deleted between directory listing and `lstat`.
+
+**Solution:** Add `fsGroupChangePolicy: OnRootMismatch` to skip recursive fsGroup traversal:
+
+```yaml
+podSecurityContext:
+  fsGroupChangePolicy: OnRootMismatch
+```
+
+This tells Kubernetes to only apply fsGroup at the volume root, avoiding the race condition with transient files.
+
+---
 
 ### Synology CSI v1.2.1 iscsiadm Error
 
@@ -287,6 +337,8 @@ echo -n "secret-value" | base64
 
 | Issue | Key Solution |
 |-------|--------------|
+| external-dns subdomain | Use parent zone as domain-filter |
+| CSI fsGroup race | Add `fsGroupChangePolicy: OnRootMismatch` |
 | CSI v1.2.1 iscsiadm | Add `--iscsiadm-path=/usr/sbin/iscsiadm` |
 | VolumeSnapshot stuck | Remove finalizers with `kubectl patch` |
 | Trivy ServiceMonitor | Use `labels` not `additionalLabels` |
