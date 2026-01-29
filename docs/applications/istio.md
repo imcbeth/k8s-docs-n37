@@ -76,11 +76,18 @@ kubectl label namespace <namespace> istio.io/dataplane-mode=ambient
 
 ### Currently Meshed Namespaces
 
-- `localstack` - Test namespace for mesh evaluation
+- `default` - Prometheus, Grafana, AlertManager
+- `loki` - Loki, Promtail, loki-canary
+- `localstack` - LocalStack S3 emulator
+- `argo-workflows` - Argo Workflows server and controller
+- `unipoller` - UniFi metrics exporter
+- `trivy-system` - Trivy vulnerability scanner
 
 ### NetworkPolicy Requirements
 
-Namespaces with restrictive NetworkPolicies need egress rules for Istio. Example for a meshed namespace:
+**IMPORTANT**: Istio ambient uses transparent proxy - source IPs are preserved. NetworkPolicies must allow HBONE port 15008 from all communicating namespaces, not just istio-system.
+
+#### Egress Rules (required for meshed pods to communicate out)
 
 ```yaml
 egress:
@@ -96,6 +103,50 @@ egress:
         port: 15012  # istiod gRPC
       - protocol: TCP
         port: 15017  # istiod webhook
+```
+
+#### Ingress Rules (required for meshed pods to receive traffic)
+
+```yaml
+ingress:
+  # Allow HBONE from istio-system (ztunnel terminates tunnel)
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: istio-system
+    ports:
+      - protocol: TCP
+        port: 15008  # HBONE mTLS
+      - protocol: TCP
+        port: <app-port>  # Application port (ztunnel originates connection)
+
+  # Allow HBONE from source namespace (transparent proxy preserves source IP)
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: <source-namespace>
+    ports:
+      - protocol: TCP
+        port: 15008  # HBONE mTLS (transparent proxy)
+      - protocol: TCP
+        port: <app-port>  # Application port
+```
+
+#### Intra-namespace Communication
+
+For pods within the same meshed namespace to communicate:
+
+```yaml
+ingress:
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: <same-namespace>
+    ports:
+      - protocol: TCP
+        port: 15008  # HBONE mTLS (transparent proxy)
+      - protocol: TCP
+        port: <app-port>
 ```
 
 ## Verification
@@ -123,6 +174,17 @@ kubectl get applications -n argocd | grep istio
 kubectl top pods -n istio-system
 ```
 
+**Current measurements (6 namespaces, 29 pods in mesh):**
+
+| Component | Instances | CPU | Memory |
+|-----------|-----------|-----|--------|
+| istiod | 1 | ~3m | ~39Mi |
+| istio-cni-node | 5 | ~5m | ~68Mi |
+| ztunnel | 5 | ~30m | ~38Mi |
+| **Total** | - | **~38m** | **~145Mi** |
+
+Note: ztunnel CPU varies with traffic volume.
+
 ## Troubleshooting
 
 ### Pod not joining mesh
@@ -140,6 +202,36 @@ kubectl top pods -n istio-system
    ```
 
 3. Verify NetworkPolicy allows egress to istio-system
+
+### HBONE connection timeout
+
+If ztunnel logs show errors like:
+
+```
+error="connection timed out, maybe a NetworkPolicy is blocking HBONE port 15008"
+```
+
+This indicates NetworkPolicy is blocking HBONE traffic. Check:
+
+1. **Ingress on destination**: Must allow port 15008 from source namespace
+2. **Egress on source**: Must allow port 15008 to destination namespace
+3. **Transparent proxy**: Source IP is preserved, so allow from the actual source namespace (not just istio-system)
+
+Example fix:
+
+```yaml
+# On destination namespace NetworkPolicy
+ingress:
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: <source-namespace>
+    ports:
+      - protocol: TCP
+        port: 15008  # HBONE
+      - protocol: TCP
+        port: <app-port>
+```
 
 ### ArgoCD shows OutOfSync
 
