@@ -235,9 +235,44 @@ ingress:
 
 ### ArgoCD shows OutOfSync
 
-The istio-base, istiod, and istio-cni apps may show "OutOfSync" due to metadata differences from the initial CLI installation. This is cosmetic if Health is "Healthy".
+The istio-base, istiod, and istio-cni apps may show "OutOfSync" due to:
 
-To force full sync (causes brief disruption):
+1. **Webhook caBundle drift**: Kubernetes auto-populates `caBundle` fields in webhook configurations
+2. **Helm operator labels**: The Helm chart adds `app.kubernetes.io/managed-by: Helm` and `meta.helm.sh/release-*` labels at runtime
+
+**Solution - Use ignoreDifferences:**
+
+Configure `ignoreDifferences` in ArgoCD Application specs using `jqPathExpressions`:
+
+```yaml
+# In manifests/applications/istio-base.yaml (and similar for istiod, istio-cni)
+spec:
+  ignoreDifferences:
+    # Ignore webhook caBundle (auto-populated by cert-manager/K8s)
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+    # Ignore Helm operator labels added at runtime
+    - group: "*"
+      kind: "*"
+      jqPathExpressions:
+        - .metadata.labels["app.kubernetes.io/managed-by"]
+        - .metadata.labels["meta.helm.sh/release-name"]
+        - .metadata.labels["meta.helm.sh/release-namespace"]
+```
+
+**Note:** Even with `ignoreDifferences`, some OutOfSync may persist for cosmetic reasons. If Health is "Healthy", the mesh is working correctly.
+
+:::note Added 2026-01-28
+The `jqPathExpressions` approach is preferred over `jsonPointers` for broader matching across webhook configurations.
+:::
+
+**To force full sync (causes brief disruption):**
 
 ```bash
 # Delete and let ArgoCD recreate
