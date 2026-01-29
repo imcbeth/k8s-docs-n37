@@ -113,6 +113,59 @@ Promtail automatically adds these labels to all logs:
 - `container` - Container name
 - `node` - Node name (useful for Pi cluster debugging)
 
+#### Loki Label Limit (15 Labels Maximum)
+
+:::warning Important
+Loki has a default limit of 15 labels per log stream. Kubernetes pods with many labels (especially Istio, Helm-deployed apps) can exceed this limit.
+:::
+
+**Symptoms:**
+
+```
+entry for stream '{...17 labels...}' has 17 label names; limit 15
+```
+
+**Common high-label-count sources:**
+
+- Istio pods (ztunnel, istio-cni-node): 17+ labels
+- Helm-deployed StatefulSets: 16+ labels
+- Apps with many `app.kubernetes.io/*` labels
+
+**Solution - Selective labelmap:**
+
+Don't use `labeldrop` after `labelmap` - it doesn't work because `relabel_configs` process against the original label set, not transformed labels.
+
+Instead, use a selective `labelmap` regex to only capture essential labels:
+
+```yaml
+# In promtail values.yaml scrapeConfigs
+relabel_configs:
+  # Fixed labels (always included)
+  - source_labels: [__meta_kubernetes_namespace]
+    target_label: namespace
+  - source_labels: [__meta_kubernetes_pod_name]
+    target_label: pod
+  - source_labels: [__meta_kubernetes_pod_container_name]
+    target_label: container
+  - source_labels: [__meta_kubernetes_pod_node_name]
+    target_label: node
+
+  # Selective labelmap - only capture useful labels
+  - action: labelmap
+    regex: __meta_kubernetes_pod_label_(app|app_kubernetes_io_name|app_kubernetes_io_instance|app_kubernetes_io_component|app_kubernetes_io_part_of|k8s_app|service_name)
+```
+
+**Label count after fix:**
+
+- Fixed: namespace, pod, container, node (4)
+- Mapped: up to 7 essential labels (only if present)
+- Auto: filename, stream (2)
+- **Total: max 13 labels** (under 15 limit)
+
+:::note Added 2026-01-28
+This fix was implemented after adding Istio Ambient mesh, which added many labels to pods.
+:::
+
 **Control-Plane Scheduling:**
 Promtail includes a toleration to run on the control-plane node:
 

@@ -437,6 +437,47 @@ kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
 # Navigate to: http://localhost:9090/targets
 ```
 
+#### Hairpin NAT Issues (Internal HTTPS Probes)
+
+**Problem**: Probes to internal services via external DNS names (e.g., `https://grafana.k8s.n37.ca`) fail with "context deadline exceeded"
+
+**Symptoms**:
+
+```
+Get "https://10.0.10.10": context deadline exceeded
+```
+
+**Why it happens**: Pods inside the cluster cannot reach external IPs (MetalLB LoadBalancer IPs) that route back to the same cluster. This is called "hairpin NAT" and causes connection timeouts due to NAT asymmetry.
+
+**Solution**: Use `hostAliases` in the deployment to resolve external hostnames directly to the ingress ClusterIP:
+
+```yaml
+# In blackbox-exporter-deployment.yaml
+spec:
+  template:
+    spec:
+      hostAliases:
+        - ip: "10.98.168.24"  # ingress-nginx ClusterIP
+          hostnames:
+            - "argocd.k8s.n37.ca"
+            - "grafana.k8s.n37.ca"
+            - "workflows.k8s.n37.ca"
+```
+
+**Get the ingress ClusterIP**:
+
+```bash
+kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.spec.clusterIP}'
+```
+
+:::tip
+The ClusterIP is stable unless the ingress-nginx service is deleted and recreated. If probes start failing after ingress-nginx changes, check if the ClusterIP has changed.
+:::
+
+:::note Added 2026-01-29
+This fix was implemented to resolve certificate health check failures for internal HTTPS endpoints.
+:::
+
 ## Maintenance
 
 ### Adding New Targets
