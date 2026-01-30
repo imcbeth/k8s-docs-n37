@@ -13,7 +13,7 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
 - **Service Mesh:** Istio Ambient (mTLS via HBONE tunneling)
 - **Deployment:** Managed by ArgoCD at sync-wave `-40`
 - **Approach:** Zero-trust (default-deny with explicit allow rules)
-- **Namespaces Protected:** 9
+- **Namespaces Protected:** 10 (added falco 2026-01-29)
 
 ## Architecture
 
@@ -84,6 +84,7 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
 | cert-manager | TLS certificates | No | 9402, 10250 |
 | external-dns | DNS management | No | 7979, 8080, 8888 |
 | metallb-system | Load balancer | No | 7472, 7473, 7946 |
+| falco | Runtime security | No | 8765, 2801, 5060 |
 
 ## Universal Patterns
 
@@ -480,7 +481,9 @@ manifests/base/network-policies/
 │   └── network-policy.yaml
 ├── external-dns/
 │   └── network-policy.yaml
-└── metallb-system/
+├── metallb-system/
+│   └── network-policy.yaml
+└── falco/
     └── network-policy.yaml
 ```
 
