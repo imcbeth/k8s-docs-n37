@@ -73,9 +73,9 @@ This document describes the complete network architecture for the Raspberry Pi K
 | Hostname | IP Address | MAC Address | Role | PoE Port |
 |----------|------------|-------------|------|----------|
 | control-plane | 10.0.10.214 | - | Control Plane | - |
-| node01 | 10.0.10.211 | - | Worker | - |
-| node02 | 10.0.10.212 | - | Worker | - |
-| node03 | 10.0.10.213 | - | Worker | - |
+| node01 | 10.0.10.235 | - | Worker | - |
+| node02 | 10.0.10.211 | - | Worker | - |
+| node03 | 10.0.10.244 | - | Worker | - |
 | node04 | 10.0.10.220 | - | Worker | - |
 
 :::info
@@ -87,11 +87,44 @@ MAC addresses and PoE port mappings will be documented once collected.
 
 #### CNI (Container Network Interface)
 
-- **Plugin:** Calico v3.31.3
-- **Pod CIDR:** 192.168.0.0/16 (default Calico)
-- **Network Policy:** Enabled (not yet configured)
-- **IP-in-IP:** Enabled for cross-node pod communication
-- **Known Limitation:** Cannot route from pod network to hostNetwork pods on different nodes
+- **Plugin:** Calico v3.29.2 (via Tigera Operator)
+- **Namespace:** `calico-system` (operator-managed)
+- **Operator Namespace:** `tigera-operator`
+- **Pod CIDR:** 192.168.0.0/16
+- **Block Size:** /26 (64 IPs per node)
+- **Encapsulation:** IP-in-IP
+- **BGP:** Enabled
+- **Network Policy:** Enabled and actively configured
+- **Typha:** Deployed with topology spread constraints across all nodes (port 5473/tcp)
+
+:::info Migration Note
+Migrated from manifest-based Calico (kube-system) to Tigera Operator-managed (calico-system) in January 2026. The operator provides better lifecycle management and configuration via the Installation CR.
+:::
+
+**ArgoCD Application:** `tigera-operator` (sync-wave: -100)
+
+```yaml
+# Key Installation CR settings
+spec:
+  variant: Calico
+  calicoNetwork:
+    bgp: Enabled
+    ipPools:
+      - cidr: 192.168.0.0/16
+        encapsulation: IPIP
+        natOutgoing: Enabled
+        blockSize: 26
+    nodeAddressAutodetectionV4:
+      kubernetes: NodeInternalIP
+  typhaDeployment:
+    spec:
+      template:
+        spec:
+          topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+```
 
 #### Service Network
 
@@ -219,9 +252,27 @@ See the [cert-manager guide](../applications/cert-manager.md) for detailed confi
 
 ### Network Policies (Kubernetes)
 
-- **Status:** Calico CNI supports NetworkPolicies
-- **Implementation:** Not yet configured
-- **Priority:** Planned - Define isolation between namespaces
+- **Status:** Active and enforced
+- **CNI:** Calico (via Tigera Operator)
+- **Policy Types:** Ingress and Egress
+- **ArgoCD Application:** `network-policies`
+
+**Default Policies:**
+
+- Namespace isolation (deny-all by default)
+- Allow DNS egress (UDP 53, TCP 53) to kube-system
+- Allow Kubernetes API access
+- Allow Prometheus scraping from monitoring namespace
+- Allow istio-system control plane communication
+
+**Namespace-specific Policies:**
+
+- `argocd` - Allow ingress from nginx, egress to git repos
+- `monitoring` - Allow Prometheus scraping across namespaces
+- `calico-system` - Allow Typha (5473/tcp), BGP (179/tcp), IPIP protocol
+- `istio-system` - Allow ztunnel, istiod, and mesh traffic
+
+See [Network Policies](../security/network-policies.md) for detailed configuration.
 
 ## Monitoring & Observability
 
@@ -241,11 +292,28 @@ See the [cert-manager guide](../applications/cert-manager.md) for detailed confi
   - nginx-ingress controller metrics → Prometheus
   - Request rates, latencies, error rates per Ingress
 
-### Service Mesh (Future)
+### Service Mesh (Istio Ambient)
 
-- **Status:** Not deployed
-- **Consideration:** Linkerd (lightweight) or Istio
-- **Purpose:** Service-to-service encryption, traffic management, observability
+- **Status:** Deployed and active
+- **Mode:** Ambient (sidecar-less architecture)
+- **Version:** 1.24.2
+- **Components:**
+  - `istiod` - Control plane (1 replica)
+  - `ztunnel` - Per-node DaemonSet for L4 mTLS
+  - `istio-cni` - CNI plugin for traffic redirection
+- **Namespace:** `istio-system`
+- **Purpose:** Zero-trust networking, mTLS between services, traffic observability
+
+**ArgoCD Applications:**
+
+- `istio-base` (sync-wave: -46) - CRDs and base resources
+- `istiod` (sync-wave: -44) - Control plane
+- `istio-cni` (sync-wave: -45) - CNI plugin
+- `istio-ztunnel` (sync-wave: -42) - ztunnel DaemonSet
+
+:::tip Ambient Mode Benefits
+Ambient mode eliminates per-pod sidecars, reducing resource overhead by ~90% compared to traditional sidecar injection. The ztunnel DaemonSet handles L4 mTLS transparently.
+:::
 
 ## Network Performance
 
@@ -281,7 +349,7 @@ See the [cert-manager guide](../applications/cert-manager.md) for detailed confi
 2. Check Calico pods running:
 
    ```bash
-   kubectl get pods -n kube-system -l k8s-app=calico-node
+   kubectl get pods -n calico-system
    ```
 
 3. Check node has default route:
@@ -360,8 +428,9 @@ See the [cert-manager guide](../applications/cert-manager.md) for detailed confi
 # Check node network status
 kubectl get nodes -o wide
 
-# Check pod network (Calico)
-kubectl get pods -n kube-system -l k8s-app=calico-node
+# Check pod network (Calico via Tigera Operator)
+kubectl get pods -n calico-system
+kubectl get pods -n tigera-operator
 
 # Check MetalLB status
 kubectl get pods -n metallb-system
@@ -386,13 +455,15 @@ kubectl get l2advertisement -n metallb-system -o yaml
 
 ## Future Enhancements
 
-- [ ] Configure External-DNS for automatic DNS record creation
-- [ ] Implement NetworkPolicies for namespace isolation
+- [x] ~~Configure External-DNS for automatic DNS record creation~~ ✅ Deployed
+- [x] ~~Implement NetworkPolicies for namespace isolation~~ ✅ Active
+- [x] ~~Deploy Service Mesh~~ ✅ Istio Ambient deployed
 - [ ] Set up VPN for secure remote cluster access (Tailscale or WireGuard)
 - [ ] Document actual ISP bandwidth and latency baselines
 - [ ] Create network topology diagram
 - [ ] Implement egress traffic monitoring
 - [ ] Consider IPv6 enablement
+- [ ] Waypoint proxies for L7 policies (Istio Ambient)
 
 ## References
 
@@ -404,4 +475,4 @@ kubectl get l2advertisement -n metallb-system -o yaml
 
 ---
 
-**Last Updated:** 2025-12-27
+**Last Updated:** 2026-01-30
