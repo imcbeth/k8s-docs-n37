@@ -11,7 +11,7 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 
 - **Namespace:** `default`
 - **Helm Chart:** `prometheus-community/kube-prometheus-stack`
-- **Chart Version:** `80.6.0`
+- **Chart Version:** `81.2.2`
 - **App Version:** `v0.87.1`
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-15` (deploys after UniFi Poller, before cert-manager)
@@ -188,7 +188,7 @@ spec:
   sources:
     - repoURL: https://prometheus-community.github.io/helm-charts
       chart: kube-prometheus-stack
-      targetRevision: 80.6.0
+      targetRevision: 81.2.2
       helm:
         valueFiles:
           - $values/manifests/base/kube-prometheus-stack/values.yaml
@@ -206,6 +206,18 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: kube-prometheus-stack-grafana
+      jqPathExpressions:
+        - .data["admin-password"]
+    - group: apps
+      kind: Deployment
+      name: kube-prometheus-stack-grafana
+      jqPathExpressions:
+        - .spec.template.metadata.annotations["checksum/secret"]
 ```
 
 **Key Features:**

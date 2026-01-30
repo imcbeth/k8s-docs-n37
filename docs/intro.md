@@ -147,11 +147,34 @@ If you're new to this setup, start here:
 
 ## 📊 Recent Infrastructure Updates
 
+### CNI Migration to Tigera Operator (January 2026)
+
+- **Tigera Operator**: Migrated Calico CNI from manifest-based to operator-managed
+- **Namespace**: `calico-system` (previously `kube-system`)
+- **Version**: Calico v3.29.2 via Tigera Operator
+- **Typha**: Deployed with topology spread constraints across all nodes
+- **ArgoCD Managed**: Sync-wave -100 for foundational infrastructure
+
+### Service Mesh Deployment (January 2026)
+
+- **Istio Ambient Mode**: Sidecar-less service mesh for zero-trust networking
+- **Version**: Istio 1.24.2
+- **Components**: istiod, ztunnel (DaemonSet), istio-cni
+- **mTLS**: Automatic L4 encryption between services
+- **Resource Savings**: ~90% reduction vs traditional sidecar injection
+
+### Runtime Security (January 2026)
+
+- **Falco**: eBPF-based runtime threat detection on all nodes
+- **Custom Rules**: Tuned for homelab to reduce false positives
+- **Falcosidekick UI**: Web interface for alert visualization
+- **Integration**: Prometheus metrics and alerting
+
 ### Backup Strategy Complete (January 2026)
 
 - **Velero with Backblaze B2**: Production backup storage with 11 nines durability
 - **Daily ArgoCD Backup**: 1:30 AM, 30-day retention
-- **Daily Critical PVC Backup**: 2:00 AM (Prometheus, Loki, Grafana, Pi-hole)
+- **Daily Critical PVC Backup**: 2:00 AM (Prometheus, Loki, Grafana)
 - **Weekly Cluster Backup**: 3:00 AM Sunday, 90-day retention
 - **CSI Snapshots**: Native Synology NAS snapshots via snapshot-controller
 - **Tested & Verified**: Full backup/restore cycle validated with B2
