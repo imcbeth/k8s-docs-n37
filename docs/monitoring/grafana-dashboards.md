@@ -600,6 +600,38 @@ In addition to the 4 custom dashboards above, 13 community/vendor dashboards tha
 
 **Data Source:** All UniFi dashboards use metrics from **UniFi Poller** (deployed in `unipoller` namespace)
 
+### Security Dashboards (2)
+
+**1. Trivy Security Overview**
+
+- **Source:** Custom dashboard
+- **Purpose:** Kubernetes security scanning and compliance monitoring
+- **Features:** Compliance status (CIS/NSA), RBAC assessments, configuration audits, exposed secrets
+- **Data Source:** Trivy Operator metrics (trivy-system namespace)
+- **Note:** Updated 2026-01-29 to focus on compliance/RBAC metrics due to v0.29.0 vulnerability scanning bug
+
+**2. Falco Runtime Security**
+
+- **Source:** Custom dashboard (deployed 2026-01-29)
+- **Purpose:** Runtime threat detection and security event monitoring
+- **Features:**
+  - Critical/Error/Warning event counts (24h)
+  - Security events by priority over time
+  - Events by rule, namespace, and top pods
+  - Syscall event rate and memory usage
+  - Event drop rate monitoring
+- **Data Source:** Falco metrics (falco namespace)
+- **Alerts:** 7 PrometheusRule alerts for critical security events
+
+### CI/CD Dashboards (1)
+
+**1. Argo Workflows**
+
+- **Source:** Custom dashboard (deployed 2026-01-29)
+- **Purpose:** CI/CD pipeline monitoring
+- **Features:** Workflow status, duration, success rate, resource usage
+- **Data Source:** Argo Workflows metrics (argo-workflows namespace)
+
 ### Dashboard Organization
 
 These dashboards are organized in **Grafana folders** for easier navigation:
@@ -607,7 +639,8 @@ These dashboards are organized in **Grafana folders** for easier navigation:
 - **Folder: Loki** - 4 log monitoring dashboards
 - **Folder: Synology** - 2 NAS monitoring dashboards
 - **Folder: UniFi** - 7 network infrastructure dashboards
-- **Folder: General** - 4 custom Pi cluster dashboards (Pi Cluster Overview, Node Resource Monitoring, Temperature Monitoring, Loki Log Analytics)
+- **Folder: Security** - 2 security dashboards (Trivy, Falco)
+- **Folder: General** - 4 custom Pi cluster dashboards + 1 CI/CD dashboard
 
 **ConfigMap Label for Folders:**
 
@@ -617,12 +650,12 @@ labels:
   folder: "loki"  # or "synology", "unifi"
 ```
 
-## Dashboard Audit (2025-12-28)
+## Dashboard Audit (Updated 2026-01-29)
 
 ### Current State
 
-**Total Dashboards:** 43 (all provisioned via ConfigMap) ✅
-**Custom Dashboards:** 4
+**Total Dashboards:** 46 (all provisioned via ConfigMap) ✅
+**Custom Dashboards:** 7 (4 original + Trivy + Falco + Argo Workflows)
 **Migrated Community Dashboards:** 13 (Loki: 4, Synology: 2, UniFi: 7)
 **Kube-Prometheus-Stack Dashboards:** 26
 **Uncommitted Dashboards:** 0 ✅

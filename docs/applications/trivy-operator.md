@@ -4,6 +4,23 @@
 
 **Status:** ✅ **OPERATIONAL** (Deployed: 2026-01-05)
 
+:::caution Known Issue: Trivy Operator v0.29.0 Vulnerability Scanning Bug
+As of 2026-01-29, Trivy Operator v0.29.0 has a bug where the vulnerability scanner controller does not create VulnerabilityReports despite being enabled. The controller logs show "Enabling built-in configuration audit scanner" but vulnerability scanning does not activate.
+
+**Impact:**
+
+- `trivy_image_vulnerabilities` metrics are not available
+- VulnerabilityReports are not being created
+
+**Workaround:**
+
+- RBAC assessment and compliance scanning still work correctly
+- Grafana dashboard updated to use available metrics (compliance, RBAC, config audits)
+- Prometheus alerts updated to focus on RBAC and compliance issues
+
+**Status:** Awaiting upstream fix. Monitor [Trivy Operator releases](https://github.com/aquasecurity/trivy-operator/releases) for v0.30.0+.
+:::
+
 **Current Metrics** (as of 2026-01-12):
 
 | Metric | Count | Change from Initial |
@@ -208,35 +225,51 @@ kubectl get clustercompliancereport k8s-nsa-1.0 -o yaml
 
 Access at: `https://grafana.k8s.n37.ca`
 
-**Dashboard: "Trivy Security Scanning"**
+**Dashboard: "Trivy Security Overview"**
+
+:::note Dashboard Updated (2026-01-29)
+Due to the v0.29.0 vulnerability scanning bug, the dashboard has been updated to focus on available metrics: compliance, RBAC assessments, and configuration audits.
+:::
 
 Panels include:
 
-- Total vulnerability counts by severity
-- Images scanned
-- Vulnerabilities by image (sortable table)
-- Severity distribution pie chart
-- Namespace vulnerability breakdown
+- **Compliance Overview**: CIS Kubernetes Benchmark and NSA Hardening Guidance pass/fail counts
+- **RBAC Assessment**: Critical/High severity RBAC issues by ClusterRole and Role
+- **Configuration Audit**: Config audit findings by severity and resource type
+- **Exposed Secrets**: Detection of secrets in container images
+- **Scanner Status**: Health check showing active scanners
+
+**Previously available panels** (disabled until v0.30.0+):
+
+- ~~Total vulnerability counts by severity~~
+- ~~Images scanned~~
+- ~~Vulnerabilities by image (sortable table)~~
+- ~~Severity distribution pie chart~~
+- ~~Namespace vulnerability breakdown~~
 
 ### Prometheus Alerts
 
 PrometheusRule: `trivy-operator-alerts`
 
-**Critical Alerts:**
+:::note Alerts Updated (2026-01-29)
+Vulnerability-based alerts are disabled until the v0.29.0 bug is fixed. RBAC and compliance alerts remain active.
+:::
 
-- `CriticalVulnerabilitiesDetected`: Any image with CRITICAL CVEs
-- `ExposedSecretsDetected`: Secrets found in images (immediate action required)
+**Active Alerts (RBAC & Compliance):**
 
-**Warning Alerts:**
-
-- `HighVulnerabilityCount`: Image has >20 HIGH vulnerabilities
-- `ClusterCriticalVulnerabilityThresholdExceeded`: >100 CRITICAL CVEs cluster-wide
+- `CriticalClusterRoleRBACIssues`: ClusterRoles with CRITICAL RBAC issues
+- `HighClusterRoleRBACIssues`: ClusterRoles with >10 HIGH severity issues
+- `CriticalConfigurationIssues`: Critical Kubernetes misconfigurations
 - `HighRiskRBACPermissions`: Dangerous cluster role permissions
-
-**Info Alerts:**
-
+- `ExposedSecretsDetected`: Secrets found in images (immediate action required)
 - `CISKubernetesBenchmarkFailures`: CIS compliance failures
 - `NSAKubernetesHardeningFailures`: NSA hardening failures
+
+**Disabled Alerts (awaiting v0.30.0+):**
+
+- ~~`CriticalVulnerabilitiesDetected`: Any image with CRITICAL CVEs~~
+- ~~`HighVulnerabilityCount`: Image has >20 HIGH vulnerabilities~~
+- ~~`ClusterCriticalVulnerabilityThresholdExceeded`: >100 CRITICAL CVEs cluster-wide~~
 
 ### Metrics
 

@@ -72,6 +72,7 @@ const sidebars: SidebarsConfig = {
             'applications/trivy-vulnerability-remediation',
           ],
         },
+        'applications/istio',
       ],
     },
     {
@@ -88,6 +89,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'security/secrets-management',
         'security/network-policies',
+        'applications/falco',
       ],
     },
     {
