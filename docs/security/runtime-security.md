@@ -1,7 +1,7 @@
 ---
 sidebar_position: 3
 title: "Runtime Security"
-description: "Runtime security monitoring with Trivy Operator and Falco"
+description: "Runtime security monitoring with Trivy Operator, Falco, and OPA Gatekeeper"
 ---
 
 # Runtime Security
@@ -10,12 +10,13 @@ This document covers runtime security monitoring deployed in the Kubernetes home
 
 ## Overview
 
-The cluster uses a defense-in-depth approach with two complementary security tools:
+The cluster uses a defense-in-depth approach with three complementary security tools:
 
 | Tool | Purpose | Namespace | ArgoCD App |
 |------|---------|-----------|------------|
 | Trivy Operator | Vulnerability scanning, SBOM, compliance | `trivy-system` | `trivy-operator` |
 | Falco | Runtime threat detection, syscall monitoring | `falco` | `falco` |
+| OPA Gatekeeper | Admission control, policy enforcement | `gatekeeper-system` | `gatekeeper`, `gatekeeper-policies` |
 
 ## Trivy Operator
 
@@ -168,9 +169,71 @@ Falco exposes metrics via falcosidekick:
 - `falco_events` - Total events by rule and priority
 - `falcosidekick_outputs_sent` - Events sent to outputs
 
+## OPA Gatekeeper
+
+### Description
+
+OPA Gatekeeper operates as a ValidatingAdmissionWebhook to enforce policies on resources before they are created or modified. This provides the admission control layer that complements Trivy (scanning) and Falco (runtime).
+
+### Configuration
+
+**Helm Chart:** `open-policy-agent/gatekeeper` v3.21.1
+
+```yaml
+# Key configuration from values.yaml
+replicas: 1                    # 1 replica (default 3 is excessive for homelab)
+auditInterval: 300             # 5-minute audit interval
+constraintViolationsLimit: 20  # Max violations per constraint
+
+controllerManager:
+  exemptNamespaces:            # System namespaces exempt from policies
+    - kube-system
+    - argocd
+    - gatekeeper-system
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+```
+
+### Active Policies
+
+All policies deployed in **dryrun** mode (audit only, not blocking):
+
+| Policy | Purpose |
+|--------|---------|
+| K8sRequireResourceLimits | Require CPU/memory limits on all containers |
+| K8sAllowedRepos | Restrict images to approved registries |
+| K8sRequireLabels | Require `app.kubernetes.io/name` label |
+| K8sBlockNodePort | Prevent NodePort services (use LoadBalancer) |
+| K8sContainerLimits | Max 2 CPU / 2Gi RAM per container |
+
+### Viewing Violations
+
+```bash
+# Check all constraints and their violation counts
+kubectl get constraints
+
+# View detailed violations for a specific constraint
+kubectl get k8srequireresourcelimits require-resource-limits -o yaml
+```
+
+### Prometheus Metrics
+
+Gatekeeper exposes metrics on port 8888:
+
+- `gatekeeper_violations` - Constraint violations by type
+- `gatekeeper_audit_duration_seconds` - Audit cycle duration
+- `gatekeeper_request_count` - Webhook request count
+
+**Full documentation:** [OPA Gatekeeper](../applications/gatekeeper.md)
+
 ## Integration with Monitoring
 
-Both tools integrate with the monitoring stack:
+All three tools integrate with the monitoring stack:
 
 ```
 ┌─────────────────┐     ┌─────────────────┐
@@ -179,7 +242,12 @@ Both tools integrate with the monitoring stack:
                         │   (scrapes)     │
 ┌─────────────────┐     │                 │
 │     Falco       │────▶│                 │
-│  (sidekick)     │     └────────┬────────┘
+│  (sidekick)     │     │                 │
+└─────────────────┘     │                 │
+                        │                 │
+┌─────────────────┐     │                 │
+│   Gatekeeper    │────▶│                 │
+│  (audit+webhook)│     └────────┬────────┘
 └─────────────────┘              │
                                  ▼
                         ┌─────────────────┐
@@ -220,6 +288,8 @@ PrometheusRules are configured for critical security events:
 | falco | 100m | 500m | 256Mi | 512Mi |
 | falcosidekick | 20m | 100m | 64Mi | 128Mi |
 | falcosidekick-ui | 20m | 100m | 64Mi | 128Mi |
+| gatekeeper-controller | 100m | 500m | 256Mi | 512Mi |
+| gatekeeper-audit | 100m | 500m | 256Mi | 512Mi |
 
 ## Troubleshooting
 
@@ -257,7 +327,9 @@ kubectl exec -it <any-pod> -- cat /etc/shadow
 - [Trivy Operator Documentation](https://aquasecurity.github.io/trivy-operator/)
 - [Falco Documentation](https://falco.org/docs/)
 - [Falco Rules Reference](https://falco.org/docs/reference/rules/)
+- [OPA Gatekeeper Documentation](https://open-policy-agent.github.io/gatekeeper/website/docs/)
+- [Gatekeeper Policy Library](https://github.com/open-policy-agent/gatekeeper-library)
 
 ---
 
-**Last Updated:** 2026-01-30
+**Last Updated:** 2026-02-06
