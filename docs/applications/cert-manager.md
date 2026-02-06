@@ -27,7 +27,7 @@ cert-manager is a Kubernetes controller that automates the management and issuan
 - **Namespace:** cert-manager
 - **Project:** infrastructure
 - **Sync Wave:** -10
-- **Helm Chart:** jetstack/cert-manager v1.16.3
+- **Helm Chart:** jetstack/cert-manager v1.19.3
 - **Auto-Sync:** Enabled (prune, selfHeal)
 
 ### Resources
@@ -585,7 +585,7 @@ kubectl get secret <cert-secret> -n <namespace> -o jsonpath='{.data.tls\.crt}' |
 
 ---
 
-**Last Updated:** 2026-01-14
+**Last Updated:** 2026-02-05
 **Status:** Production, Healthy
 **Managed By:** ArgoCD (`manifests/applications/cert-manager.yaml`)
 **Secrets:** SealedSecret (`manifests/base/cert-manager/cloudflare-sealed.yaml`)

@@ -11,16 +11,15 @@ ArgoCD is a declarative, GitOps continuous delivery tool for Kubernetes that aut
 
 - **Namespace:** `argocd`
 - **Helm Chart:** `argoproj/argo-cd`
-- **Chart Version:** `9.2.4`
+- **Chart Version:** `9.4.1`
 - **App Version:** `v3.2.3`
 - **Deployment:** Self-managed via ArgoCD
 - **Sync Wave:** `-50` (first application to deploy)
+- **Sync Options:** `ServerSideApply=true`
 - **URL:** `https://argocd.k8s.n37.ca`
 
-:::info Version Update (2026-01-11)
-Upgraded from chart 9.0.5 to 9.2.4. Redis upgraded to 8.2.2-alpine, eliminating 3 CRITICAL and 34 HIGH vulnerabilities.
-
-**Note:** Redis 8.x uses RSALv2/SSPLv1/AGPLv3 licensing (accepted by ArgoCD project).
+:::info Version Update (2026-02-05)
+Upgraded from chart 9.2.4 to 9.4.1. Server-Side Apply enabled (PR #376) for better handling of large CRDs and reduced sync conflicts.
 :::
 
 ## Purpose
@@ -85,12 +84,13 @@ spec:
   sources:
     - chart: argo-cd
       repoURL: https://argoproj.github.io/argo-helm
-      targetRevision: 9.2.4
+      targetRevision: 9.4.1
       helm:
+        releaseName: argocd
         valueFiles:
           - $argocd/manifests/base/argocd/argocd-config.yaml
-    - repoURL: git@github.com:imcbeth/homelab.git
-      path: manifests/base/argocd
+    - path: manifests/base/argocd
+      repoURL: git@github.com:imcbeth/homelab.git
       targetRevision: HEAD
       ref: argocd
   destination:
@@ -100,6 +100,9 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
 ```
 
 ### Configuration Values
@@ -171,6 +174,17 @@ ArgoCD organizes applications into projects for access control and resource mana
 - kube-prometheus-stack
 - unipoller
 - pi-hole
+- istio-base, istiod, istio-cni, istio-ztunnel
+- tigera-operator
+- sealed-secrets
+- external-dns
+- loki, promtail
+- argo-workflows
+- velero
+- falco
+- trivy-operator
+- metrics-server
+- network-policies
 
 ### Applications Project
 
@@ -181,7 +195,6 @@ ArgoCD organizes applications into projects for access control and resource mana
 **Applications:**
 
 - localstack
-- (future applications)
 
 ## Sync Waves
 
@@ -191,11 +204,20 @@ ArgoCD uses sync waves to control deployment order. Applications are deployed in
 
 ```
 -50: ArgoCD (must be first)
+-45: istio-base (mesh CRDs)
+-44: istiod (mesh control plane)
+-43: istio-cni (mesh CNI plugin)
+-42: istio-ztunnel (mesh data plane)
+-40: network-policies (must be in place before workloads)
 -35: MetalLB, Pi-hole (networking layer)
--30: Synology CSI (storage layer)
+-30: Sealed Secrets (must decrypt before other apps), Synology CSI (storage layer)
 -20: UniFi Poller (metrics collection)
 -15: kube-prometheus-stack (monitoring)
--10: cert-manager (TLS management)
+-12: Loki (log aggregation)
+-11: Promtail (log collection)
+-10: cert-manager, external-dns (TLS and DNS management)
+ -8: Argo Workflows (CI/CD automation)
+ -5: Falco (runtime security), Synology CSI (storage layer)
   0: Applications (localstack, etc.)
 ```
 
@@ -341,6 +363,39 @@ argocd app diff <name> --grpc-web
 kubectl apply -f manifests/applications/<app-name>.yaml
 ```
 
+:::warning Application Manifest Updates
+Files in `manifests/applications/` are NOT auto-deployed by ArgoCD self-management. After merging changes to Application manifests, you must run `kubectl apply -f manifests/applications/<app>.yaml` to update the Application spec in-cluster.
+:::
+
+### ServerSideApply Drift (ignoreDifferences)
+
+When `ServerSideApply=true` is enabled, Kubernetes populates default values on resources that aren't in the Helm chart template (e.g., `imagePullPolicy`, `revisionHistoryLimit`, readiness probe defaults, `dnsPolicy`, `restartPolicy`, `schedulerName`, etc.). This causes perpetual OutOfSync in ArgoCD.
+
+**Solution:** Add comprehensive `ignoreDifferences` with `jqPathExpressions` and enable `RespectIgnoreDifferences=true`:
+
+```yaml
+spec:
+  ignoreDifferences:
+    - group: apps
+      kind: DaemonSet
+      jqPathExpressions:
+        - .metadata.labels
+        - .metadata.annotations
+        - .spec.revisionHistoryLimit
+        - .spec.template.spec.containers[].imagePullPolicy
+        # ... all K8s-defaulted fields
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+```
+
+**Affected applications (as of 2026-02-05):**
+
+- `istio-ztunnel` - DaemonSet K8s-defaulted fields (PR #379, #380)
+- `tigera-operator` - Installation CR operator-populated defaults (PR #381)
+- `kube-prometheus-stack` - Grafana secret checksum drift
+
 ### ArgoCD Pods Not Running
 
 **Check pod status:**
@@ -402,7 +457,7 @@ To update to a newer ArgoCD version:
 **Example:**
 
 ```yaml
-targetRevision: 9.1.0  # Update from 9.0.5
+targetRevision: 9.5.0  # Update from 9.4.1
 ```
 
 ### Configuration Changes

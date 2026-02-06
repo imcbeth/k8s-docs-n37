@@ -4,7 +4,8 @@
 
 Istio Ambient mode provides a sidecarless service mesh architecture for the homelab cluster. It handles mTLS encryption, L4 authorization, and telemetry without injecting sidecar proxies into application pods.
 
-**Evaluation Date:** 2026-01-25
+**Version:** 1.28.3 (Helm charts)
+**Last Updated:** 2026-02-05
 
 ## Architecture
 
@@ -235,41 +236,58 @@ ingress:
 
 ### ArgoCD shows OutOfSync
 
-The istio-base, istiod, and istio-cni apps may show "OutOfSync" due to:
+:::info Resolved (2026-02-05)
+All Istio ArgoCD applications are now fully Synced and Healthy after comprehensive `ignoreDifferences` were added in PRs #379, #380, and #381.
+:::
+
+OutOfSync can occur due to:
 
 1. **Webhook caBundle drift**: Kubernetes auto-populates `caBundle` fields in webhook configurations
 2. **Helm operator labels**: The Helm chart adds `app.kubernetes.io/managed-by: Helm` and `meta.helm.sh/release-*` labels at runtime
+3. **ServerSideApply K8s defaults**: With `ServerSideApply=true`, Kubernetes populates default values (imagePullPolicy, revisionHistoryLimit, readinessProbe defaults, dnsPolicy, restartPolicy, schedulerName, etc.) not present in Helm templates
 
-**Solution - Use ignoreDifferences:**
+**Solution - Use ignoreDifferences with jqPathExpressions:**
 
-Configure `ignoreDifferences` in ArgoCD Application specs using `jqPathExpressions`:
+Configure `ignoreDifferences` in ArgoCD Application specs. For DaemonSets with ServerSideApply, you must enumerate ALL Kubernetes-defaulted fields:
 
 ```yaml
-# In manifests/applications/istio-base.yaml (and similar for istiod, istio-cni)
 spec:
   ignoreDifferences:
-    # Ignore webhook caBundle (auto-populated by cert-manager/K8s)
+    # Webhook caBundle
     - group: admissionregistration.k8s.io
       kind: ValidatingWebhookConfiguration
       jqPathExpressions:
         - .webhooks[]?.clientConfig.caBundle
-    - group: admissionregistration.k8s.io
-      kind: MutatingWebhookConfiguration
-      jqPathExpressions:
-        - .webhooks[]?.clientConfig.caBundle
-    # Ignore Helm operator labels added at runtime
+    # Helm operator labels
     - group: "*"
       kind: "*"
       jqPathExpressions:
         - .metadata.labels["app.kubernetes.io/managed-by"]
         - .metadata.labels["meta.helm.sh/release-name"]
         - .metadata.labels["meta.helm.sh/release-namespace"]
+    # K8s-defaulted fields (required for ServerSideApply)
+    - group: apps
+      kind: DaemonSet
+      jqPathExpressions:
+        - .metadata.labels
+        - .metadata.annotations
+        - .spec.revisionHistoryLimit
+        - .spec.template.spec.containers[].imagePullPolicy
+        - .spec.template.spec.containers[].terminationMessagePath
+        - .spec.template.spec.containers[].terminationMessagePolicy
+        - .spec.template.spec.dnsPolicy
+        - .spec.template.spec.restartPolicy
+        - .spec.template.spec.schedulerName
+        - .spec.template.spec.securityContext
+        # ... plus env fieldRef, readinessProbe defaults, volume defaults
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
 ```
 
-**Note:** Even with `ignoreDifferences`, some OutOfSync may persist for cosmetic reasons. If Health is "Healthy", the mesh is working correctly.
-
-:::note Added 2026-01-28
-The `jqPathExpressions` approach is preferred over `jsonPointers` for broader matching across webhook configurations.
+:::warning Application Manifest Updates
+After merging `ignoreDifferences` changes, you must `kubectl apply -f manifests/applications/<app>.yaml` to update the Application spec in-cluster. ArgoCD self-management does NOT auto-deploy Application manifest changes.
 :::
 
 **To force full sync (causes brief disruption):**

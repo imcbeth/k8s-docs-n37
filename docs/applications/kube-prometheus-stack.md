@@ -11,7 +11,7 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 
 - **Namespace:** `default`
 - **Helm Chart:** `prometheus-community/kube-prometheus-stack`
-- **Chart Version:** `81.2.2`
+- **Chart Version:** `81.5.0`
 - **App Version:** `v0.87.1`
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-15` (deploys after UniFi Poller, before cert-manager)
@@ -188,7 +188,7 @@ spec:
   sources:
     - repoURL: https://prometheus-community.github.io/helm-charts
       chart: kube-prometheus-stack
-      targetRevision: 81.2.2
+      targetRevision: 81.5.0
       helm:
         valueFiles:
           - $values/manifests/base/kube-prometheus-stack/values.yaml
