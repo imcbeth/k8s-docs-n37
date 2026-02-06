@@ -90,6 +90,7 @@ const sidebars: SidebarsConfig = {
         'security/secrets-management',
         'security/network-policies',
         'applications/falco',
+        'applications/gatekeeper',
       ],
     },
     {
