@@ -12,9 +12,11 @@
 **Operational Highlights:**
 
 - ✅ 5 ConstraintTemplates installed
-- ✅ 5 Constraints active (dryrun mode)
+- ✅ 5 Constraints active (**deny** mode since 2026-02-07)
+- ✅ 0 violations (all resolved 2026-02-07, PRs #404-408)
 - ✅ Audit scanning all namespaces every 5 minutes
-- ✅ Prometheus metrics exposed on port 8888
+- ✅ Prometheus metrics via PodMonitor on port 8888
+- ✅ Grafana dashboard for constraint violations
 - ✅ NetworkPolicy configured
 - ✅ System namespaces exempted from admission control
 
@@ -103,11 +105,13 @@ Optimized for Raspberry Pi 5 cluster:
 
 ### Enforcement Mode
 
-All constraints are deployed in **dryrun** mode initially. This logs violations without blocking requests, allowing you to:
+All constraints were initially deployed in **dryrun** mode for auditing. After resolving all violations (PRs #404-408), they were switched to **deny** mode on 2026-02-07, which actively blocks non-compliant resources.
 
-1. Audit existing workloads for violations
-2. Fix violations across the cluster
-3. Switch to `deny` mode in a follow-up change
+**Rollout process used:**
+
+1. Deploy in `dryrun` mode - audit existing violations
+2. Fix all violations across the cluster (12 violations resolved)
+3. Switch to `deny` mode to enforce policies
 
 ### Active Policies
 
@@ -272,12 +276,20 @@ Gatekeeper exposes metrics on port 8888:
 - `gatekeeper_request_count` - Webhook request count
 - `gatekeeper_request_duration_seconds` - Webhook request latency
 
+### Grafana Dashboard
+
+A custom Grafana dashboard monitors constraint violations, audit cycle health, and webhook latency. Deployed via ConfigMap with label `grafana_dashboard: "1"`.
+
 ### Integration Points
 
 | System | Purpose | Port |
 |--------|---------|------|
-| Prometheus | Metrics scraping | 8888 |
+| Prometheus | Metrics via PodMonitor | 8888 |
 | Kubernetes API | Webhook calls | 8443 |
+
+:::note PodMonitor not ServiceMonitor
+Gatekeeper's Helm chart does not create a metrics Service, so a **PodMonitor** (not ServiceMonitor) is used for Prometheus scraping on port `metrics` (8888).
+:::
 
 ## Troubleshooting
 
@@ -365,14 +377,14 @@ Gatekeeper namespace has a NetworkPolicy restricting traffic:
 | `manifests/base/gatekeeper/values.yaml` | Helm values (replicas, resources, audit) |
 | `manifests/base/gatekeeper/kustomization.yaml` | Kustomize overlay for ConstraintTemplates |
 | `manifests/base/gatekeeper/constraint-templates/` | Rego policy definitions (5 templates) |
-| `manifests/base/gatekeeper/constraints/` | Policy bindings (5 constraints, dryrun) |
+| `manifests/base/gatekeeper/constraints/` | Policy bindings (5 constraints, deny mode) |
 | `manifests/base/network-policies/gatekeeper-system/` | Network isolation |
 
 ## Security Considerations
 
 - **Webhook TLS**: Gatekeeper manages its own TLS certificates for the webhook
 - **Failure Policy**: Set to `Ignore` - if Gatekeeper is unavailable, requests are allowed through (safe for homelab)
-- **Dryrun Mode**: All constraints start in dryrun to avoid disrupting existing workloads
+- **Deny Mode**: All constraints enforce policies (switched from dryrun on 2026-02-07 after resolving all violations)
 - **Exempt Namespaces**: System namespaces are exempt to prevent infrastructure issues
 - **Rego Policies**: Policy logic is defined in Rego (OPA's policy language), reviewed via GitOps
 

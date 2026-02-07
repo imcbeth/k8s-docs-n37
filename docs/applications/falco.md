@@ -9,6 +9,7 @@
 | Falco DaemonSet | Running on all 5 nodes | 50m/128Mi → 500m/512Mi |
 | Falcosidekick | Running | 10m/32Mi → 100m/64Mi |
 | Falcosidekick WebUI | Running | 10m/32Mi → 100m/128Mi |
+| Redis (redis-stack) | Running | 50m/512Mi → 200m/1Gi |
 
 **Operational Highlights:**
 
@@ -83,6 +84,21 @@ Optimized for Raspberry Pi 5 cluster:
 | Falco | 50m | 500m | 128Mi | 512Mi |
 | Falcosidekick | 10m | 100m | 32Mi | 64Mi |
 | Falcosidekick WebUI | 10m | 100m | 32Mi | 128Mi |
+| Redis (redis-stack) | 50m | 200m | 512Mi | 1Gi |
+| WebUI init container | 10m | 50m | 32Mi | 64Mi |
+
+:::note Redis Memory Sizing (2026-02-07)
+The redis-stack server (with RediSearch, TimeSeries, JSON, Bloom, Gears modules) requires significantly more memory than plain redis. The RDB file can reach 500MB+. Use `maxmemory` config to cap Redis data below the container limit:
+
+```yaml
+falcosidekick-ui:
+  redis:
+    config:
+      maxmemory: "800mb"
+      maxmemory-policy: "allkeys-lru"
+```
+
+:::
 
 ## Security Detection
 

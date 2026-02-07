@@ -69,8 +69,14 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
   - `GOMEMLIMIT: 700MiB` (Go runtime memory cap)
   - Ingestion rate limits: 10MB/sec, 20MB burst
   - Internal caching only (no external memcached)
+- **Sidecar (k8s-sidecar):** 10m/64Mi request, 100m/256Mi limit
+- **Loki Canary:** 10m/32Mi request, 50m/64Mi limit
 
 **Note:** Memory configuration optimized on 2026-01-05 for singleBinary mode stability. Uses internal caching instead of external memcached to prevent distributed mode activation conflicts.
+
+:::note Sidecar Memory (2026-02-07)
+The k8s-sidecar container (loki-sc-rules) watches ConfigMaps across many namespaces and needs 256Mi+ memory. The original 64Mi limit caused OOMKills. Loki canary resources are set via the top-level `lokiCanary.resources` key (not under `monitoring.selfMonitoring.lokiCanary`).
+:::
 
 **Service Endpoints:**
 
