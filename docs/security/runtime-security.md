@@ -303,6 +303,10 @@ PrometheusRules are configured for critical security events:
 | gatekeeper-controller | 100m | 500m | 256Mi | 512Mi |
 | gatekeeper-audit | 100m | 500m | 256Mi | 512Mi |
 
+:::note Trivy Operator Resources
+The trivy-operator row above shows the operator pod's resources (via top-level `resources:` key). Scan job defaults are configured separately via `operator.resources` (10m/500m CPU, 64Mi/512Mi memory). See the Trivy Operator values.yaml example earlier in this document.
+:::
+
 ## Troubleshooting
 
 ### Trivy Scanner Pods Failing
