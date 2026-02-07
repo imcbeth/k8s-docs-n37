@@ -91,10 +91,11 @@ Optimized for Raspberry Pi 5 cluster:
 The redis-stack server (with RediSearch, TimeSeries, JSON, Bloom, Gears modules) requires significantly more memory than plain redis. The RDB file can reach 500MB+. Use `maxmemory` config to cap Redis data below the container limit:
 
 ```yaml
-redis:
-  config:
-    maxmemory: "800mb"
-    maxmemory-policy: "allkeys-lru"
+falcosidekick-ui:
+  redis:
+    config:
+      maxmemory: "800mb"
+      maxmemory-policy: "allkeys-lru"
 ```
 
 :::

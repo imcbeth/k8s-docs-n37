@@ -243,7 +243,7 @@ If you're new to this setup, start here:
 ### Monitoring Stack Enhancements
 
 - **Prometheus Stack v81.5.0**: Fully GitOps-managed via ArgoCD
-- **Grafana Dashboards**: 46 dashboards (4 custom, 13 community, 26 from prometheus-stack)
+- **Grafana Dashboards**: 46 dashboards (4 custom, 13 community, 26 from prometheus-stack, 3 Gatekeeper)
 - **Alert Management**: PrometheusRule CRDs for infrastructure health alerts
 - **Multi-Source Deployment**: Helm chart + custom values managed in git
 - **24 ArgoCD Applications**: All Synced & Healthy
