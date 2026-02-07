@@ -80,20 +80,19 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 - [x] Grafana dashboard for security metrics
 - [x] PrometheusRule alerts for critical vulnerabilities
 - [x] Compliance reporting (CIS Kubernetes Benchmark, NSA Hardening)
-- [ ] **Falco** - Runtime security monitoring (future enhancement)
-- [ ] **OPA Gatekeeper** - Policy enforcement (future enhancement)
+- [x] **Falco** - Runtime security monitoring (eBPF driver, all 5 nodes, chart v8.0.0)
+- [x] **OPA Gatekeeper** - Policy enforcement (5 policies, deny mode since 2026-02-07)
 
 **Documentation:** See [Trivy Operator Guide](./applications/trivy-operator.md) and [Vulnerability Remediation Guide](./applications/trivy-vulnerability-remediation.md) for details.
 
-### 5b. **Network Policies** ✅ PARTIALLY COMPLETED (2026-01-24)
+### 5b. **Network Policies** ✅ COMPLETED (2026-01-29)
 
 - [x] **Kubernetes NetworkPolicies** - Namespace isolation deployed via ArgoCD
-- [x] 5 namespaces protected: localstack, unipoller, loki, trivy-system, velero
+- [x] 10 namespaces protected: localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco
 - [x] Allow-list approach: Default-deny ingress with explicit allow rules
 - [x] Prometheus metrics scraping preserved across all policies
 - [x] DNS egress allowed for all namespaces
 - [x] Documentation complete with testing procedures
-- [ ] Expand to remaining namespaces (cert-manager, external-dns, metallb-system)
 - [ ] Implement Calico GlobalNetworkPolicy for cluster-wide rules
 - [ ] Network policy monitoring dashboard in Grafana
 
@@ -101,13 +100,14 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 ## 🚀 **Platform Enhancements**
 
-### 6. **Service Mesh**
+### 6. **Service Mesh** ✅ COMPLETED (2026-01-28)
 
-- [ ] Evaluate **Istio** vs **Linkerd** for the Pi cluster
-- [ ] Implement traffic management and load balancing
-- [ ] Add observability for service-to-service communication
-- [ ] Implement security policies and mTLS
-- [ ] Circuit breaker and retry policies
+- [x] Evaluated **Istio Ambient** vs **Linkerd** for the Pi cluster (chose Istio Ambient)
+- [x] Deployed Istio Ambient mesh v1.28.3 (sidecarless architecture)
+- [x] mTLS encryption between services via ztunnel
+- [x] 6 namespaces in mesh: default, loki, localstack, argo-workflows, unipoller, trivy-system
+- [ ] L7 authorization policies (future enhancement)
+- [ ] Circuit breaker and retry policies (future enhancement)
 
 ### 7. **Log Aggregation** ✅ COMPLETED (2025-12-28)
 
@@ -179,7 +179,7 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 - [ ] **Gitea** or **GitLab** - Self-hosted git repository
 - [ ] **Harbor** - Container registry with vulnerability scanning
-- [ ] **Tekton** or **Argo Workflows** - CI/CD pipeline automation
+- [x] **Argo Workflows** - CI/CD pipeline automation (deployed, chart v0.47.3)
 - [ ] Build and deployment automation for custom containers
 - [ ] Integration with existing ArgoCD setup
 
@@ -255,19 +255,23 @@ Items are organized by priority. Focus on:
 4. ✅ Custom Grafana dashboards (43 total)
 5. ✅ Log-based alerting (Loki ruler)
 
-### **Phase 3: Advanced Features** 🚧 IN PROGRESS
+### **Phase 3: Advanced Features** ✅ COMPLETED
 
-1. ✅ Network policies implementation (5 namespaces isolated 2026-01-24)
+1. ✅ Network policies implementation (10 namespaces isolated 2026-01-29)
 2. ✅ GitOps enhancements (Renovate deployed - automated dependency updates)
-3. Argo Workflows for pipeline automation
-4. Service mesh evaluation (Istio vs Linkerd)
+3. ✅ Argo Workflows for pipeline automation (chart v0.47.3)
+4. ✅ Service mesh deployed (Istio Ambient v1.28.3)
+5. ✅ Runtime security (Falco v8.0.0 + OPA Gatekeeper v3.21.1 in deny mode)
 
-### **Phase 4: Optimization & Expansion** 📋 PLANNED
+### **Phase 4: Optimization & Expansion** 🚧 IN PROGRESS
 
-1. Resource optimization and VPA
-2. Chaos engineering and resilience testing
-3. Advanced networking and VPN (Tailscale/WireGuard)
-4. Development tools (Gitea/GitLab, Harbor, Tekton)
+1. ✅ Storage performance dashboard (PR #383)
+2. ✅ Network utilization dashboard (PR #385)
+3. ✅ SealedSecrets key rotation (30-day rotation enabled)
+4. Resource optimization and VPA
+5. Chaos engineering and resilience testing
+6. Advanced networking and VPN (Tailscale/WireGuard)
+7. Development tools (Gitea/GitLab, Harbor)
 
 ---
 

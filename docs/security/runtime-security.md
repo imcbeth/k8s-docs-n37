@@ -100,37 +100,48 @@ Falco monitors system calls in real-time to detect:
 
 ### Configuration
 
-**Helm Chart:** `falcosecurity/falco` v4.20.1
+**Helm Chart:** `falcosecurity/falco` v8.0.0
 
 ```yaml
 # Key configuration from values.yaml
+driver:
+  kind: modern_ebpf
+  modernEbpf:
+    bufSizePreset: 4
+
 falco:
-  # Use eBPF driver (no kernel module needed)
-  driver:
-    kind: modern_ebpf
-
-  # Output to stdout for log aggregation
-  json_output: true
-  json_include_output_property: true
-
-  # Rules configuration
-  rules_files:
-    - /etc/falco/falco_rules.yaml
-    - /etc/falco/falco_rules.local.yaml
-    - /etc/falco/rules.d
+  jsonOutput: true
+  jsonIncludeOutputProperty: true
+  jsonIncludeTagsProperty: true
+  logLevel: info
+  priority: notice
 
 # Resource limits for ARM64 Raspberry Pi
 resources:
   requests:
-    cpu: 100m
-    memory: 256Mi
+    cpu: 50m
+    memory: 128Mi
   limits:
     cpu: 500m
     memory: 512Mi
 
+# Falcosidekick WebUI Redis (redis-stack)
+falcosidekick:
+  webui:
+    redis:
+      resources:
+        requests:
+          memory: 512Mi
+        limits:
+          memory: 1Gi
+      config:
+        maxmemory: "800mb"
+        maxmemory-policy: "allkeys-lru"
+
 # Tolerations for all nodes
 tolerations:
   - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
     operator: Exists
 ```
 
@@ -201,7 +212,7 @@ controllerManager:
 
 ### Active Policies
 
-All policies deployed in **dryrun** mode (audit only, not blocking):
+All policies deployed in **deny** mode (actively blocking non-compliant resources since 2026-02-07):
 
 | Policy | Purpose |
 |--------|---------|
@@ -284,10 +295,11 @@ PrometheusRules are configured for critical security events:
 
 | Component | CPU Request | CPU Limit | Memory Request | Memory Limit |
 |-----------|-------------|-----------|----------------|--------------|
-| trivy-operator | 10m | 500m | 64Mi | 512Mi |
-| falco | 100m | 500m | 256Mi | 512Mi |
-| falcosidekick | 20m | 100m | 64Mi | 128Mi |
-| falcosidekick-ui | 20m | 100m | 64Mi | 128Mi |
+| trivy-operator | 50m | 300m | 100Mi | 300Mi |
+| falco | 50m | 500m | 128Mi | 512Mi |
+| falcosidekick | 10m | 100m | 32Mi | 64Mi |
+| falcosidekick-ui | 10m | 100m | 32Mi | 128Mi |
+| falcosidekick redis | 50m | 200m | 512Mi | 1Gi |
 | gatekeeper-controller | 100m | 500m | 256Mi | 512Mi |
 | gatekeeper-audit | 100m | 500m | 256Mi | 512Mi |
 
@@ -332,4 +344,4 @@ kubectl exec -it <any-pod> -- cat /etc/shadow
 
 ---
 
-**Last Updated:** 2026-02-06
+**Last Updated:** 2026-02-07

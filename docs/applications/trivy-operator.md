@@ -112,8 +112,12 @@ Trivy Operator is deployed via ArgoCD using the official Aqua Security Helm char
 
 Optimized for Raspberry Pi 5 cluster:
 
-- **Operator Pod**: 50m CPU request, 300m limit / 100Mi-300Mi memory
-- **Trivy Server**: 100m-500m CPU / 256Mi-512Mi memory
+:::note Helm Value Path Gotcha (2026-02-07)
+`operator.resources` configures scan job defaults, NOT the operator pod. Use the top-level `resources:` key to set the operator container's own CPU/memory limits.
+:::
+
+- **Operator Pod**: 50m CPU request, 300m limit / 100Mi-300Mi memory (set via top-level `resources:` key)
+- **Trivy Server**: 50m-300m CPU / 64Mi-256Mi memory
 - **Scan Jobs**: 50m-500m CPU / 100Mi-500Mi memory per job
 - **Concurrent Scans**: Limited to 3 jobs at a time
 - **Scan Timeout**: 10 minutes (increased for ARM64 architecture)

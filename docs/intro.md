@@ -151,16 +151,17 @@ If you're new to this setup, start here:
 
 - **Tigera Operator**: Migrated Calico CNI from manifest-based to operator-managed
 - **Namespace**: `calico-system` (previously `kube-system`)
-- **Version**: Calico v3.29.2 via Tigera Operator
+- **Version**: Calico v3.31.3 via Tigera Operator
 - **Typha**: Deployed with topology spread constraints across all nodes
 - **ArgoCD Managed**: Sync-wave -100 for foundational infrastructure
 
 ### Service Mesh Deployment (January 2026)
 
 - **Istio Ambient Mode**: Sidecar-less service mesh for zero-trust networking
-- **Version**: Istio 1.24.2
+- **Version**: Istio 1.28.3
 - **Components**: istiod, ztunnel (DaemonSet), istio-cni
 - **mTLS**: Automatic L4 encryption between services
+- **6 Namespaces in Mesh**: default, loki, localstack, argo-workflows, unipoller, trivy-system
 - **Resource Savings**: ~90% reduction vs traditional sidecar injection
 
 ### Runtime Security (January 2026)
@@ -224,20 +225,28 @@ If you're new to this setup, start here:
 - **Weekend Schedule**: Sat/Sun 6am-9pm to minimize disruption
 - **PR Workflow**: All updates go through PR review before merging
 
+### Admission Control (February 2026)
+
+- **OPA Gatekeeper**: Kubernetes admission control policy engine (v3.21.1)
+- **5 Policies in Deny Mode**: Resource limits, allowed repos, required labels, block NodePort, container limits
+- **0 Violations**: All violations resolved across 24 ArgoCD applications
+- **Monitoring**: PodMonitor + Grafana dashboard for constraint violations
+
 ### Network Policies Implementation (January 2026)
 
-- **Namespace Isolation**: 5 namespaces protected with Kubernetes NetworkPolicies
+- **Namespace Isolation**: 10 namespaces protected with Kubernetes NetworkPolicies
 - **Allow-List Approach**: Default-deny ingress with explicit allow rules
-- **Namespaces Protected**: localstack, unipoller, loki, trivy-system, velero
+- **Namespaces Protected**: localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco
 - **Monitoring Preserved**: Prometheus metrics scraping allowed across all policies
 - **GitOps Managed**: ArgoCD Application at sync-wave -40
 
 ### Monitoring Stack Enhancements
 
-- **Prometheus Stack v81.2.2**: Fully GitOps-managed via ArgoCD
-- **Grafana Dashboards**: 20+ pre-loaded dashboards for comprehensive visibility
+- **Prometheus Stack v81.5.0**: Fully GitOps-managed via ArgoCD
+- **Grafana Dashboards**: 46 dashboards (4 custom, 13 community, 26 from prometheus-stack)
 - **Alert Management**: PrometheusRule CRDs for infrastructure health alerts
 - **Multi-Source Deployment**: Helm chart + custom values managed in git
+- **24 ArgoCD Applications**: All Synced & Healthy
 
 ## 🛠️ Key Features
 

@@ -87,7 +87,7 @@ MAC addresses and PoE port mappings will be documented once collected.
 
 #### CNI (Container Network Interface)
 
-- **Plugin:** Calico v3.29.2 (via Tigera Operator)
+- **Plugin:** Calico v3.31.3 (via Tigera Operator)
 - **Namespace:** `calico-system` (operator-managed)
 - **Operator Namespace:** `tigera-operator`
 - **Pod CIDR:** 192.168.0.0/16
@@ -296,7 +296,7 @@ See [Network Policies](../security/network-policies.md) for detailed configurati
 
 - **Status:** Deployed and active
 - **Mode:** Ambient (sidecar-less architecture)
-- **Version:** 1.24.2
+- **Version:** 1.28.3
 - **Components:**
   - `istiod` - Control plane (1 replica)
   - `ztunnel` - Per-node DaemonSet for L4 mTLS

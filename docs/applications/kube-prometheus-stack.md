@@ -157,6 +157,22 @@ resources:
     memory: 256Mi
 ```
 
+### Grafana Sidecars (k8s-sidecar)
+
+```yaml
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 256Mi
+```
+
+:::note Sidecar Memory (2026-02-07)
+Grafana sidecars (grafana-sc-dashboard, grafana-sc-datasources) watch ConfigMaps across many namespaces. The original 64Mi limit caused OOMKills. Increased to 256Mi for stability.
+:::
+
 ### Node Exporter (per node)
 
 ```yaml

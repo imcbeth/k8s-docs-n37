@@ -68,7 +68,7 @@ The monitoring stack is built around the **kube-prometheus-stack**, which provid
 
 **Purpose:** Metrics visualization and dashboarding
 
-- **Pre-loaded Dashboards:** 20+ Kubernetes monitoring dashboards
+- **Pre-loaded Dashboards:** 46 dashboards (4 custom, 13 community, 26 from prometheus-stack + Gatekeeper)
 - **Custom Dashboards:** Support for user-created visualizations
 - **Datasources:** Pre-configured Prometheus connection
 - **Authentication:** Secure admin access
