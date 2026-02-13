@@ -73,6 +73,8 @@ const sidebars: SidebarsConfig = {
           ],
         },
         'applications/istio',
+        'applications/argo-workflows',
+        'applications/localstack',
       ],
     },
     {
@@ -89,6 +91,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'security/secrets-management',
         'security/network-policies',
+        'security/runtime-security',
         'applications/falco',
         'applications/gatekeeper',
       ],

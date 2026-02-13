@@ -12,7 +12,7 @@ ArgoCD is a declarative, GitOps continuous delivery tool for Kubernetes that aut
 - **Namespace:** `argocd`
 - **Helm Chart:** `argoproj/argo-cd`
 - **Chart Version:** `9.4.1`
-- **App Version:** `v3.2.3`
+- **App Version:** `v3.3.0`
 - **Deployment:** Self-managed via ArgoCD
 - **Sync Wave:** `-50` (first application to deploy)
 - **Sync Options:** `ServerSideApply=true`
@@ -173,7 +173,7 @@ ArgoCD organizes applications into projects for access control and resource mana
 - cert-manager
 - kube-prometheus-stack
 - unipoller
-- pi-hole
+- gatekeeper, gatekeeper-policies
 - istio-base, istiod, istio-cni, istio-ztunnel
 - tigera-operator
 - sealed-secrets
@@ -209,7 +209,7 @@ ArgoCD uses sync waves to control deployment order. Applications are deployed in
 -43: istio-cni (mesh CNI plugin)
 -42: istio-ztunnel (mesh data plane)
 -40: network-policies (must be in place before workloads)
--35: MetalLB, Pi-hole (networking layer)
+-35: MetalLB (networking layer)
 -30: Sealed Secrets (must decrypt before other apps), Synology CSI (storage layer)
 -20: UniFi Poller (metrics collection)
 -15: kube-prometheus-stack (monitoring)

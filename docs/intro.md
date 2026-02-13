@@ -109,7 +109,7 @@ Before diving into this homelab setup, these foundational skills will be invalua
 
 This homelab infrastructure is organized across multiple repositories:
 
-### 🏠 [homelab](https://github.com/your-username/homelab)
+### 🏠 [homelab](https://github.com/imcbeth/homelab)
 
 The main repository containing:
 
@@ -119,7 +119,7 @@ The main repository containing:
 - **Scripts**: Validation and maintenance utilities
 - **Hardware Documentation**: Network topology and hardware specifications
 
-### 📚 [k8s-docs-n37](https://github.com/your-username/k8s-docs-n37)
+### 📚 [k8s-docs-n37](https://github.com/imcbeth/k8s-docs-n37)
 
 This documentation site built with Docusaurus:
 
@@ -128,7 +128,7 @@ This documentation site built with Docusaurus:
 - **Architecture Documentation**: System design and component relationships
 - **Best Practices**: Lessons learned and recommended approaches
 
-### 🌐 [unifi-tf-generator](https://github.com/your-username/unifi-tf-generator)
+### 🌐 [unifi-tf-generator](https://github.com/imcbeth/unifi-tf-generator)
 
 Terraform automation for UniFi network management:
 
@@ -193,7 +193,7 @@ If you're new to this setup, start here:
 - **Sealed Secrets**: Migrated from git-crypt to Bitnami Sealed Secrets
 - **GitOps-Compatible**: All secrets now stored as encrypted SealedSecrets in Git
 - **Automatic Decryption**: Sealed Secrets controller decrypts at runtime
-- **8 Secrets Migrated**: unipoller, external-dns, cert-manager, alertmanager, snmp-exporter, synology-csi, pihole
+- **7 Secrets Migrated**: unipoller, external-dns, cert-manager, alertmanager, snmp-exporter, synology-csi, velero
 - **Full GitOps**: No more manual `kubectl apply` for secrets (except bootstrap)
 
 ### GitOps Migration (December 2025)
@@ -214,7 +214,7 @@ If you're new to this setup, start here:
 ### Network Migration to UniFi
 
 - **UniFi Network Stack**: Complete migration from consumer networking
-- **Network Monitoring**: UniFi Poller v2.11.2 with dedicated namespace
+- **Network Monitoring**: UniFi Poller v2.33.0 with dedicated namespace
 - **Performance Monitoring**: 20-second metrics collection intervals
 - **Comprehensive Metrics**: Device health, client connections, bandwidth tracking
 
@@ -242,7 +242,7 @@ If you're new to this setup, start here:
 
 ### Monitoring Stack Enhancements
 
-- **Prometheus Stack v81.5.0**: Fully GitOps-managed via ArgoCD
+- **Prometheus Stack v81.6.1**: Fully GitOps-managed via ArgoCD
 - **Grafana Dashboards**: 46 dashboards (4 custom, 13 community, 26 from prometheus-stack, 3 Gatekeeper)
 - **Alert Management**: PrometheusRule CRDs for infrastructure health alerts
 - **Multi-Source Deployment**: Helm chart + custom values managed in git
@@ -261,9 +261,9 @@ If you're new to this setup, start here:
 
 ### Exploring the Codebase
 
-- Browse the [homelab repository](https://github.com/your-username/homelab) for Kubernetes manifests and configurations
-- Check out the [unifi-tf-generator](https://github.com/your-username/unifi-tf-generator) for network automation examples
-- Contribute to this documentation by submitting PRs to [k8s-docs-n37](https://github.com/your-username/k8s-docs-n37)
+- Browse the [homelab repository](https://github.com/imcbeth/homelab) for Kubernetes manifests and configurations
+- Check out the [unifi-tf-generator](https://github.com/imcbeth/unifi-tf-generator) for network automation examples
+- Contribute to this documentation by submitting PRs to [k8s-docs-n37](https://github.com/imcbeth/k8s-docs-n37)
 
 ### Local Development
 

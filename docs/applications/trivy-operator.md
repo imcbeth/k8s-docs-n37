@@ -4,21 +4,8 @@
 
 **Status:** ✅ **OPERATIONAL** (Deployed: 2026-01-05)
 
-:::caution Known Issue: Trivy Operator v0.29.0 Vulnerability Scanning Bug
-As of 2026-01-29, Trivy Operator v0.29.0 has a bug where the vulnerability scanner controller does not create VulnerabilityReports despite being enabled. The controller logs show "Enabling built-in configuration audit scanner" but vulnerability scanning does not activate.
-
-**Impact:**
-
-- `trivy_image_vulnerabilities` metrics are not available
-- VulnerabilityReports are not being created
-
-**Workaround:**
-
-- RBAC assessment and compliance scanning still work correctly
-- Grafana dashboard updated to use available metrics (compliance, RBAC, config audits)
-- Prometheus alerts updated to focus on RBAC and compliance issues
-
-**Status:** Awaiting upstream fix. Monitor [Trivy Operator releases](https://github.com/aquasecurity/trivy-operator/releases) for v0.30.0+.
+:::info Resolved: Trivy Operator v0.29.0 Vulnerability Scanning Bug
+The v0.29.0 vulnerability scanning bug (where VulnerabilityReports were not created) was resolved in PR #410 by disabling SBOM generation (`sbomGenerationEnabled: false`). Vulnerability scanning is now fully operational with `trivy_image_vulnerabilities` metrics available.
 :::
 
 **Current Metrics** (as of 2026-01-12):
@@ -231,8 +218,8 @@ Access at: `https://grafana.k8s.n37.ca`
 
 **Dashboard: "Trivy Security Overview"**
 
-:::note Dashboard Updated (2026-01-29)
-Due to the v0.29.0 vulnerability scanning bug, the dashboard has been updated to focus on available metrics: compliance, RBAC assessments, and configuration audits.
+:::note Dashboard Updated (2026-02-07)
+Dashboard restored to full functionality after the v0.29.0 vulnerability scanning bug was resolved (PR #410). All panels including vulnerability counts, images scanned, and severity breakdowns are now active.
 :::
 
 Panels include:
@@ -243,20 +230,20 @@ Panels include:
 - **Exposed Secrets**: Detection of secrets in container images
 - **Scanner Status**: Health check showing active scanners
 
-**Previously available panels** (disabled until v0.30.0+):
+**Restored panels** (since PR #410 fix):
 
-- ~~Total vulnerability counts by severity~~
-- ~~Images scanned~~
-- ~~Vulnerabilities by image (sortable table)~~
-- ~~Severity distribution pie chart~~
-- ~~Namespace vulnerability breakdown~~
+- Total vulnerability counts by severity
+- Images scanned
+- Vulnerabilities by image (sortable table)
+- Severity distribution pie chart
+- Namespace vulnerability breakdown
 
 ### Prometheus Alerts
 
 PrometheusRule: `trivy-operator-alerts`
 
-:::note Alerts Updated (2026-01-29)
-Vulnerability-based alerts are disabled until the v0.29.0 bug is fixed. RBAC and compliance alerts remain active.
+:::note Alerts Updated (2026-02-07)
+All alerts restored to active status after the v0.29.0 vulnerability scanning bug was resolved (PR #410).
 :::
 
 **Active Alerts (RBAC & Compliance):**
@@ -269,11 +256,11 @@ Vulnerability-based alerts are disabled until the v0.29.0 bug is fixed. RBAC and
 - `CISKubernetesBenchmarkFailures`: CIS compliance failures
 - `NSAKubernetesHardeningFailures`: NSA hardening failures
 
-**Disabled Alerts (awaiting v0.30.0+):**
+**Restored Alerts (since PR #410):**
 
-- ~~`CriticalVulnerabilitiesDetected`: Any image with CRITICAL CVEs~~
-- ~~`HighVulnerabilityCount`: Image has >20 HIGH vulnerabilities~~
-- ~~`ClusterCriticalVulnerabilityThresholdExceeded`: >100 CRITICAL CVEs cluster-wide~~
+- `CriticalVulnerabilitiesDetected`: Any image with CRITICAL CVEs
+- `HighVulnerabilityCount`: Image has >20 HIGH vulnerabilities
+- `ClusterCriticalVulnerabilityThresholdExceeded`: >100 CRITICAL CVEs cluster-wide
 
 ### Metrics
 

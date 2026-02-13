@@ -71,7 +71,7 @@ Falco is deployed via ArgoCD using the official Falcosecurity Helm chart.
 
 **Configuration:** `manifests/base/falco/values.yaml`
 
-**Version:** Helm chart 8.0.0
+**Version:** Helm chart 4.20.1 (App version 0.40.0)
 
 **Sync Wave:** -5 (after monitoring stack for Prometheus/Loki integration)
 

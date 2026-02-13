@@ -10,7 +10,7 @@ External-DNS automatically synchronizes Kubernetes Ingress and Service resources
 ## Overview
 
 - **Namespace:** `external-dns`
-- **Image:** `registry.k8s.io/external-dns/external-dns:v0.15.0`
+- **Image:** `registry.k8s.io/external-dns/external-dns:v0.20.0`
 - **Deployment:** Managed by ArgoCD (dual deployments)
 - **Sync Wave:** `-10` (deploys with cert-manager)
 

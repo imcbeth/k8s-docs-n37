@@ -13,7 +13,7 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
 - **Service Mesh:** Istio Ambient (mTLS via HBONE tunneling)
 - **Deployment:** Managed by ArgoCD at sync-wave `-40`
 - **Approach:** Zero-trust (default-deny with explicit allow rules)
-- **Namespaces Protected:** 10 (added falco 2026-01-29)
+- **Namespaces Protected:** 10 (added falco 2026-01-29, HBONE rules added to all mesh policies PRs #411, #412)
 
 ## Architecture
 

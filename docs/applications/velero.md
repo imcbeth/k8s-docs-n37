@@ -61,7 +61,7 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 | Schedule | Time | Retention | Scope | Method |
 |----------|------|-----------|-------|--------|
 | `velero-daily-argocd` | 1:30 AM | 30 days | argocd namespace | Resources only |
-| `velero-daily-critical-pvcs` | 2:00 AM | 30 days | default, loki, pihole | CSI snapshots |
+| `velero-daily-critical-pvcs` | 2:00 AM | 30 days | default, loki | CSI snapshots |
 | `velero-weekly-cluster-resources` | 3:00 AM Sunday | 90 days | All namespaces | Resources only |
 
 ### Daily ArgoCD Configuration Backup (1:30 AM)
@@ -77,9 +77,9 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 
 - **Schedule**: Every day at 2:00 AM
 - **Retention**: 30 days
-- **Namespaces**: default (Prometheus, Grafana), loki, pihole
+- **Namespaces**: default (Prometheus, Grafana), loki
 - **Method**: CSI snapshots only (storage-native snapshots on Synology NAS)
-- **Total Data**: ~80Gi (Prometheus 50Gi, Loki 20Gi, Grafana 5Gi, Pi-hole 5Gi)
+- **Total Data**: ~75Gi (Prometheus 50Gi, Loki 20Gi, Grafana 5Gi)
 - **Backup Duration**: ~20 seconds (instant snapshot creation)
 
 ### Weekly Cluster Resource Backup (3:00 AM Sunday)
@@ -96,7 +96,8 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 | **Prometheus** | default | 50Gi | synology-iscsi-retain | Metrics TSDB (10-day retention) |
 | **Loki** | loki | 20Gi | synology-iscsi-retain | Log chunks/TSDB (7-day retention) |
 | **Grafana** | default | 5Gi | synology-iscsi-retain | Dashboards, datasources, plugins |
-| **Pi-hole** | pihole | 5Gi | synology-iscsi-retain | DNS blocklists, query history |
+| **Trivy Server** | trivy-system | 5Gi | synology-iscsi-retain | Vulnerability database |
+| **Falco Redis** | falco | 1Gi | synology-iscsi-retain | Security event storage |
 
 ## Storage Backends
 
@@ -242,7 +243,7 @@ velero backup create cluster-backup-$(date +%Y%m%d) \
 
 # Backup namespaces with PVCs (CSI snapshots)
 velero backup create critical-pvcs-manual \
-  --include-namespaces default,loki,pihole \
+  --include-namespaces default,loki \
   --snapshot-volumes=true \
   --wait
 
