@@ -193,7 +193,7 @@ If you're new to this setup, start here:
 - **Sealed Secrets**: Migrated from git-crypt to Bitnami Sealed Secrets
 - **GitOps-Compatible**: All secrets now stored as encrypted SealedSecrets in Git
 - **Automatic Decryption**: Sealed Secrets controller decrypts at runtime
-- **7 Secrets Migrated**: unipoller, external-dns, cert-manager, alertmanager, snmp-exporter, synology-csi, velero
+- **8 Secrets Migrated**: unipoller, external-dns (cloudflare + unifi), cert-manager, alertmanager, snmp-exporter, synology-csi, velero
 - **Full GitOps**: No more manual `kubectl apply` for secrets (except bootstrap)
 
 ### GitOps Migration (December 2025)

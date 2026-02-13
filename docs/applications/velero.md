@@ -89,15 +89,17 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 - **Scope**: All cluster resources (ArgoCD apps, ConfigMaps, Secrets, etc.)
 - **Method**: Kubernetes resource backup only (no PVCs)
 
-## Critical PVCs Backed Up
+## Cluster PVCs
 
-| Component | Namespace | Size | Storage Class | Data Type |
-|-----------|-----------|------|---------------|-----------|
-| **Prometheus** | default | 50Gi | synology-iscsi-retain | Metrics TSDB (10-day retention) |
-| **Loki** | loki | 20Gi | synology-iscsi-retain | Log chunks/TSDB (7-day retention) |
-| **Grafana** | default | 5Gi | synology-iscsi-retain | Dashboards, datasources, plugins |
-| **Trivy Server** | trivy-system | 5Gi | synology-iscsi-retain | Vulnerability database |
-| **Falco Redis** | falco | 1Gi | synology-iscsi-retain | Security event storage |
+All persistent volumes in the cluster. The daily critical PVC backup schedule covers the `default` and `loki` namespaces.
+
+| Component | Namespace | Size | Storage Class | Data Type | Backed Up |
+|-----------|-----------|------|---------------|-----------|-----------|
+| **Prometheus** | default | 50Gi | synology-iscsi-retain | Metrics TSDB (10-day retention) | Yes (daily) |
+| **Loki** | loki | 20Gi | synology-iscsi-retain | Log chunks/TSDB (7-day retention) | Yes (daily) |
+| **Grafana** | default | 5Gi | synology-iscsi-retain | Dashboards, datasources, plugins | Yes (daily) |
+| **Trivy Server** | trivy-system | 5Gi | synology-iscsi-retain | Vulnerability database | No (recreatable) |
+| **Falco Redis** | falco | 1Gi | synology-iscsi-retain | Security event storage | No (ephemeral) |
 
 ## Storage Backends
 
