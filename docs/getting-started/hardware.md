@@ -43,7 +43,7 @@ Complete hardware specifications and physical infrastructure for the Raspberry P
 
 Legend:
   CP = control-plane (10.0.10.214)
-  N1-N4 = node01-04 (10.0.10.211-213, 220)
+  N1-N4 = node01-04 (10.0.10.235, 211, 244, 220)
 ```
 
 ## Compute Cluster
@@ -74,9 +74,9 @@ Legend:
 | Hostname | IP Address | Role | OS | Kubernetes |
 |----------|------------|------|-----|------------|
 | control-plane | 10.0.10.214 | Control Plane | Ubuntu 24.04.3 LTS | v1.35.0 |
-| node01 | 10.0.10.211 | Worker | Ubuntu 24.04.3 LTS | v1.35.0 |
-| node02 | 10.0.10.212 | Worker | Ubuntu 24.04.3 LTS | v1.35.0 |
-| node03 | 10.0.10.213 | Worker | Ubuntu 24.04.3 LTS | v1.35.0 |
+| node01 | 10.0.10.235 | Worker | Ubuntu 24.04.3 LTS | v1.35.0 |
+| node02 | 10.0.10.211 | Worker | Ubuntu 24.04.3 LTS | v1.35.0 |
+| node03 | 10.0.10.244 | Worker | Ubuntu 24.04.3 LTS | v1.35.0 |
 | node04 | 10.0.10.220 | Worker | Ubuntu 24.04.3 LTS | v1.35.0 |
 
 ### Expansion Hardware (per node)
@@ -148,7 +148,7 @@ Legend:
 
 **Kubernetes Integration:**
 
-- **CSI Driver:** Synology CSI v1.1.0
+- **CSI Driver:** Synology CSI v1.2.1
 - **Features:**
   - Dynamic PVC provisioning
   - Volume expansion
@@ -350,7 +350,7 @@ Legend:
 
 **Current Kubernetes Usage:**
 
-- **Pods Running:** ~60-80 pods cluster-wide
+- **Pods Running:** ~110 pods cluster-wide
 - **CPU Requests:** ~15-20% of total capacity
 - **Memory Requests:** ~40-50% of total capacity (32-40GB allocated)
 - **Persistent Storage:** ~50-100GB on Synology NAS
@@ -375,7 +375,7 @@ Legend:
 - **Compute:** 5 nodes (4 workers + 1 control plane) - can tolerate loss of 1–2 worker nodes without workload disruption
 - **Storage:** RAID on NAS (can lose 1 drive without data loss)
 - **Network:** Single switch (planned: add redundant uplink)
-- **Power:** Single PoE switch (planned: add UPS)
+- **Power:** APC 1500C UPS protecting switch, NAS, and router (deployed)
 
 **Maintenance Schedule:**
 
@@ -457,5 +457,5 @@ Legend:
 
 ---
 
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-02-12
 **Hardware Version:** v2.1 (UPS deployed, NAS upgraded: 12GB RAM + 1.6TB NVMe cache, LAG active)

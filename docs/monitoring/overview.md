@@ -50,7 +50,7 @@ The monitoring stack is built around the **kube-prometheus-stack**, which provid
 
 **Purpose:** Central metrics collection and storage
 
-- **Version:** v3.7.3
+- **Version:** v3.9.1
 - **Storage:** 50Gi PVC on Synology NAS
 - **Deployment:** ArgoCD-managed (sync-wave: -15)
 - **Namespace:** `default`
@@ -121,7 +121,7 @@ kubectl port-forward -n default svc/kube-prometheus-stack-grafana 3000:80
 
 **Purpose:** Network infrastructure monitoring
 
-- **Version:** v2.11.2
+- **Version:** v2.33.0
 - **Deployment:** ArgoCD-managed (sync-wave: -20)
 - **Namespace:** `unipoller`
 - **Controller:** 10.0.1.1
@@ -482,12 +482,15 @@ All monitoring components are managed via ArgoCD:
 
 ## Planned Enhancements
 
-### Coming Soon
+### Recently Completed
 
-- **Blackbox Exporter**
+- ✅ **Blackbox Exporter** (January 2026)
   - HTTP/HTTPS endpoint monitoring
   - SSL certificate expiration tracking
   - Response time monitoring
+  - Grafana dashboard for probe status
+
+### Coming Soon
 
 - **Additional Custom Dashboards**
   - Enhanced Raspberry Pi thermal dashboard

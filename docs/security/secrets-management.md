@@ -72,7 +72,7 @@ Sealed Secrets solves this by:
 | `snmp-exporter-credentials` | default | SNMP Exporter | Synology NAS SNMPv3 credentials |
 | `cloudflare-api-token-secret` | cert-manager | cert-manager | DNS01 challenge API token |
 | `client-info-secret` | synology-csi | Synology CSI | NAS iSCSI authentication |
-| `pihole-web-password` | pihole | Pi-hole | Web interface password |
+| `velero-b2-credentials` | velero | Velero | Backblaze B2 backup storage credentials |
 
 ## Secrets NOT Managed by Sealed Secrets
 
@@ -307,7 +307,7 @@ SEALED_SECRETS=(
   "manifests/base/kube-prometheus-stack/snmp-exporter-sealed.yaml:snmp-exporter-credentials:default"
   "manifests/base/cert-manager/cloudflare-sealed.yaml:cloudflare-api-token-secret:cert-manager"
   "manifests/base/synology-csi/client-info-sealed.yaml:client-info-secret:synology-csi"
-  "manifests/base/pihole/pihole-web-sealed.yaml:pihole-web-password:pihole"
+  "manifests/base/velero/b2-credentials-sealed.yaml:velero-b2-credentials:velero"
 )
 
 for entry in "${SEALED_SECRETS[@]}"; do
@@ -380,7 +380,7 @@ If the sealing key backup is lost, all SealedSecrets are unrecoverable. You must
 | alertmanager-smtp-credentials | AlertManager | Generate app password in email provider |
 | snmp-exporter-credentials | SNMP Exporter | SNMP community string from Synology NAS |
 | client-info-secret | Synology CSI | Client credentials from Synology DSM |
-| pihole-web-password | Pi-hole | Set new password in Pi-hole admin |
+| velero-b2-credentials | Velero | Create new B2 application key in Backblaze dashboard |
 
 ### Scenario 3: Single Secret Corrupted
 
@@ -474,7 +474,7 @@ spec:
   sources:
     - repoURL: https://bitnami-labs.github.io/sealed-secrets
       chart: sealed-secrets
-      targetRevision: 2.16.2
+      targetRevision: 2.18.0
       helm:
         valueFiles:
           - $values/manifests/base/sealed-secrets/values.yaml
@@ -576,6 +576,6 @@ These secrets are created by Helm and would conflict with SealedSecrets.
 
 ---
 
-**Last Updated:** 2026-01-14
+**Last Updated:** 2026-02-12
 **Status:** Production, All secrets migrated
 **Managed By:** ArgoCD (`manifests/applications/seal-controller.yaml`)

@@ -13,7 +13,7 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 
 - **Namespace:** `loki`
 - **Helm Chart:** `grafana/loki`
-- **Chart Version:** `6.52.0`
+- **Chart Version:** `6.53.0`
 - **Deployment Mode:** SingleBinary (monolithic)
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-12` (after kube-prometheus-stack -15, before cert-manager -10)

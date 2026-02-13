@@ -13,7 +13,7 @@ This homelab is designed as a production-ready Kubernetes cluster built on Raspb
 ```mermaid
 graph TB
     Internet --> UniFi[UniFi Gateway]
-    UniFi --> Switch[PoE Switch TL-SG1008MP]
+    UniFi --> Switch[UniFi USW-Pro-24-PoE]
     Switch --> Pi1[Pi5 Master Node]
     Switch --> Pi2[Pi5 Worker Node 1]
     Switch --> Pi3[Pi5 Worker Node 2]
@@ -54,14 +54,14 @@ graph TB
 
 - **Control Plane**: Single master node with HA storage
 - **Worker Nodes**: 4x worker nodes for application workloads
-- **CNI**: Calico for network policy and connectivity
+- **CNI**: Calico v3.31.3 via Tigera Operator for network policy and connectivity
 - **Storage**: Synology CSI for persistent volumes
 
 ### Application Layer
 
 - **GitOps**: ArgoCD for declarative application management
 - **Monitoring**: Prometheus, Grafana, and AlertManager
-- **DNS**: Pi-hole for network-level ad blocking
+- **DNS**: External-DNS with Cloudflare and UniFi providers
 - **Ingress**: NGINX Ingress Controller with TLS
 
 ## Design Principles
@@ -76,7 +76,7 @@ graph TB
 ### Observability
 
 - Comprehensive metrics collection
-- Centralized logging (planned)
+- Centralized logging with Loki + Promtail
 - Network performance monitoring
 - Infrastructure health monitoring
 
@@ -84,7 +84,7 @@ graph TB
 
 - Network segmentation with VLANs
 - Certificate management with cert-manager
-- Secrets management with Kubernetes secrets
+- Secrets management with Sealed Secrets (GitOps-compatible encryption)
 - Regular security updates
 
 ### Automation
