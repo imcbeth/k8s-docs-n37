@@ -13,7 +13,7 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
 - **Service Mesh:** Istio Ambient (mTLS via HBONE tunneling)
 - **Deployment:** Managed by ArgoCD at sync-wave `-40`
 - **Approach:** Zero-trust (default-deny with explicit allow rules)
-- **Namespaces Protected:** 10 (added falco 2026-01-29, HBONE rules added to all mesh policies PRs #411, #412)
+- **Namespaces Protected:** 13 (added ingress-nginx, istio-system, gatekeeper-system 2026-02-14)
 
 ## Architecture
 
@@ -29,14 +29,14 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
                                        │
                               ┌────────▼────────┐
                               │  ingress-nginx  │
-                              │   (no policy)   │
+                              │  (policy ✅)    │
                               └────────┬────────┘
                                        │
        ┌───────────────────────────────┼───────────────────────────────┐
        │                               │                               │
 ┌──────▼──────┐               ┌────────▼────────┐              ┌───────▼───────┐
 │  localstack │               │  argo-workflows │              │    ArgoCD     │
-│   (S3 API)  │               │   (CI/CD UI)    │              │  (no policy)  │
+│   (S3 API)  │               │   (CI/CD UI)    │              │  (planned)    │
 └──────┬──────┘               └────────┬────────┘              └───────────────┘
        │                               │
        │ S3                            │ artifacts
@@ -75,6 +75,9 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
 
 | Namespace | Purpose | Mesh Status | Key Ports |
 |-----------|---------|-------------|-----------|
+| ingress-nginx | HTTP/HTTPS ingress controller | No | 80, 443, 10254 |
+| istio-system | Service mesh control plane | N/A | 15008, 15010, 15012, 15014, 15017 |
+| gatekeeper-system | Admission control | No | 8443, 8888 |
 | localstack | S3 emulator for Velero | Ambient | 4566 |
 | unipoller | UniFi metrics | Ambient | 9130 |
 | loki | Log aggregation | Ambient | 3100, 9095, 7946 |
@@ -98,7 +101,7 @@ egress:
       - namespaceSelector:
           matchLabels:
             kubernetes.io/metadata.name: kube-system
-      - podSelector:
+        podSelector:
           matchLabels:
             k8s-app: kube-dns
     ports:
@@ -107,6 +110,10 @@ egress:
       - protocol: TCP
         port: 53
 ```
+
+:::warning AND vs OR Semantics
+`namespaceSelector` and `podSelector` must be in the **same** list item (AND logic). If they are **separate** list items, it becomes OR logic -- allowing all pods in kube-system, not just kube-dns.
+:::
 
 ### Kubernetes API Access
 
@@ -269,12 +276,12 @@ spec:
         - protocol: TCP
           port: 4566
   egress:
-    # DNS
+    # DNS (AND semantics: kube-system namespace AND kube-dns pods)
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kube-system
-        - podSelector:
+          podSelector:
             matchLabels:
               k8s-app: kube-dns
       ports:
@@ -465,6 +472,12 @@ NetworkPolicies are deployed via ArgoCD using Kustomize at sync-wave `-40` (earl
 ```
 manifests/base/network-policies/
 ├── kustomization.yaml
+├── ingress-nginx/
+│   └── network-policy.yaml
+├── istio-system/
+│   └── network-policy.yaml
+├── gatekeeper-system/
+│   └── network-policy.yaml
 ├── localstack/
 │   └── network-policy.yaml
 ├── unipoller/

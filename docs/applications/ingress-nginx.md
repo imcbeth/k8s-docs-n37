@@ -13,6 +13,9 @@ The NGINX Ingress Controller is a Kubernetes controller that manages external ac
 
 - **HTTP/HTTPS Routing:** Route traffic based on host headers and URL paths
 - **TLS Termination:** Decrypt HTTPS traffic using cert-manager certificates
+- **Security Headers:** X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- **TLS Hardening:** TLSv1.2+ only, server-preferred ciphers, HSTS
+- **Rate Limiting:** Global rate limiting via ConfigMap
 - **Load Balancing:** Distribute traffic across multiple backend pods
 - **Path-Based Routing:** Route different URLs to different services
 - **WebSocket Support:** Proxy WebSocket connections
@@ -26,18 +29,22 @@ The NGINX Ingress Controller is a Kubernetes controller that manages external ac
 
 - **Namespace:** ingress-nginx
 - **Type:** Deployment (single replica)
-- **Version:** v1.14.1
+- **Helm Chart:** ingress-nginx v4.14.3
+- **Controller Version:** v1.14.3
 - **LoadBalancer IP:** 10.0.10.10 (via MetalLB)
-- **Deployment Method:** Manual (kubectl apply)
-  - **Status:** Currently deployed manually, not managed by ArgoCD/GitOps
-  - **Note:** Migrating to GitOps management is planned for improved tracking and automation
+- **Deployment Method:** ArgoCD with Helm chart (ServerSideApply)
+- **Sync Wave:** -30 (after MetalLB at -35, before cert-manager at -10)
+
+:::info Helm Migration (2026-02-14)
+Migrated from manual `kubectl apply` to ArgoCD-managed Helm chart (PR #441). ServerSideApply was used to reconcile the Helm release with pre-existing resources by taking field-level ownership, avoiding the need to delete and recreate. Security headers, resource limits, and ServiceMonitor are now all managed via Helm values.
+:::
 
 ### Components
 
 1. **Controller Pods:** Run NGINX and watch Ingress resources
-2. **LoadBalancer Service:** Exposes controller on 10.0.10.10
+2. **LoadBalancer Service:** Exposes controller on 10.0.10.10 (externalTrafficPolicy: Local)
 3. **Admission Webhook:** Validates Ingress configurations
-4. **Default Backend:** Returns 404 for undefined routes
+4. **ServiceMonitor:** Prometheus metrics scraping on port 10254
 
 ---
 
@@ -84,6 +91,100 @@ spec:
 ```
 
 **Default IngressClass:** nginx
+
+### ArgoCD Application
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx-config
+  namespace: argocd
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://kubernetes.github.io/ingress-nginx
+      chart: ingress-nginx
+      targetRevision: 4.14.3
+      helm:
+        releaseName: ingress-nginx
+        valueFiles:
+          - $values/manifests/base/ingress-nginx/values.yaml
+    - repoURL: git@github.com:imcbeth/homelab.git
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress-nginx
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+```
+
+### Security Hardening
+
+All security settings are configured globally via Helm values (`controller.config` and `controller.addHeaders`):
+
+**TLS Configuration:**
+
+- TLSv1.2 and TLSv1.3 only (older protocols disabled)
+- Server-preferred cipher suites
+- HSTS with 1-year max-age and includeSubDomains
+- Forced SSL redirect for all HTTP requests
+
+**Security Headers (applied to all responses):**
+
+| Header | Value | Purpose |
+|--------|-------|---------|
+| X-Frame-Options | DENY | Prevents clickjacking |
+| X-Content-Type-Options | nosniff | Prevents MIME-type sniffing |
+| Referrer-Policy | strict-origin-when-cross-origin | Controls referrer info |
+| Permissions-Policy | camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), serial=() | Disables browser APIs |
+
+**Other Settings:**
+
+- `server-tokens: "false"` - Hide NGINX version
+- `hide-headers: "X-Powered-By"` - Remove backend info
+- `client-max-body-size: "20m"` - Request body limit
+
+### Resource Limits
+
+```yaml
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 90Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  admissionWebhooks:
+    createSecretJob:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 50m
+          memory: 64Mi
+    patchWebhookJob:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 50m
+          memory: 64Mi
+```
+
+:::warning Webhook Job Resource Keys
+The Helm chart has two separate job types for webhook certificate management: `createSecretJob` and `patchWebhookJob`. Both need resource limits for Gatekeeper compliance. The `patch.resources` key controls image/pod config, NOT the container resources.
+:::
 
 ---
 
@@ -473,6 +574,22 @@ kubectl get ingress -n my-app
 
 ## Monitoring
 
+### ServiceMonitor
+
+A Prometheus ServiceMonitor is deployed via the Helm chart to scrape controller metrics on port 10254:
+
+```yaml
+controller:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: kube-prometheus-stack
+```
+
+The `release: kube-prometheus-stack` label ensures Prometheus discovers the ServiceMonitor.
+
 ### Metrics
 
 ingress-nginx exposes Prometheus metrics:
@@ -586,6 +703,27 @@ curl -H "Host: example.k8s.n37.ca" https://10.0.10.10
 
 ---
 
-**Last Updated:** 2025-12-27
+### NetworkPolicy
+
+ingress-nginx namespace has a NetworkPolicy restricting traffic:
+
+**Allowed Ingress:**
+
+- External traffic on ports 80, 443 (LoadBalancer)
+- Prometheus metrics scraping on port 10254 from default namespace
+- HBONE port 15008 (Istio Ambient mesh)
+
+**Allowed Egress:**
+
+- DNS (kube-system:53)
+- Kubernetes API (ClusterIP + control plane)
+- Backend services in all namespaces on ports 80, 443, 8080, 8443
+- cert-manager webhook (port 10250)
+- Istio control plane (ports 15008, 15012, 15017)
+
+---
+
+**Last Updated:** 2026-02-14
 **Status:** Production, Healthy
+**Managed By:** ArgoCD (`manifests/applications/ingress-nginx-config.yaml`)
 **LoadBalancer IP:** 10.0.10.10

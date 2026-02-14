@@ -34,37 +34,43 @@ cert-manager is a Kubernetes controller that automates the management and issuan
 
 ```yaml
 # Controller resources
-controller:
+resources:
   requests:
     cpu: 10m
-    memory: 32Mi
+    memory: 128Mi
   limits:
     cpu: 100m
-    memory: 128Mi
+    memory: 256Mi
 
 # Webhook resources
 webhook:
-  requests:
-    cpu: 10m
-    memory: 32Mi
-  limits:
-    cpu: 50m
-    memory: 64Mi
+  resources:
+    requests:
+      cpu: 10m
+      memory: 128Mi
+    limits:
+      cpu: 50m
+      memory: 128Mi
 
 # CA Injector resources
 cainjector:
-  requests:
-    cpu: 10m
-    memory: 32Mi
-  limits:
-    cpu: 100m
-    memory: 128Mi
+  resources:
+    requests:
+      cpu: 10m
+      memory: 128Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
 ```
+
+:::info Resource Limits Updated (2026-02-14)
+Resource limits were added to all cert-manager components (PR #451) to comply with Gatekeeper's `require-resource-limits` policy after removing cert-manager from the Gatekeeper exclusion list.
+:::
 
 **Total Resource Usage:**
 
 - CPU Requests: 30m (0.15% of 20 cores)
-- Memory Requests: 96Mi (0.12% of 80GB)
+- Memory Requests: 384Mi
 
 ---
 
@@ -585,7 +591,7 @@ kubectl get secret <cert-secret> -n <namespace> -o jsonpath='{.data.tls\.crt}' |
 
 ---
 
-**Last Updated:** 2026-02-05
+**Last Updated:** 2026-02-14
 **Status:** Production, Healthy
 **Managed By:** ArgoCD (`manifests/applications/cert-manager.yaml`)
 **Secrets:** SealedSecret (`manifests/base/cert-manager/cloudflare-sealed.yaml`)

@@ -225,18 +225,27 @@ If you're new to this setup, start here:
 - **Weekend Schedule**: Sat/Sun 6am-9pm to minimize disruption
 - **PR Workflow**: All updates go through PR review before merging
 
+### Ingress Hardening (February 2026)
+
+- **Helm Migration**: ingress-nginx migrated from manual kubectl to ArgoCD-managed Helm chart (v4.14.3)
+- **Security Headers**: X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- **TLS Hardening**: TLSv1.2+ only, HSTS, server-preferred ciphers
+- **ServiceMonitor**: Prometheus metrics collection enabled
+- **Resource Limits**: All containers have limits (Gatekeeper compliant)
+
 ### Admission Control (February 2026)
 
 - **OPA Gatekeeper**: Kubernetes admission control policy engine (v3.21.1)
 - **5 Policies in Deny Mode**: Resource limits, allowed repos, required labels, block NodePort, container limits
-- **0 Violations**: All violations resolved across 24 ArgoCD applications
+- **Exclusion Audit**: Reduced excluded namespaces from 10 to 2 (kube-system, tigera-operator)
+- **0 Violations**: All violations resolved across 25 ArgoCD applications
 - **Monitoring**: PodMonitor + Grafana dashboard for constraint violations
 
-### Network Policies Implementation (January 2026)
+### Network Policies Implementation (January-February 2026)
 
-- **Namespace Isolation**: 10 namespaces protected with Kubernetes NetworkPolicies
+- **Namespace Isolation**: 13 namespaces protected with Kubernetes NetworkPolicies
 - **Allow-List Approach**: Default-deny ingress with explicit allow rules
-- **Namespaces Protected**: localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco
+- **Namespaces Protected**: ingress-nginx, istio-system, gatekeeper-system, localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco
 - **Monitoring Preserved**: Prometheus metrics scraping allowed across all policies
 - **GitOps Managed**: ArgoCD Application at sync-wave -40
 
@@ -246,7 +255,7 @@ If you're new to this setup, start here:
 - **Grafana Dashboards**: 46 dashboards (4 custom, 13 community, 26 from prometheus-stack, 3 Gatekeeper)
 - **Alert Management**: PrometheusRule CRDs for infrastructure health alerts
 - **Multi-Source Deployment**: Helm chart + custom values managed in git
-- **24 ArgoCD Applications**: All Synced & Healthy
+- **25 ArgoCD Applications**: All Synced & Healthy
 
 ## 🛠️ Key Features
 
