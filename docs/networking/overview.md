@@ -152,9 +152,11 @@ See the [MetalLB guide](../applications/metallb.md) for detailed configuration.
 
 ### Ingress Configuration
 
-- **Controller:** nginx-ingress v1.14.1
+- **Controller:** ingress-nginx v1.14.3 (Helm chart v4.14.3, ArgoCD-managed)
 - **External IP:** 10.0.10.10 (via MetalLB)
 - **TLS:** Let's Encrypt via cert-manager (Cloudflare DNS-01 challenge)
+- **Security Headers:** X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- **TLS Hardening:** TLSv1.2+, HSTS, server-preferred ciphers
 - **Public Domain:** k8s.n37.ca
 - **IngressClass:** nginx (default)
 
@@ -265,12 +267,13 @@ See the [cert-manager guide](../applications/cert-manager.md) for detailed confi
 - Allow Prometheus scraping from monitoring namespace
 - Allow istio-system control plane communication
 
-**Namespace-specific Policies:**
+**Namespace-specific Policies (12 namespaces):**
 
-- `argocd` - Allow ingress from nginx, egress to git repos
-- `monitoring` - Allow Prometheus scraping across namespaces
-- `calico-system` - Allow Typha (5473/tcp), BGP (179/tcp), IPIP protocol
-- `istio-system` - Allow ztunnel, istiod, and mesh traffic
+- `ingress-nginx` - Allow external traffic, backend routing, Prometheus scraping
+- `istio-system` - Allow HBONE tunnel, istiod xDS, Prometheus scraping
+- `gatekeeper-system` - Allow webhook calls, Prometheus scraping
+- `localstack`, `unipoller`, `loki`, `trivy-system`, `velero`, `argo-workflows` - Application-specific rules
+- `cert-manager`, `external-dns`, `metallb-system`, `falco` - Infrastructure rules
 
 See [Network Policies](../security/network-policies.md) for detailed configuration.
 
@@ -475,4 +478,4 @@ kubectl get l2advertisement -n metallb-system -o yaml
 
 ---
 
-**Last Updated:** 2026-01-30
+**Last Updated:** 2026-02-14

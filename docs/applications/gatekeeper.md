@@ -13,7 +13,7 @@
 
 - ✅ 5 ConstraintTemplates installed
 - ✅ 5 Constraints active (**deny** mode since 2026-02-07)
-- ✅ 0 violations (all resolved 2026-02-07, PRs #404-408)
+- ✅ 0 violations (resolved 2026-02-07 PRs #404-408, exclusion audit 2026-02-14 PRs #451-452)
 - ✅ Audit scanning all namespaces every 5 minutes
 - ✅ Prometheus metrics via PodMonitor on port 8888
 - ✅ Grafana dashboard for constraint violations
@@ -181,15 +181,18 @@ containers:
 
 ### Exempted Namespaces
 
-The following namespaces are exempt from admission control to avoid chicken-and-egg issues with infrastructure:
+:::info Exclusion Audit (2026-02-14)
+Reduced `excludedNamespaces` in `require-resource-limits` from 10 to 2 (PRs #451, #452). Resource limits were added to all containers in previously-excluded namespaces: argocd (dex, redis-secret-init), cert-manager, calico-system (typha, apiserver, csi-node-driver), synology-csi, istio-system, metallb-system, gatekeeper-system, localstack.
+:::
 
-- `kube-system` - Core Kubernetes components
-- `argocd` - GitOps controller
-- `gatekeeper-system` - Gatekeeper itself
-- `calico-system` - CNI networking
-- `tigera-operator` - Calico operator
-- `istio-system` - Service mesh
-- `cert-manager` - Certificate management
+The following namespaces are still exempt from the `require-resource-limits` constraint:
+
+- `kube-system` - Core Kubernetes components (kubeadm-managed, cannot add limits via GitOps)
+- `tigera-operator` - Calico operator (upstream release manifest, would require patching)
+
+All other namespaces (including `argocd`, `calico-system`, `istio-system`, `cert-manager`, `gatekeeper-system`, `metallb-system`, `synology-csi`, `localstack`) now have resource limits on all containers and are subject to Gatekeeper admission control.
+
+The `gatekeeper-system` namespace remains exempt from Gatekeeper's own webhook (self-referential exemption) but is no longer exempt from the resource limits constraint.
 
 ## Common Operations
 

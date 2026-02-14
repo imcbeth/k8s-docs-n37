@@ -25,7 +25,7 @@ Compared to traditional sidecar mode:
 - **Scales with nodes, not pods**: DaemonSets instead of sidecars
 - **Simpler operations**: No sidecar injection/restart cycles
 
-### Comparison with Linkerd
+### Comparison with Linkerd (Historical)
 
 | Metric | Linkerd | Istio Ambient | Winner |
 |--------|---------|---------------|--------|
@@ -34,7 +34,7 @@ Compared to traditional sidecar mode:
 | Scales with | Pods | Nodes | Istio Ambient |
 | Crossover point | - | ~5-6 pods | - |
 
-**Decision:** Istio Ambient chosen for better scalability with many pods.
+**Decision:** Istio Ambient chosen for better scalability with many pods. Linkerd manifests were evaluated in January 2026 but never deployed. All Linkerd dead code (ArgoCD applications, values, network policies) was removed in February 2026 (PR #441).
 
 ## Installation
 
@@ -299,6 +299,24 @@ kubectl apply -f manifests/applications/istio-base.yaml
 kubectl apply -f manifests/applications/istiod.yaml
 kubectl apply -f manifests/applications/istio-cni.yaml
 ```
+
+## NetworkPolicy
+
+The `istio-system` namespace has a dedicated NetworkPolicy (added 2026-02-14, PR #442) controlling traffic to and from the mesh control plane:
+
+**Allowed Ingress:**
+
+- HBONE tunnel (port 15008) from all namespaces (bare rule, no selectors)
+- istiod xDS/gRPC (ports 15010, 15012, 15014, 15017) from all namespaces
+- Prometheus metrics scraping from default namespace
+- Webhook calls from control plane nodes (10.0.10.0/24)
+- Link-local health probes (169.254.7.127/32)
+
+**Allowed Egress:**
+
+- DNS, Kubernetes API
+- HBONE tunnel (port 15008) to all namespaces
+- External HTTPS for certificate validation
 
 ## Removal
 

@@ -130,6 +130,7 @@ storageClassName: synology-iscsi-delete-ssd
 - Manages snapshots and cloning
 - Communicates with Synology DSM API
 - Runs as a Deployment (1 replica)
+- Containers: csi-provisioner, csi-attacher, csi-resizer, csi-plugin (all with resource limits)
 
 **CSI Node Driver:**
 
@@ -137,12 +138,18 @@ storageClassName: synology-iscsi-delete-ssd
 - Mounts iSCSI volumes to pods
 - Handles volume attach/detach operations
 - Manages local mount points
+- Containers: csi-driver-registrar, csi-plugin (all with resource limits)
 
-**Snapshotter (Optional):**
+**Snapshotter:**
 
-- Enables volume snapshots
+- Enables volume snapshots via snapshot-controller
 - Creates point-in-time copies
 - Supports snapshot-based backups
+- Containers: csi-snapshotter, csi-plugin, snapshot-controller (all with resource limits)
+
+:::info Resource Limits (2026-02-14)
+Resource limits were added to all containers across the controller, node, and snapshotter components (PR #451) to comply with Gatekeeper's `require-resource-limits` policy. The snapshot-controller uses a Kustomize strategic merge patch since it's sourced from a remote GitHub reference.
+:::
 
 ## Version History
 
