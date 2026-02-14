@@ -267,7 +267,7 @@ See the [cert-manager guide](../applications/cert-manager.md) for detailed confi
 - Allow Prometheus scraping from monitoring namespace
 - Allow istio-system control plane communication
 
-**Namespace-specific Policies (12 namespaces):**
+**Namespace-specific Policies (13 namespaces):**
 
 - `ingress-nginx` - Allow external traffic, backend routing, Prometheus scraping
 - `istio-system` - Allow HBONE tunnel, istiod xDS, Prometheus scraping
@@ -292,7 +292,7 @@ See [Network Policies](../security/network-policies.md) for detailed configurati
   - Network interface statistics on all nodes via node-exporter
 
 - **Ingress Metrics:**
-  - nginx-ingress controller metrics → Prometheus
+  - ingress-nginx controller metrics → Prometheus
   - Request rates, latencies, error rates per Ingress
 
 ### Service Mesh (Istio Ambient)
@@ -391,7 +391,7 @@ Ambient mode eliminates per-pod sidecars, reducing resource overhead by ~90% com
 
 **Diagnostic Steps:**
 
-1. Check nginx-ingress controller running:
+1. Check ingress-nginx controller running:
 
    ```bash
    kubectl get pods -n ingress-nginx
@@ -472,7 +472,7 @@ kubectl get l2advertisement -n metallb-system -o yaml
 
 - **Calico Documentation:** [Calico Docs](https://docs.tigera.io/calico/latest)
 - **MetalLB Documentation:** [MetalLB](https://metallb.universe.tf/)
-- **nginx-ingress:** [ingress-nginx](https://kubernetes.github.io/ingress-nginx/)
+- **ingress-nginx:** [ingress-nginx](https://kubernetes.github.io/ingress-nginx/)
 - **UniFi Network:** [UniFi](https://ui.com/)
 - **Synology NAS:** 10.0.1.204 (DSM interface)
 

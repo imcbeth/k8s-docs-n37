@@ -205,19 +205,23 @@ ArgoCD uses sync waves to control deployment order. Applications are deployed in
 
 ```
 -100: tigera-operator (CNI foundation)
- -50: ArgoCD (must be first)
+ -50: ArgoCD (self-management)
  -45: istio-base (mesh CRDs)
  -44: istiod (mesh control plane)
  -42: istio-cni, istio-ztunnel (mesh data plane)
  -40: network-policies (must be in place before workloads)
  -35: MetalLB (networking layer)
- -30: Sealed Secrets, ingress-nginx (decrypt + ingress)
- -15: cert-manager (provides certificates)
- -10: external-dns (manages DNS records)
-  -8: Argo Workflows (CI/CD automation)
+ -30: synology-csi (storage), ingress-nginx (ingress controller)
+ -25: sealed-secrets (decrypt before other apps)
+ -20: unipoller (metrics collection)
+ -15: kube-prometheus-stack (monitoring)
+ -12: loki (log aggregation)
+ -11: promtail (log collection)
+ -10: cert-manager, external-dns, metrics-server
+  -8: argo-workflows (CI/CD automation)
   -7: localstack (S3 mock for Velero)
   -6: gatekeeper (admission control + ConstraintTemplates)
-  -5: gatekeeper-policies, synology-csi, velero, falco
+  -5: gatekeeper-policies, velero, falco
    0: (default) most applications
 ```
 
@@ -273,12 +277,13 @@ kubectl get application <app-name> -n argocd -o yaml
 # Sync specific application
 argocd app sync <app-name> --grpc-web
 
-# Force sync (bypass sync policies)
-argocd app sync <app-name> --force --grpc-web
-
 # Sync with prune
 argocd app sync <app-name> --prune --grpc-web
 ```
+
+:::warning Force Sync
+`argocd app sync --force` is incompatible with `ServerSideApply=true` (used by most apps in this cluster). It will fail with "error validating options: --force cannot be used with --server-side". Use normal sync or `Replace=true` instead.
+:::
 
 ### Refresh Application
 
@@ -348,10 +353,6 @@ kubectl get application <name> -n argocd -o yaml | grep -A 20 "status:"
 argocd app get <name> --refresh --grpc-web
 argocd app sync <name> --grpc-web
 ```
-
-:::warning Force Sync with ServerSideApply
-`argocd app sync --force` is **incompatible** with `ServerSideApply=true` and will fail with "error validating options: --force cannot be used with --server-side". Use normal sync instead. `Replace=true` IS compatible with SSA.
-:::
 
 ### Out of Sync Resources
 

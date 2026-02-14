@@ -241,9 +241,9 @@ If you're new to this setup, start here:
 - **0 Violations**: All violations resolved across 25 ArgoCD applications
 - **Monitoring**: PodMonitor + Grafana dashboard for constraint violations
 
-### Network Policies Implementation (January 2026)
+### Network Policies Implementation (January-February 2026)
 
-- **Namespace Isolation**: 12 namespaces protected with Kubernetes NetworkPolicies
+- **Namespace Isolation**: 13 namespaces protected with Kubernetes NetworkPolicies
 - **Allow-List Approach**: Default-deny ingress with explicit allow rules
 - **Namespaces Protected**: ingress-nginx, istio-system, gatekeeper-system, localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco
 - **Monitoring Preserved**: Prometheus metrics scraping allowed across all policies

@@ -33,10 +33,10 @@ The NGINX Ingress Controller is a Kubernetes controller that manages external ac
 - **Controller Version:** v1.14.3
 - **LoadBalancer IP:** 10.0.10.10 (via MetalLB)
 - **Deployment Method:** ArgoCD with Helm chart (ServerSideApply)
-- **Sync Wave:** -30 (after sealed-secrets, alongside cert-manager)
+- **Sync Wave:** -30 (after MetalLB at -35, before cert-manager at -10)
 
 :::info Helm Migration (2026-02-14)
-Migrated from manual `kubectl apply` to ArgoCD-managed Helm chart (PR #441). ServerSideApply adopted existing resources seamlessly without requiring Helm ownership labels. Security headers, resource limits, and ServiceMonitor are now all managed via Helm values.
+Migrated from manual `kubectl apply` to ArgoCD-managed Helm chart (PR #441). ServerSideApply was used to reconcile the Helm release with pre-existing resources by taking field-level ownership, avoiding the need to delete and recreate. Security headers, resource limits, and ServiceMonitor are now all managed via Helm values.
 :::
 
 ### Components
