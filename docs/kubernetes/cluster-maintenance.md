@@ -117,7 +117,7 @@ Workers first, control plane last:
 
 ```bash
 SSH_KEY=~/.ssh/id_ed25519_k8s
-SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=no -o ConnectTimeout=10"
+SSH_OPTS="-i $SSH_KEY -o ConnectTimeout=10"
 
 # Workers (can be parallel)
 for ip in 10.0.10.235 10.0.10.211 10.0.10.244 10.0.10.220; do
