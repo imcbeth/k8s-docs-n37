@@ -208,9 +208,9 @@ The `kube-prometheus-stack` sync frequently gets stuck waiting on 174+ PreSync a
 
 ```bash
 # Clear the stuck operation
-kubectl patch app kube-prometheus-stack -n argocd --type json \
+kubectl patch application kube-prometheus-stack -n argocd --type json \
   -p '[{"op":"remove","path":"/status/operationState"}]'
-kubectl patch app kube-prometheus-stack -n argocd --type json \
+kubectl patch application kube-prometheus-stack -n argocd --type json \
   -p '[{"op":"remove","path":"/operation"}]'
 
 # Manually restore the workloads
