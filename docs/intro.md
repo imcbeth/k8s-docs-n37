@@ -227,7 +227,7 @@ If you're new to this setup, start here:
 
 ### Ingress Hardening (February 2026)
 
-- **Helm Migration**: ingress-nginx migrated from manual kubectl to ArgoCD-managed Helm chart (v4.14.3)
+- **Helm Migration**: ingress-nginx migrated from manual kubectl to ArgoCD-managed Helm chart (v4.14.4)
 - **Security Headers**: X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
 - **TLS Hardening**: TLSv1.2+ only, HSTS, server-preferred ciphers
 - **ServiceMonitor**: Prometheus metrics collection enabled
@@ -243,15 +243,15 @@ If you're new to this setup, start here:
 
 ### Network Policies Implementation (January-February 2026)
 
-- **Namespace Isolation**: 13 namespaces protected with Kubernetes NetworkPolicies
+- **Namespace Isolation**: 18 namespaces protected with Kubernetes NetworkPolicies + Calico NetworkPolicies
 - **Allow-List Approach**: Default-deny ingress with explicit allow rules
-- **Namespaces Protected**: ingress-nginx, istio-system, gatekeeper-system, localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco
+- **Namespaces Protected**: ingress-nginx, istio-system, gatekeeper-system, localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco, default, argocd, synology-csi, kube-system, tigera-operator
 - **Monitoring Preserved**: Prometheus metrics scraping allowed across all policies
 - **GitOps Managed**: ArgoCD Application at sync-wave -40
 
 ### Monitoring Stack Enhancements
 
-- **Prometheus Stack v81.6.1**: Fully GitOps-managed via ArgoCD
+- **Prometheus Stack v82.4.3**: Fully GitOps-managed via ArgoCD
 - **Grafana Dashboards**: 46 dashboards (4 custom, 13 community, 26 from prometheus-stack, 3 Gatekeeper)
 - **Alert Management**: PrometheusRule CRDs for infrastructure health alerts
 - **Multi-Source Deployment**: Helm chart + custom values managed in git

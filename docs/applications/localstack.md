@@ -14,7 +14,7 @@ LocalStack provides a local AWS cloud stack for development and testing purposes
 |----------|-------|
 | **Namespace** | `localstack` |
 | **Source** | Git repository (custom manifests) |
-| **ArgoCD App** | `localstack` |
+| **ArgoCD App** | `localstack` (project: `infrastructure`) |
 | **UI URL** | `https://localstack.k8s.n37.ca` |
 | **Istio Mesh** | Enabled (Ambient mode) |
 

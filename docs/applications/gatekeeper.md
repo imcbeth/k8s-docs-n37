@@ -175,6 +175,10 @@ containers:
 
 **Limits:** 2 CPU cores, 2Gi RAM per container
 
+:::warning Memory Limit Ceiling
+The 2Gi maximum memory limit is enforced by admission webhook. Any container requesting more than 2Gi memory will be rejected. When sizing containers (e.g., Redis with modules), always verify limits stay at or below 2Gi. Use application-level controls (maxmemory, TTL, eviction policies) to keep data within bounds.
+:::
+
 **Why:** Prevents any single container from monopolizing a Raspberry Pi 5 node (4 cores, 16GB RAM).
 
 **Scope:** All Pods (excluding system namespaces)

@@ -9,7 +9,7 @@
 | Falco DaemonSet | Running on all 5 nodes | 50m/128Mi → 500m/512Mi |
 | Falcosidekick | Running | 10m/32Mi → 100m/64Mi |
 | Falcosidekick WebUI | Running | 10m/32Mi → 100m/128Mi |
-| Redis (redis-stack) | Running | 50m/512Mi → 200m/1Gi |
+| Redis (redis-stack) | Running | 50m/1536Mi → 200m/2Gi |
 
 **Operational Highlights:**
 
@@ -71,7 +71,7 @@ Falco is deployed via ArgoCD using the official Falcosecurity Helm chart.
 
 **Configuration:** `manifests/base/falco/values.yaml`
 
-**Version:** Helm chart 4.20.1 (App version 0.40.0) — note: upstream Falco Helm chart migrated from the `falcosecurity/falco` chart (v8.x) to `falcosecurity/charts` (v4.x), so 4.20.1 is newer than the previously documented 8.0.0.
+**Version:** Helm chart 8.0.1 (App version 0.43.0)
 
 **Sync Wave:** -5 (after monitoring stack for Prometheus/Loki integration)
 
@@ -84,18 +84,33 @@ Optimized for Raspberry Pi 5 cluster:
 | Falco | 50m | 500m | 128Mi | 512Mi |
 | Falcosidekick | 10m | 100m | 32Mi | 64Mi |
 | Falcosidekick WebUI | 10m | 100m | 32Mi | 128Mi |
-| Redis (redis-stack) | 50m | 200m | 512Mi | 1Gi |
+| Redis (redis-stack) | 50m | 200m | 1536Mi | 2Gi |
 | WebUI init container | 10m | 50m | 32Mi | 64Mi |
 
-:::note Redis Memory Sizing (2026-02-07)
-The redis-stack server (with RediSearch, TimeSeries, JSON, Bloom, Gears modules) requires significantly more memory than plain redis. The RDB file can reach 500MB+. Use `maxmemory` config to cap Redis data below the container limit:
+:::note Redis Memory Sizing (Updated 2026-02-27)
+The redis-stack server (with RediSearch, TimeSeries, JSON, Bloom, Gears modules) requires significantly more memory than plain redis. The RDB dump can exceed 1GB. `maxmemory` only caps key data, not module overhead (indexes, metadata). Container memory limit must account for both.
+
+Configuration:
+
+- **Storage**: 2Gi PVC (expanded from 1Gi when 99% full, PR #473)
+- **Memory limit**: 2Gi (Gatekeeper max), request 1536Mi
+- **TTL**: 30 days to prevent unbounded data growth
+- **Eviction**: `allkeys-lru` with `maxmemory: 1000mb`
 
 ```yaml
-falcosidekick-ui:
-  redis:
-    config:
-      maxmemory: "800mb"
-      maxmemory-policy: "allkeys-lru"
+falcosidekick:
+  webui:
+    ttl: "30d"
+    redis:
+      storageSize: "2Gi"
+      resources:
+        requests:
+          memory: 1536Mi
+        limits:
+          memory: 2Gi
+      config:
+        maxmemory: "1000mb"
+        maxmemory-policy: "allkeys-lru"
 ```
 
 :::

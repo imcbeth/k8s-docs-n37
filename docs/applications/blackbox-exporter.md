@@ -20,9 +20,9 @@ description: "Endpoint monitoring, SSL certificate expiry tracking, and service 
 
 ### Use Cases in This Cluster
 
-1. **Internal Service Monitoring**: HTTP/HTTPS probes for Pi-hole, ArgoCD, and Grafana
+1. **Internal Service Monitoring**: HTTP/HTTPS probes for ArgoCD and Grafana
 2. **External Connectivity**: Monitoring internet connectivity via Google and Cloudflare
-3. **DNS Health**: Query monitoring for Pi-hole, Cloudflare, and Google DNS servers
+3. **DNS Health**: Query monitoring for gateway, Cloudflare, and Google DNS servers
 4. **Certificate Expiry**: SSL certificate monitoring for all external HTTPS endpoints
 5. **Infrastructure Availability**: ICMP ping monitoring for NAS, gateway, and critical infrastructure
 
@@ -156,20 +156,18 @@ timeout: 5s
 
 #### Internal Services (HTTP)
 
-- `http://pihole.pihole:80` - Pi-hole web interface
 - `http://argocd-server.argocd:80` - ArgoCD server
 
 #### External Services (HTTPS)
 
 - `https://argocd.k8s.n37.ca` - ArgoCD external access
 - `https://grafana.k8s.n37.ca` - Grafana dashboards
-- `https://pihole.k8s.n37.ca` - Pi-hole external access
 - `https://google.com` - External connectivity test
 - `https://cloudflare.com` - External connectivity test
 
 #### DNS Servers
 
-- `10.0.0.200:53` - Pi-hole DNS
+- `10.0.1.1:53` - Gateway DNS
 - `1.1.1.1:53` - Cloudflare DNS
 - `8.8.8.8:53` - Google DNS
 
@@ -392,13 +390,46 @@ probe_http_duration_seconds
 
 #### ICMP Probes Not Working
 
-**Problem**: ICMP probes fail with permission errors
+**Problem**: ICMP probes fail with permission errors or are blocked by network policy
 
-**Solution**: Verify the deployment has `NET_RAW` capability:
+**Solutions**:
+
+1. Verify the deployment has `NET_RAW` capability:
 
 ```bash
 kubectl get deployment blackbox-exporter -o yaml | grep -A5 capabilities
 ```
+
+1. Verify the Calico NetworkPolicy allows ICMP egress:
+
+```bash
+kubectl get networkpolicy.p.projectcalico.org -n default allow-egress-icmp-calico -o yaml
+```
+
+:::note Calico NetworkPolicy Required for ICMP (2026-02-27)
+Kubernetes NetworkPolicies only support TCP, UDP, and SCTP protocols — not ICMP. A **Calico NetworkPolicy** (`allow-egress-icmp-calico`) is required to permit ICMP egress from the blackbox-exporter pod. The policy uses Calico selector syntax (`app == 'blackbox-exporter'`) and restricts ICMP to the exact probe targets: `10.0.1.1/32` (gateway), `10.0.1.204/32` (NAS), `8.8.8.8/32` (Google DNS).
+
+```yaml
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-icmp-calico
+  namespace: default
+spec:
+  selector: app == 'blackbox-exporter'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      destination:
+        nets:
+          - 10.0.1.1/32
+          - 10.0.1.204/32
+          - 8.8.8.8/32
+      protocol: ICMP
+```
+
+:::
 
 #### SSL Certificate Warnings
 
