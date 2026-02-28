@@ -31,6 +31,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'kubernetes/installation',
         'kubernetes/cluster-configuration',
+        'kubernetes/cluster-maintenance',
       ],
     },
     {
