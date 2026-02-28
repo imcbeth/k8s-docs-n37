@@ -13,7 +13,7 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
 - **Service Mesh:** Istio Ambient (mTLS via HBONE tunneling)
 - **Deployment:** Managed by ArgoCD at sync-wave `-40`
 - **Approach:** Zero-trust (default-deny with explicit allow rules)
-- **Namespaces Protected:** 13 (added ingress-nginx, istio-system, gatekeeper-system 2026-02-14)
+- **Namespaces Protected:** 18 (added default, argocd, synology-csi, kube-system, tigera-operator 2026-02-15; Calico ICMP policy 2026-02-27)
 
 ## Architecture
 
@@ -88,6 +88,11 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
 | external-dns | DNS management | No | 7979, 8080, 8888 |
 | metallb-system | Load balancer | No | 7472, 7473, 7946 |
 | falco | Runtime security | No | 8765, 2801, 5060 |
+| default | Monitoring stack, blackbox-exporter | Ambient | 9090, 9093, 9115, 3000 |
+| argocd | GitOps controller | No | 8080, 8443 |
+| synology-csi | Storage driver | No | 3260 (iSCSI) |
+| kube-system | CoreDNS, metrics-server, sealed-secrets | No | 53, 10250, 8080 |
+| tigera-operator | Calico management | No | 6443 (API egress only) |
 
 ## Universal Patterns
 
@@ -303,6 +308,38 @@ spec:
           port: 15017
 ```
 
+## Calico NetworkPolicies
+
+Kubernetes NetworkPolicies only support TCP, UDP, and SCTP. For ICMP traffic, **Calico NetworkPolicies** are required.
+
+### Blackbox Exporter ICMP Egress
+
+The blackbox-exporter needs ICMP egress to ping infrastructure targets. A Calico NetworkPolicy allows this:
+
+```yaml
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-icmp-calico
+  namespace: default
+spec:
+  selector: app == 'blackbox-exporter'
+  types:
+    - Egress
+  egress:
+    - action: Allow
+      destination:
+        nets:
+          - 10.0.1.1/32     # Gateway
+          - 10.0.1.204/32   # Synology NAS
+          - 8.8.8.8/32      # Google DNS
+      protocol: ICMP
+```
+
+:::warning Calico Selector Syntax
+Calico NetworkPolicy uses its own expression syntax (`app == 'blackbox-exporter'`), not the Kubernetes label selector format (`matchLabels: {app: blackbox-exporter}`).
+:::
+
 ## Namespace Policy Details
 
 ### trivy-system
@@ -472,6 +509,11 @@ NetworkPolicies are deployed via ArgoCD using Kustomize at sync-wave `-40` (earl
 ```
 manifests/base/network-policies/
 ├── kustomization.yaml
+├── default/
+│   ├── network-policy.yaml
+│   └── calico-network-policy-allow-egress-icmp.yaml  # Calico ICMP
+├── argocd/
+│   └── network-policy.yaml
 ├── ingress-nginx/
 │   └── network-policy.yaml
 ├── istio-system/
@@ -496,7 +538,13 @@ manifests/base/network-policies/
 │   └── network-policy.yaml
 ├── metallb-system/
 │   └── network-policy.yaml
-└── falco/
+├── falco/
+│   └── network-policy.yaml
+├── synology-csi/
+│   └── network-policy.yaml
+├── kube-system/
+│   └── network-policy.yaml
+└── tigera-operator/
     └── network-policy.yaml
 ```
 

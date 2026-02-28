@@ -147,8 +147,10 @@ storageClassName: synology-iscsi-delete-ssd
 - Supports snapshot-based backups
 - Containers: csi-snapshotter, csi-plugin, snapshot-controller (all with resource limits)
 
-:::info Resource Limits (2026-02-14)
+:::info Resource Limits (2026-02-14, updated 2026-02-27)
 Resource limits were added to all containers across the controller, node, and snapshotter components (PR #451) to comply with Gatekeeper's `require-resource-limits` policy. The snapshot-controller uses a Kustomize strategic merge patch since it's sourced from a remote GitHub reference.
+
+**Important:** The patch must use `namespace: kube-system` (the upstream resource's original namespace), not the kustomization's `namespace: synology-csi` override. Kustomize resolves patches before applying namespace transformation (PR #478).
 :::
 
 ## Version History

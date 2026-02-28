@@ -80,7 +80,7 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 - [x] Grafana dashboard for security metrics
 - [x] PrometheusRule alerts for critical vulnerabilities
 - [x] Compliance reporting (CIS Kubernetes Benchmark, NSA Hardening)
-- [x] **Falco** - Runtime security monitoring (eBPF driver, all 5 nodes, chart v8.0.0)
+- [x] **Falco** - Runtime security monitoring (eBPF driver, all 5 nodes, chart v8.0.1)
 - [x] **OPA Gatekeeper** - Policy enforcement (5 policies, deny mode since 2026-02-07)
 
 **Documentation:** See [Trivy Operator Guide](./applications/trivy-operator.md) and [Vulnerability Remediation Guide](./applications/trivy-vulnerability-remediation.md) for details.
@@ -88,7 +88,7 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 ### 5b. **Network Policies** ✅ COMPLETED (2026-01-29)
 
 - [x] **Kubernetes NetworkPolicies** - Namespace isolation deployed via ArgoCD
-- [x] 10 namespaces protected: localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco
+- [x] 18 namespaces protected: localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco, ingress-nginx, istio-system, gatekeeper-system, default, argocd, synology-csi, kube-system, tigera-operator
 - [x] Allow-list approach: Default-deny ingress with explicit allow rules
 - [x] Prometheus metrics scraping preserved across all policies
 - [x] DNS egress allowed for all namespaces
@@ -257,11 +257,11 @@ Items are organized by priority. Focus on:
 
 ### **Phase 3: Advanced Features** ✅ COMPLETED
 
-1. ✅ Network policies implementation (10 namespaces isolated 2026-01-29)
+1. ✅ Network policies implementation (18 namespaces isolated, expanded through 2026-02-27)
 2. ✅ GitOps enhancements (Renovate deployed - automated dependency updates)
 3. ✅ Argo Workflows for pipeline automation (chart v0.47.3)
 4. ✅ Service mesh deployed (Istio Ambient v1.28.3)
-5. ✅ Runtime security (Falco v8.0.0 + OPA Gatekeeper v3.21.1 in deny mode)
+5. ✅ Runtime security (Falco v8.0.1 + OPA Gatekeeper v3.21.1 in deny mode)
 
 ### **Phase 4: Optimization & Expansion** 🚧 IN PROGRESS
 
