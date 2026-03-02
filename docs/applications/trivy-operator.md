@@ -210,6 +210,22 @@ kubectl get clustercompliancereport k8s-cis-1.23 -o yaml
 kubectl get clustercompliancereport k8s-nsa-1.0 -o yaml
 ```
 
+#### Weekly Compliance Summary CronJob
+
+A weekly CronJob (`compliance-report-summary`, deployed 2026-03-01) collects compliance data and posts a summary to AlertManager:
+
+- **Schedule:** Monday 8:00 AM UTC
+- **Image:** bitnami/kubectl:latest (includes kubectl, jq, curl)
+- **Data collected:** All 4 ClusterComplianceReports (pass/fail/total) + vulnerability summary
+- **Delivery:** POST to AlertManager API as an informational alert
+- **Resources:** 50m/64Mi requests, 100m/128Mi limits
+- **RBAC:** Dedicated ServiceAccount with read-only access to compliance and vulnerability CRDs
+
+**Configuration files:**
+
+- `manifests/base/trivy-operator/compliance-report-rbac.yaml` - ServiceAccount, ClusterRole, ClusterRoleBinding
+- `manifests/base/trivy-operator/compliance-report-cronjob.yaml` - CronJob definition
+
 ## Monitoring and Alerts
 
 ### Grafana Dashboard
@@ -255,6 +271,8 @@ All alerts restored to active status after the v0.29.0 vulnerability scanning bu
 - `ExposedSecretsDetected`: Secrets found in images (immediate action required)
 - `CISKubernetesBenchmarkFailures`: CIS compliance failures
 - `NSAKubernetesHardeningFailures`: NSA hardening failures
+- `PSSBaselineComplianceFailures`: Pod Security Standards Baseline failures (added 2026-03-01)
+- `PSSRestrictedComplianceFailures`: Pod Security Standards Restricted failures (added 2026-03-01)
 
 **Restored Alerts (since PR #410):**
 
@@ -360,6 +378,8 @@ For detailed vulnerability response procedures, see: [Trivy Vulnerability Remedi
 | `manifests/base/trivy-operator/values.yaml` | Helm values (scanners, resource limits) |
 | `manifests/base/trivy-operator/namespace.yaml` | trivy-system namespace |
 | `manifests/base/trivy-operator/trivy-alerts.yaml` | PrometheusRule for vulnerability alerts |
+| `manifests/base/trivy-operator/compliance-report-rbac.yaml` | RBAC for compliance CronJob |
+| `manifests/base/trivy-operator/compliance-report-cronjob.yaml` | Weekly compliance summary CronJob |
 | `manifests/base/grafana/dashboards/trivy-security-dashboard.yaml` | Grafana dashboard JSON |
 
 ## Maintenance

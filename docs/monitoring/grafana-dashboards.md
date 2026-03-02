@@ -535,11 +535,11 @@ In addition to the 4 custom dashboards above, 13 community/vendor dashboards tha
 - **Purpose:** Quick search and log volume overview
 - **Features:** Log volume by namespace, ingestion rate, query performance
 
-**3. Loki Stack Monitoring (Promtail, Loki)**
+**3. Loki Stack Monitoring (Alloy, Loki)**
 
-- **Source:** Community dashboard
-- **Purpose:** Monitor Loki and Promtail components
-- **Features:** Ingester metrics, distributor stats, Promtail scrape status
+- **Source:** Community dashboard (updated 2026-03-01 for Alloy migration)
+- **Purpose:** Monitor Loki and Alloy log collector components
+- **Features:** Ingester metrics, distributor stats, Alloy scrape status
 
 **4. Loki 2.0 Global Metrics**
 
@@ -600,6 +600,24 @@ In addition to the 4 custom dashboards above, 13 community/vendor dashboards tha
 
 **Data Source:** All UniFi dashboards use metrics from **UniFi Poller** (deployed in `unipoller` namespace)
 
+### Ingress Dashboards (1)
+
+**1. Ingress NGINX Overview**
+
+- **Source:** Custom dashboard (deployed 2026-03-01)
+- **Purpose:** Comprehensive ingress controller monitoring
+- **Features:**
+  - Overview stats: RPS, success rate, active connections, config reload, p95 latency
+  - Request rate by status code (2xx/3xx/4xx/5xx) with per-host breakdown
+  - Latency percentiles (p50/p90/p95/p99) with per-host p95
+  - Upstream performance: response time p95, request/response sizes
+  - Connection states: active/reading/writing/waiting + rate-limited 429s
+  - Controller health: memory, CPU, config reload timestamps
+- **Data Source:** ingress-nginx controller metrics (ingress-nginx namespace)
+- **Folder:** network
+- **Template Variable:** `host` dropdown for per-Ingress filtering
+- **Alerts:** 7 PrometheusRule alerts for availability, latency, and controller health
+
 ### Security Dashboards (2)
 
 **1. Trivy Security Overview**
@@ -639,8 +657,9 @@ These dashboards are organized in **Grafana folders** for easier navigation:
 - **Folder: Loki** - 4 log monitoring dashboards
 - **Folder: Synology** - 2 NAS monitoring dashboards
 - **Folder: UniFi** - 7 network infrastructure dashboards
-- **Folder: Security** - 2 security dashboards (Trivy, Falco)
-- **Folder: General** - 4 custom Pi cluster dashboards + 1 CI/CD dashboard
+- **Folder: Security** - 3 security dashboards (Trivy, Falco, Gatekeeper)
+- **Folder: Network** - 2 network dashboards (Network Utilization, Ingress NGINX)
+- **Folder: General** - 4 custom Pi cluster dashboards + Storage + APM + CI/CD
 
 **ConfigMap Label for Folders:**
 
@@ -650,12 +669,12 @@ labels:
   folder: "loki"  # or "synology", "unifi"
 ```
 
-## Dashboard Audit (Updated 2026-01-29)
+## Dashboard Audit (Updated 2026-03-01)
 
 ### Current State
 
-**Total Dashboards:** 46 (all provisioned via ConfigMap) ✅
-**Custom Dashboards:** 7 (4 original + Trivy + Falco + Argo Workflows)
+**Total Dashboards:** 49 (all provisioned via ConfigMap) ✅
+**Custom Dashboards:** 10 (4 original + Trivy + Falco + Argo Workflows + Gatekeeper + Ingress NGINX + APM)
 **Migrated Community Dashboards:** 13 (Loki: 4, Synology: 2, UniFi: 7)
 **Kube-Prometheus-Stack Dashboards:** 26
 **Uncommitted Dashboards:** 0 ✅

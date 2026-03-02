@@ -109,13 +109,13 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 - [ ] L7 authorization policies (future enhancement)
 - [ ] Circuit breaker and retry policies (future enhancement)
 
-### 7. **Log Aggregation** ✅ COMPLETED (2025-12-28)
+### 7. **Log Aggregation** ✅ COMPLETED (2025-12-28, updated 2026-03-01)
 
-- [x] Deploy **Loki + Promtail** stack for centralized logging
+- [x] Deploy **Loki + Alloy** stack for centralized logging
 - [x] Integrate with existing Grafana instance (auto-discovered datasource)
 - [x] Configure log retention policies (7 days, 20Gi PVC)
-- [x] Promtail DaemonSet on all 5 nodes (including control-plane)
-- [x] Set up log-based alerting via Loki ruler (11 alert rules)
+- [x] Alloy DaemonSet on all 5 nodes (including control-plane) — migrated from Promtail (EOL March 2026)
+- [x] Set up log-based alerting via Loki ruler (9 LogQL alert rules in 4 groups)
 - [x] Loki log analytics dashboard deployed
 
 **Documentation:** See [Loki Application Guide](./applications/loki.md) for complete deployment details including log-based alerting.
@@ -260,18 +260,22 @@ Items are organized by priority. Focus on:
 1. ✅ Network policies implementation (18 namespaces isolated, expanded through 2026-02-27)
 2. ✅ GitOps enhancements (Renovate deployed - automated dependency updates)
 3. ✅ Argo Workflows for pipeline automation (chart v0.47.3)
-4. ✅ Service mesh deployed (Istio Ambient v1.28.3)
+4. ✅ Service mesh deployed (Istio Ambient v1.29.0)
 5. ✅ Runtime security (Falco v8.0.1 + OPA Gatekeeper v3.21.1 in deny mode)
+6. ✅ Promtail → Grafana Alloy migration (EOL migration, 2026-03-01)
 
 ### **Phase 4: Optimization & Expansion** 🚧 IN PROGRESS
 
 1. ✅ Storage performance dashboard (PR #383)
 2. ✅ Network utilization dashboard (PR #385)
 3. ✅ SealedSecrets key rotation (30-day rotation enabled)
-4. Resource optimization and VPA
-5. Chaos engineering and resilience testing
-6. Advanced networking and VPN (Tailscale/WireGuard)
-7. Development tools (Gitea/GitLab, Harbor)
+4. ✅ Ingress NGINX monitoring (7 alerts + Grafana dashboard, PR #498, 2026-03-01)
+5. ✅ Trivy compliance reporting CronJob (weekly summary to AlertManager, PR #494, 2026-03-01)
+6. ✅ Loki log-based alerting (9 LogQL rules, PR #489, 2026-03-01)
+7. Resource optimization and VPA
+8. Chaos engineering and resilience testing
+9. Advanced networking and VPN (Tailscale/WireGuard)
+10. Development tools (Gitea/GitLab, Harbor)
 
 ---
 

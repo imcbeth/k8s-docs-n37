@@ -190,13 +190,15 @@ The Helm chart has two separate job types for webhook certificate management: `c
 
 ## Active Ingresses
 
-| Host | Namespace | Service | Backend | TLS |
-|------|-----------|---------|---------|-----|
-| argocd.k8s.n37.ca | argocd | argocd-server | 443 | ✅ Let's Encrypt |
-| grafana.k8s.n37.ca | default | kube-prometheus-stack-grafana | 80 | ✅ Let's Encrypt |
-| localstack.k8s.n37.ca | localstack | localstack | 4566 | ✅ Let's Encrypt |
+| Host | Namespace | Service | Rate Limit | TLS |
+|------|-----------|---------|------------|-----|
+| argocd.k8s.n37.ca | argocd | argocd-server | 50 RPS / 20 conn | ✅ Let's Encrypt |
+| grafana.k8s.n37.ca | default | kube-prometheus-stack-grafana | 100 RPS / 20 conn | ✅ Let's Encrypt |
+| workflows.k8s.n37.ca | argo-workflows | argo-workflows-server | 50 RPS / 20 conn | ✅ Let's Encrypt |
+| falco.k8s.n37.ca | falco | falco-falcosidekick-ui | 50 RPS / 20 conn | ✅ Let's Encrypt |
+| localstack.k8s.n37.ca | localstack | localstack | 50 RPS / 20 conn | ✅ Let's Encrypt |
 
-All ingresses use TLS certificates automatically issued by cert-manager.
+All ingresses use TLS certificates automatically issued by cert-manager. Rate limiting is configured per-Ingress via annotations (`limit-rps` + `limit-connections`).
 
 ---
 
@@ -611,12 +613,34 @@ rate(nginx_ingress_controller_bytes_sent_total[5m])
 nginx_ingress_controller_ssl_certificate_expiry_seconds
 ```
 
-### Grafana Dashboards
+### PrometheusRule Alerts
 
-Recommended community dashboards:
+PrometheusRule: `ingress-nginx-alerts` (deployed 2026-03-01)
 
-- **Dashboard ID 9614:** NGINX Ingress Controller
-- **Dashboard ID 11875:** Kubernetes Ingress
+| Alert | Threshold | Severity |
+|-------|-----------|----------|
+| IngressHighServerErrorRate | 5xx rate > 5% for 5m | warning |
+| IngressHostHighErrorRate | Per-host 5xx rate > 10% for 5m | warning |
+| IngressHighClientErrorRate | 4xx rate > 30% for 10m | warning |
+| IngressHighLatencyP95 | p95 > 5s for 10m | warning |
+| IngressHostHighLatencyP95 | Per-host p95 > 10s for 10m | warning |
+| IngressConfigReloadFailed | Reload unsuccessful for 5m | critical |
+| IngressControllerDown | Metrics endpoint down for 5m | critical |
+
+### Grafana Dashboard
+
+**Dashboard:** "Ingress NGINX Overview" (deployed 2026-03-01, folder: network)
+
+6 rows with 23 panels covering:
+
+- **Overview Stats:** Total RPS, success rate, active connections, config reload status, p95 latency, 5xx count
+- **Request Rate by Status:** Stacked time series (2xx/3xx/4xx/5xx) + per-host breakdown
+- **Latency:** p50/p90/p95/p99 percentiles + per-host p95
+- **Upstream Performance:** Upstream response time p95, average request/response sizes
+- **Connections:** Active/reading/writing/waiting states + rate-limited 429s
+- **Controller Health:** Process memory, CPU usage, config reload timestamps
+
+Template variable: `host` dropdown from `label_values(nginx_ingress_controller_requests, host)`
 
 ---
 
@@ -723,7 +747,7 @@ ingress-nginx namespace has a NetworkPolicy restricting traffic:
 
 ---
 
-**Last Updated:** 2026-02-14
+**Last Updated:** 2026-03-01
 **Status:** Production, Healthy
 **Managed By:** ArgoCD (`manifests/applications/ingress-nginx-config.yaml`)
 **LoadBalancer IP:** 10.0.10.10
