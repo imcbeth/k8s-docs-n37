@@ -68,7 +68,7 @@ The monitoring stack is built around the **kube-prometheus-stack**, which provid
 
 **Purpose:** Metrics visualization and dashboarding
 
-- **Pre-loaded Dashboards:** 46 dashboards (4 custom, 13 community, 26 from prometheus-stack, 3 Gatekeeper)
+- **Pre-loaded Dashboards:** 49 dashboards (10 custom, 13 community, 26 from prometheus-stack)
 - **Custom Dashboards:** Support for user-created visualizations
 - **Datasources:** Pre-configured Prometheus connection
 - **Authentication:** Secure admin access
@@ -262,7 +262,24 @@ spec:
       for: 5m
 ```
 
-### Common Alerts
+### Custom PrometheusRule Alerts
+
+In addition to the 100+ default alerts from kube-prometheus-stack, the following custom PrometheusRules are deployed:
+
+| PrometheusRule | Alerts | Scope |
+|----------------|--------|-------|
+| `argo-workflows-alerts` | 8 | Workflow failures, stuck, queue backlog, controller errors |
+| `blackbox-exporter-alerts` | 12 | Endpoint availability, SSL expiry, latency |
+| `storage-alerts` | 7 | Disk space prediction, PVC capacity, NAS health |
+| `velero-alerts` | 7 | Backup failures, schedule misses, restore errors |
+| `istio-alerts` | 9 | Control plane health, XDS convergence, DNS failures |
+| `apm-alerts` | 8 | OOMKill, CrashLoop, node CPU/memory/disk, API server |
+| `ingress-nginx-alerts` | 7 | 5xx/4xx rates, p95 latency, config reload, controller down |
+| `trivy-operator-alerts` | 12 | Critical CVEs, RBAC issues, compliance failures, exposed secrets |
+
+**Total Custom Alerts:** ~70 across 8 PrometheusRules
+
+### Common Alert Categories
 
 **Node Alerts:**
 
@@ -490,16 +507,18 @@ All monitoring components are managed via ArgoCD:
   - Response time monitoring
   - Grafana dashboard for probe status
 
+### Recently Completed (March 2026)
+
+- ✅ **Log Collector Migration:** Migrated from Promtail (EOL March 2026) to Grafana Alloy v1.13.0
+- ✅ **Ingress NGINX Monitoring:** 7 PrometheusRule alerts + dedicated Grafana dashboard (PR #498)
+- ✅ **Trivy Compliance Reporting:** Weekly CronJob posting compliance summaries to AlertManager (PR #494)
+- ✅ **Loki Log-Based Alerting:** 9 LogQL alert rules via embedded ruler (PR #489)
+
 ### Coming Soon
 
-- **Additional Custom Dashboards**
-  - Enhanced Raspberry Pi thermal dashboard
-  - Storage performance correlation dashboard
-
 - **Alert Notification Setup**
-  - Slack integration for critical alerts
+  - Slack/Discord integration for critical alerts
   - Daily health report summaries
-  - PagerDuty integration for production alerts
 
 ## Troubleshooting
 
