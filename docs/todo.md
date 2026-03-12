@@ -6,276 +6,483 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 # Homelab TODO & Improvements
 
-## 🔍 **Monitoring & Observability Enhancements**
+## ✅ **Recently Completed** (December 2025 - March 2026)
 
-### 0. **Prometheus Monitoring Stack Fixes** ✅ COMPLETED (2025-12-26)
+### Infrastructure Fixes (January 2026)
 
-- [x] Fixed node-exporter scraping issues (changed to hostNetwork: false)
-- [x] Resolved Grafana Multi-Attach PVC errors (Recreate deployment strategy)
-- [x] Disabled unreachable control plane monitoring (controller-manager, etcd, proxy, scheduler)
-- [x] All 5 Raspberry Pi nodes now fully monitored
-- [x] Clean Prometheus targets page (no scraping errors)
+- **Tigera Operator Migration** - Migrated Calico CNI to GitOps-managed Tigera operator (PRs #346-352, 2026-01-30)
+  - Calico now managed by Tigera operator in calico-system namespace
+  - ArgoCD Application with multi-source (operator from GitHub, Installation CR from homelab)
+  - Typha topology spread constraints for node distribution
+  - Established ignoreDifferences patterns for operator-managed resources
+  - ArgoCD repo-server memory increased to 512Mi for large manifest generation
+- **External-DNS Domain Filter Fix** - Fixed subdomain zone filtering (PRs #295-296, 2026-01-25)
+  - Root cause: `--domain-filter=k8s.n37.ca` rejected the `n37.ca` Cloudflare zone
+  - Solution: Use parent zone as domain-filter; ingresses specify exact hostnames
+- **Grafana fsGroup Race Condition** - Fixed mount failure with Synology CSI (PR #298, 2026-01-25)
+  - Root cause: SQLite journal file deleted during fsGroup recursive application
+  - Solution: Added `fsGroupChangePolicy: OnRootMismatch` to podSecurityContext
 
-**Documentation:** See [kube-prometheus-stack Known Issues](./applications/kube-prometheus-stack.md#known-issues-and-solutions) for detailed troubleshooting guides.
+### Secrets Management (January 2026)
 
-### 1. **SNMP Monitoring for Synology** ✅ COMPLETED
+- **Sealed Secrets Migration** - Migrated 8 secrets from git-crypt to SealedSecrets (2026-01-14)
+- **External Secrets Removed** - Evaluation complete, Sealed Secrets chosen for simplicity (2026-01-14)
+- **Secrets Directory Cleanup** - Removed 15 obsolete files, only ArgoCD bootstrap secret remains
 
-- [x] Deploy SNMP exporter for Synology NAS monitoring
-- [x] Configure Prometheus scrape config for SNMP metrics
-- [x] Add Grafana dashboards for NAS performance, disk health, temperature
-- [ ] Set up alerts for disk failures, high temperature, storage capacity (pending)
+### Backup & Disaster Recovery (January 2026)
 
-```yaml
-# Add to prometheus scrape configs
-- job_name: 'synology-snmp'
-  static_configs:
-    - targets: ['10.0.1.204']
-  metrics_path: /snmp
-  params:
-    module: [synology]
-  relabel_configs:
-    - source_labels: [__address__]
-      target_label: __param_target
-    - source_labels: [__param_target]
-      target_label: instance
-    - target_label: __address__
-      replacement: snmp-exporter:9116
-```
+- **Velero Backblaze B2 Migration** - Migrated from LocalStack to Backblaze B2 for production backups (2026-01-14, PR #239)
+- **Velero CSI Snapshots** - Configured Velero to use CSI snapshots exclusively (2026-01-05)
+- **snapshot-controller Fix** - Downgraded from v8.2.0 → v6.3.1 to resolve VolumeSnapshot failures (2026-01-05)
+- **Loki Memory Optimization** - Implemented GOMEMLIMIT, ingestion rate limits, reduced memory usage from 474Mi → 232Mi (2026-01-05)
 
-### 2. **Node Exporter for Pi Cluster** ✅ COMPLETED
+### Monitoring & Observability (December 2025)
 
-- [x] Deploy node-exporter on all 5x Pi 5 nodes
-- [x] Monitor CPU temperature and throttling
-- [x] Track NVMe SSD health and performance metrics
-- [x] Memory usage and available capacity monitoring
-- [x] Network interface statistics
+- **SNMP Monitoring for Synology** - Deployed SNMP exporter, scraping NAS metrics (disk health, temperature, RAID status)
+- **Node Exporter for Pi Cluster** - DaemonSet running on all 5 nodes, monitoring CPU, memory, disk, network
+- **Log Aggregation** - Loki + Alloy deployed, 7-day retention, collecting logs from all pods on all nodes (including control-plane)
+- **Prometheus Stack Fixes** - Fixed node-exporter scraping, Grafana PVC issues, cleaned up control plane monitoring
+- **Control Plane Monitoring** - Re-enabled kube-scheduler and kube-controller-manager monitoring
+- **ServiceMonitor Enablement** - Enabled metrics collection for Loki and Alloy
 
-### 3. **Blackbox Exporter** ✅ COMPLETED (2025-12-27)
+### DNS & Service Discovery
 
-- [x] Deploy blackbox exporter for endpoint monitoring
-- [x] Monitor external services availability (DNS, HTTP/HTTPS)
-- [x] SSL certificate expiry monitoring
-- [x] Network latency and response time tracking
-- [x] Add alerts for service downtime
+- **External-DNS Deployment** - Dual provider setup (Cloudflare + UniFi webhook) for split-horizon DNS (2025-12-27)
+  - Cloudflare provider for public DNS records
+  - kashalls/external-dns-unifi-webhook v0.7.0 for internal DNS
+  - Automatic DNS record creation for Ingresses (argocd.k8s.n37.ca, grafana.k8s.n37.ca, localstack.k8s.n37.ca, workflows.k8s.n37.ca)
+  - TXT registry for ownership tracking
+  - **Fixed domain-filter for subdomain zones** (PRs #295-296, 2026-01-25) - Use parent zone (n37.ca) as domain-filter
+
+### Documentation
+
+- **Comprehensive Docs Site** - k8s-docs-n37 Docusaurus site with application guides
+- **External-DNS Guide** - Complete documentation with dual provider setup and troubleshooting
+- **Loki Application Guide** - Complete documentation for Loki + Alloy deployment
+- **SNMP Exporter Guide** - Synology monitoring documentation
+- **Troubleshooting Guides** - Monitoring stack and common issues documented
+
+---
+
+## 🎯 **High Priority**
+
+### 1. **Blackbox Exporter** ✅ Complete
+
+- [x] **Blackbox Exporter** - Fully operational (deployed 2025-12-27, verified 2025-12-28)
+- [x] Deploy blackbox exporter for endpoint monitoring (v0.25.0, 2 replicas)
+- [x] Monitor external services availability (DNS, HTTP/HTTPS probes configured)
+- [x] SSL certificate expiry monitoring for k8s.n37.ca domain (https_cert_expiry module)
+- [x] Network latency and response time tracking (ICMP ping monitoring)
+- [x] Add alerts for service downtime (12 PrometheusRule alerts configured)
+- [x] Monitor Synology NAS web interface availability (10.0.1.204 monitored)
 
 **Documentation:** See [Blackbox Exporter Application Guide](./applications/blackbox-exporter.md) for complete deployment details.
 
-## 🛡️ **Security & Backup**
+### 2. **Enhanced Alerting** ✅ Complete
 
-### 4. **Backup Strategy** ✅ COMPLETED (2026-01-14)
+- [x] **AlertManager SMTP Email** - Configured Gmail SMTP for critical alerts (2025-12-27)
+- [x] **Alert Routing** - Critical → email, warning/info → null (reduce noise)
+- [x] **Velero Backup Alerts** - 7 PrometheusRule alerts for backup monitoring
+- [x] **HTML Email Templates** - Custom-formatted critical alert emails
+- [~] ~~Configure AlertManager webhook to Discord/Slack/Telegram~~ - Not used (email preferred)
+- [x] Implement tiered alerting (warning → suppress, critical → email)
+- [x] **Predictive Disk Space Alerts** - Node filesystem, PVC, and Synology volume alerts with predict_linear() (2026-01-12)
+- [x] **NAS Health Alerts** - Disk failures, RAID degradation, temperature, bad sectors, power status (2026-01-12)
+- [x] **Alert runbooks** - Documented in secrets/SEALED-SECRETS.md and k8s-docs-n37 (2026-01-14)
+- [x] **Test alert routing** - Verified email delivery (121 sent, 0 failed) (2026-01-14)
 
-- [x] **Velero** - Deployed with CSI snapshot support and Backblaze B2 storage
-- [x] **Daily ArgoCD backup** - Automated at 1:30 AM, 30-day retention
-- [x] **Daily critical PVC backup** - Automated at 2:00 AM (Prometheus, Loki, Grafana, Pi-hole)
-- [x] **Weekly cluster resource backup** - Automated at 3:00 AM Sunday, 90-day retention
-- [x] Backup testing and restore procedures verified with B2
-- [x] Velero documentation complete with monitoring alerts
+### 3. **Backup Strategy** ✅ Complete
+
+- [x] **Velero** - Deployed for Kubernetes cluster backup (2025-12-27)
+- [x] **CSI Snapshots** - Configured Velero to use CSI snapshots exclusively (2026-01-05)
+- [x] **snapshot-controller** - Deployed v6.3.1 for VolumeSnapshot processing (2026-01-05)
+- [x] Backup critical PVCs (Prometheus 50Gi, Grafana 5Gi, Loki 20Gi)
+- [x] Daily PVC backups (2 AM, 30-day retention) - CSI snapshots operational
+- [x] Weekly cluster resource backups (3 AM Sunday, 90-day retention)
+- [x] Velero backup monitoring alerts (7 PrometheusRule alerts)
+- [x] **Fixed VolumeSnapshot failures** - Upgraded snapshot-controller to v8.2.1, csi-snapshotter to v8.4.0 (2026-01-11)
+- [x] **LocalStack Sync Wave Fix** - LocalStack at wave -7, before Velero (-5) ✓
+- [x] **Schedule regular backup testing** - Velero B2 restore tested and validated (2026-01-14)
+- [x] **Migrate from LocalStack to Backblaze B2** - Production backup storage (2026-01-14, PR #239)
+- [x] **Test disaster recovery scenarios** - Namespace restore with SealedSecrets validated (2026-01-14)
+- [x] **ArgoCD configuration backup automation** - Daily backup schedule at 1:30 AM (2026-01-14)
+
+**Note:** Kopia file-level backups disabled in favor of CSI snapshots (more efficient for block storage)
 
 **Documentation:** See [Velero Application Guide](./applications/velero.md) for complete deployment details and disaster recovery procedures.
 
-### 5. **Security Scanning & Runtime Protection** ✅ COMPLETED (2026-02-07)
+---
 
-- [x] **Trivy Operator** - Container vulnerability scanning deployed
-- [x] Vulnerability reports generating for all workloads (95 images)
-- [x] Grafana dashboard for security metrics
-- [x] PrometheusRule alerts for critical vulnerabilities
-- [x] Compliance reporting (CIS Kubernetes Benchmark, NSA Hardening)
-- [x] **Falco** - Runtime security monitoring (eBPF driver, all 5 nodes, chart v8.0.1)
-- [x] **OPA Gatekeeper** - Policy enforcement (5 policies, deny mode since 2026-02-07)
+## 🔍 **Monitoring & Observability Enhancements**
 
-**Documentation:** See [Trivy Operator Guide](./applications/trivy-operator.md) and [Vulnerability Remediation Guide](./applications/trivy-vulnerability-remediation.md) for details.
+### 4. **Custom Dashboards** ✅ Complete
 
-### 5b. **Network Policies** ✅ COMPLETED (2026-01-29)
-
-- [x] **Kubernetes NetworkPolicies** - Namespace isolation deployed via ArgoCD
-- [x] 18 namespaces protected: localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco, ingress-nginx, istio-system, gatekeeper-system, default, argocd, synology-csi, kube-system, tigera-operator
-- [x] Allow-list approach: Default-deny ingress with explicit allow rules
-- [x] Prometheus metrics scraping preserved across all policies
-- [x] DNS egress allowed for all namespaces
-- [x] Documentation complete with testing procedures
-- [ ] Implement Calico GlobalNetworkPolicy for cluster-wide rules
-- [ ] Network policy monitoring dashboard in Grafana
-
-**Documentation:** See [Network Policies Guide](./security/network-policies.md) for complete policy definitions and management procedures.
-
-## 🚀 **Platform Enhancements**
-
-### 6. **Service Mesh** ✅ COMPLETED (2026-01-28)
-
-- [x] Evaluated **Istio Ambient** vs **Linkerd** for the Pi cluster (chose Istio Ambient)
-- [x] Deployed Istio Ambient mesh v1.28.3 (sidecarless architecture)
-- [x] mTLS encryption between services via ztunnel
-- [x] 6 namespaces in mesh: default, loki, localstack, argo-workflows, unipoller, trivy-system
-- [ ] L7 authorization policies (future enhancement)
-- [ ] Circuit breaker and retry policies (future enhancement)
-
-### 7. **Log Aggregation** ✅ COMPLETED (2025-12-28, updated 2026-03-01)
-
-- [x] Deploy **Loki + Alloy** stack for centralized logging
-- [x] Integrate with existing Grafana instance (auto-discovered datasource)
-- [x] Configure log retention policies (7 days, 20Gi PVC)
-- [x] Alloy DaemonSet on all 5 nodes (including control-plane) — migrated from Promtail (EOL March 2026)
-- [x] Set up log-based alerting via Loki ruler (9 LogQL alert rules in 4 groups)
-- [x] Loki log analytics dashboard deployed
-
-**Documentation:** See [Loki Application Guide](./applications/loki.md) for complete deployment details including log-based alerting.
-
-### 8. **Secrets Management** ✅ COMPLETED (2026-01-14)
-
-- [x] **Sealed Secrets** - GitOps-friendly encrypted secrets (chosen over ESO)
-- [x] Migrate existing secrets to managed solution (8 SealedSecrets deployed)
-- [x] Document secrets management procedures
-- [x] Sealing key backup procedures documented
-- [ ] Set up automated secret rotation reminders (future enhancement)
-
-**Note:** Evaluated both External Secrets Operator and Sealed Secrets. Chose Sealed Secrets for homelab due to 7x less memory usage and simpler architecture.
-
-**Documentation:** See [Secrets Management Guide](./security/secrets-management.md) for complete procedures including rotation and disaster recovery.
-
-## 📊 **Advanced Monitoring & Dashboards**
-
-### 9. **Custom Dashboards** ✅ COMPLETED (2025-12-28)
-
-- [x] Pi cluster temperature monitoring dashboard
-- [x] Node resource monitoring dashboard (CPU, memory, disk I/O, network)
-- [x] Loki log analytics dashboard
-- [x] Trivy security scanning dashboard
-- [x] 43 total Grafana dashboards deployed via GitOps
-- [ ] Power consumption tracking (if UPS available)
-- [ ] Network utilization by VLAN/segment (advanced)
+- [x] **Custom Grafana Dashboards** - 4 dashboards deployed via ConfigMap provisioning (2025-12-28)
+- [x] Pi cluster temperature monitoring dashboard (per-node CPU temps with Raspberry Pi 5 specifics)
+- [x] Node resource utilization dashboard (CPU, memory, disk per node)
+- [x] Loki log volume and ingestion rate dashboard (log analytics and error tracking)
+- [x] Create unified "cluster health" dashboard (Pi Cluster Overview with 12 panels)
+- [x] **Migrate Uncommitted Dashboards to Code** - Completed audit, no migration needed (2025-12-28)
+  - [x] Audit Grafana UI for any manually created or modified dashboards (30 total, all in ConfigMaps)
+  - [x] Export uncommitted dashboards as JSON (N/A - no uncommitted dashboards found)
+  - [x] Create ConfigMap manifests for exported dashboards (N/A - all 30 already in code)
+  - [x] Add to kustomization and deploy via GitOps (N/A - all already deployed)
+  - [x] Verify dashboards load correctly after migration (All 30 dashboards confirmed via sidecar)
+  - [x] Document dashboard creation and modification workflow (Added comprehensive audit section)
+- [x] Network utilization dashboard - Deployed initial cluster-wide network utilization view (2026-02-05)
+- [x] Storage performance metrics (iSCSI latency, IOPS, throughput) - Dashboard deployed (PR #383, 2026-02-05)
+- [x] Application performance monitoring (APM) dashboard - 8-row overview with service health, CPU/memory, blackbox endpoints, API server, network I/O, saturation (2026-02-13)
 
 **Documentation:** See [Grafana Dashboards Guide](./monitoring/grafana-dashboards.md) for dashboard details.
 
-### 10. **Alerting Improvements** ✅ PARTIALLY COMPLETED (2026-01-12)
+### 5. **Metrics Server Deployment** ✅ Complete
 
-- [x] Configure **AlertManager** email notifications (Gmail SMTP)
-- [x] Implement tiered alerting (warning → critical severity levels)
-- [x] Set up predictive alerts for disk space (`predict_linear()`)
-- [x] Synology NAS health alerts (disk failures, RAID, temperature)
-- [x] Velero backup monitoring alerts (7 alert rules)
-- [x] Log-based alerting via Loki ruler (11 alert rules)
-- [ ] Configure webhook to Discord/Slack (future enhancement)
-- [ ] Create runbooks for common alert scenarios (future enhancement)
+- [x] **Metrics Server** - Deployed for kubectl top and HPA (2025-12-28)
+- [x] Deploy metrics-server for kubectl top commands
+- [x] Enable Horizontal Pod Autoscaler (HPA) capabilities
+- [x] Configure for resource-constrained Pi environment (50m CPU / 100Mi RAM)
+- [x] Prometheus ServiceMonitor integration
 
-**Note:** 121 emails delivered successfully as of 2026-01-14. AlertManager fully operational.
+### 6. **Log-Based Alerting** ✅ ENABLED (2026-03-01)
+
+- [x] **Loki Ruler Alerting** - Enabled via structuredConfig (rulerConfig ignored when ruler.enabled=false)
+- [x] Set up Loki alerting rules for error patterns (HighErrorLogRate, CriticalErrorLogs)
+- [x] Alert on CrashLoopBackOff events (CrashLoopBackOffDetected)
+- [x] Alert on OOMKilled events (OOMKilledDetected)
+- [x] Alert on persistent pod failures (PersistentPodRestarts)
+- [x] Create log-based SLO monitoring (Error rate tracking via HighErrorLogRate)
+- [x] Additional alerts: HTTP 5xx errors, DB connection errors, auth failures, security events
+
+**Status:** 9 LogQL rules in 4 groups deployed as ConfigMap with loki_rule label. k8s-sidecar loads rules to /rules/fake/ for embedded ruler in singleBinary mode. Alerts route to AlertManager (PR #489, 2026-03-01).
+
+**Documentation:** See [Loki Application Guide](./applications/loki.md) for complete deployment details including log-based alerting.
+
+---
+
+## 🛡️ **Security & Compliance**
+
+### 7. **Security Scanning & Runtime Protection** ✅ Complete
+
+- [x] **Trivy Operator** - Container vulnerability scanning (deployed 2026-01-05, chart 0.31.0)
+  - [x] ServiceMonitor configured for Prometheus metrics
+  - [x] VulnerabilityReports available via kubectl
+  - [x] Scanning all cluster images automatically
+  - [x] Node-collector tolerations for control-plane scanning (PR #345, 2026-01-30)
+- [x] **Falco** - Runtime security monitoring (deployed 2026-01-29, chart 8.0.1)
+  - [x] Modern eBPF driver for ARM64 efficiency
+  - [x] DaemonSet running on all nodes including control-plane
+  - [x] Falcosidekick with AlertManager and Loki integration
+  - [x] Web UI at falco.k8s.n37.ca (PR #340)
+  - [x] Custom rules for homelab (cryptocurrency mining, reverse shell detection)
+  - [x] PrometheusRules for security alerts
+  - [x] NetworkPolicy configured (PR #339, #344)
+- [x] **OPA Gatekeeper** - Policy enforcement and admission control (deployed 2026-02-06, chart 3.21.1)
+  - [x] 5 ConstraintTemplates: resource limits, allowed repos, required labels, block NodePort, container limits
+  - [x] All constraints switched to deny mode (0 violations, 2026-02-07)
+  - [x] Pi-optimized: 1 replica, 100m/256Mi requests, 500m/512Mi limits
+  - [x] Prometheus metrics with ServiceMonitor
+  - [x] NetworkPolicy configured
+  - [x] System namespaces exempted (kube-system, argocd, gatekeeper-system)
+- [x] Security policy definitions for workloads
+- [x] Compliance reporting and alerting (PSS Baseline + Restricted alerts, weekly CronJob summary to AlertManager)
+- [x] Create Grafana dashboard for vulnerability trends (completed 2026-02-08, PRs #410-412: fixed NetworkPolicy HBONE, Gatekeeper exemption, SBOM bug)
+
+**Documentation:** See [Trivy Operator Guide](./applications/trivy-operator.md) and [Vulnerability Remediation Guide](./applications/trivy-vulnerability-remediation.md) for details.
+
+### 8. **Secrets Management** ✅ Complete
+
+- [x] **Evaluation Complete** - Sealed Secrets recommended for homelab (2026-01-13)
+  - Sealed Secrets: 1 pod, 9Mi RAM, simple, GitOps-native
+  - External Secrets: 3 pods, 69Mi RAM, complex, requires backend
+- [x] **Sealed Secrets Deployed** - bitnami-labs/sealed-secrets v2.16.2 (2026-01-13)
+- [x] **Secrets Migrated to SealedSecrets** (2026-01-14)
+  - unipoller-secret, external-dns (cloudflare + unifi), alertmanager-smtp-credentials
+  - snmp-exporter-credentials, cert-manager cloudflare token, synology-csi client-info
+  - pihole-web-password (8 secrets total)
+- [x] **External Secrets Operator Removed** - Evaluation complete, not needed (2026-01-14)
+- [x] **Secrets Directory Cleaned** - Only bootstrap secret (ArgoCD SSH key) remains (2026-01-14)
+- [x] **Documentation Updated** - CLAUDE_NOTES.md and secrets/README.md updated
+- [x] Set up SealedSecrets sealing key rotation automation - SealedSecrets controller key rotation enabled (30d, 2026-02-05); cert-manager separately handles TLS cert renewal automatically
+- [x] Create runbook for adding new SealedSecrets (added to SEALED-SECRETS.md, PR #489, 2026-03-01)
+
+**Documentation:** See [Secrets Management Guide](./security/secrets-management.md) for complete procedures including rotation and disaster recovery.
+
+### 9. **Network Policies** ✅ COMPLETE (2026-01-25)
+
+- [x] Define NetworkPolicies for namespace isolation (18 namespaces)
+- [x] Implement ingress/egress rules for sensitive workloads
+  - [x] localstack: Allow velero, ingress-nginx, prometheus; egress DNS only
+  - [x] unipoller: Allow prometheus; egress DNS + UniFi controller
+  - [x] loki: Allow alloy, prometheus, grafana; egress DNS + alertmanager + K8s API
+  - [x] trivy-system: Allow prometheus; egress DNS + K8s API + registries
+  - [x] velero: Allow prometheus; egress DNS + localstack + B2 + K8s API
+  - [x] argo-workflows: Allow ingress-nginx, prometheus; egress DNS + K8s API + B2 (2026-01-24)
+  - [x] cert-manager: Allow webhook validation, prometheus; egress DNS + K8s API + Let's Encrypt + Cloudflare (2026-01-25)
+  - [x] external-dns: Allow prometheus, internal webhook; egress DNS + K8s API + Cloudflare + UniFi (2026-01-25)
+  - [x] metallb-system: Allow prometheus, memberlist, webhook; egress DNS + K8s API (2026-01-25)
+  - [x] ingress-nginx: Allow external traffic, prometheus; egress DNS + K8s API
+  - [x] istio-system: Allow prometheus, webhook; egress DNS + K8s API + HBONE port 15008
+  - [x] gatekeeper-system: Allow prometheus, webhook; egress DNS + K8s API
+  - [x] falco: Allow prometheus, alertmanager, loki; egress DNS + K8s API
+  - [x] default: Allow ingress-nginx, prometheus; egress DNS + K8s API
+  - [x] argocd: Allow ingress-nginx, prometheus; egress DNS + K8s API + GitHub
+  - [x] synology-csi: Allow K8s API; egress DNS + NAS iSCSI
+  - [x] kube-system: Allow prometheus; egress DNS + K8s API (metrics-server port 10250)
+  - [x] tigera-operator: Allow prometheus; egress DNS + K8s API
+- [x] Test policy enforcement (all tests passed)
+- [x] Document network segmentation strategy in k8s-docs-n37 (PR #60, 2026-01-29)
+
+**Configuration:** See `manifests/base/network-policies/` in the homelab repository for all policy definitions.
+
+**Documentation:** See [Network Policies Guide](./security/network-policies.md) for complete policy definitions and management procedures.
+
+---
+
+## 🚀 **Platform Enhancements**
+
+### 10. **Service Mesh** ✅ DEPLOYED (2026-01-28)
+
+- [x] Research lightweight service mesh options for Pi cluster
+- [x] Evaluate **Linkerd** (lightweight, Pi-friendly) - Considered but Istio Ambient selected
+- [x] Evaluate **Istio** (full-featured but resource-intensive) - Istio Ambient mode chosen
+- [x] Proof-of-concept deployment in test namespace
+- [x] Performance impact analysis on Pi 5 cluster (~38m CPU, ~145Mi memory)
+- [x] Document decision and implementation plan
+- **Status:** Istio Ambient Mesh deployed with mTLS on 29 pods across 6 namespaces
+- **Note:** All 25 ArgoCD apps Synced and Healthy (OutOfSync resolved 2026-02-05, PRs #379-381)
+
+### 11. **Ingress Enhancements** ✅ Complete
+
+- [x] Document current nginx-ingress configuration *(Updated network-info.md with all 5 Ingresses, rate limits, hardening config)*
+- [x] Implement rate limiting for public endpoints *(Already configured: 50-100 RPS + 20 conn limits on all Ingresses)*
+- [ ] ~~Add ModSecurity WAF rules~~ *Deferred: 256Mi memory limit insufficient for OWASP CRS (~512-768Mi needed); not justified for private 10.0.10.0/24 network*
+- [ ] ~~Configure geo-blocking if needed~~ *N/A: All services on private network (MetalLB IP 10.0.10.10 is RFC 1918), no public ingress*
+- [x] Monitor ingress performance and errors *(Created 7 PrometheusRule alerts + Grafana dashboard with 20 panels)*
+
+---
 
 ## 🏗️ **Infrastructure & DevOps**
 
-### 11. **GitOps Enhancements** ✅ PARTIALLY COMPLETED (2026-01-23)
+### 12. **GitOps Enhancements**
 
-- [x] **Renovate** - Automated dependency updates for manifests (GitHub App deployed)
+- [x] **Renovate** - Automated dependency updates for Helm charts (deployed 2026-01-23)
+  - [x] GitHub App installed and configured
   - [x] ArgoCD Application manifest scanning (Helm charts)
   - [x] Docker image tag updates in Kubernetes manifests
   - [x] Grouped updates (ArgoCD, monitoring, networking, security, backup)
   - [x] Weekend schedule (Sat/Sun 6am-9pm) to minimize disruption
-- [ ] Evaluate **Flux** as ArgoCD complement for specific workflows
-- [ ] Pre-commit hooks for Kubernetes manifest validation
+- [ ] Pre-commit hooks for Kubernetes manifest validation (kubeval, kustomize)
 - [ ] Automated testing pipeline for infrastructure changes
-- [ ] GitOps workflow documentation
+- [ ] Expand GitOps workflow documentation
+- [ ] Consider multi-cluster ArgoCD setup for dev/staging
 
-**Configuration:** See `renovate.json` in homelab repository for full configuration.
+**Configuration:** See `renovate.json` in the homelab repository.
 
-### 12. **Development & CI/CD Tools**
+### 13. **Development & CI/CD Tools - Argo Workflows** ✅ DEPLOYED (2026-01-24)
 
-- [ ] **Gitea** or **GitLab** - Self-hosted git repository
+**Phase 1: Argo Workflows Deployment** ✅ Complete
+
+- [x] Deploy Argo Workflows v3.7.8 (Helm chart 0.47.1)
+- [x] Configure sync-wave: -8 (after LocalStack, before Velero)
+- [x] Set up artifact repository (Backblaze B2) ✅ Fixed (PRs #287-289, 2026-01-24)
+- [x] Configure resource limits for Pi cluster constraints:
+  - Controller: 50m CPU / 128Mi RAM (request), 100m / 256Mi (limit)
+  - Server: 25m CPU / 64Mi RAM (request), 50m / 128Mi (limit)
+- [x] Enable Prometheus ServiceMonitor for workflow metrics
+- [x] NetworkPolicy enabled ✅ Fixed K8s API egress (PR #291, 2026-01-24)
+- [x] Ingress configured at [workflows.k8s.n37.ca](https://workflows.k8s.n37.ca) (PR #293, 2026-01-24)
+- [x] Create Grafana dashboards for workflow monitoring (2026-01-29)
+- [x] Set up AlertManager rules for workflow failures (2026-01-30, PR #354)
+
+**Phase 2: Workflow Integration**
+
+- [ ] ARM64 container image build workflows
+- [ ] Automated testing pipelines for infrastructure changes
+- [ ] Monthly backup validation workflows (Velero restore tests)
+- [ ] Security vulnerability scanning workflows (Trivy integration)
+- [ ] Infrastructure compliance scan workflows
+
+**Phase 3: Advanced Features**
+
+- [ ] SSO integration via oauth2-proxy
+- [ ] Workflow templates library
+- [ ] Automated dependency updates (Renovate integration)
+- [ ] Multi-cluster workflow support (if dev/staging clusters added)
+
+**Alternative Tools Considered:**
+
+- [ ] Evaluate **Tekton** (more complex, higher resource usage)
+- [ ] Evaluate **Gitea** vs **GitLab** for self-hosted git
 - [ ] **Harbor** - Container registry with vulnerability scanning
-- [x] **Argo Workflows** - CI/CD pipeline automation (deployed, chart v0.47.3)
-- [ ] Build and deployment automation for custom containers
-- [ ] Integration with existing ArgoCD setup
-
-## 🌐 **Network & Access Management**
-
-### 13. **DNS & Service Discovery** ✅ COMPLETED (2025-12-27)
-
-- [x] **External-DNS** - Automatic DNS record creation with dual provider support
-  - [x] Deployed Cloudflare provider for public DNS
-  - [x] Deployed UniFi webhook provider (kashalls v0.7.0) for internal DNS
-  - [x] Split-horizon DNS configuration (k8s.n37.ca)
-  - [x] TXT registry for ownership tracking
-  - [x] Configured ingress annotations for ArgoCD, Grafana, Localstack
-  - [x] Verified DNS record creation in both providers
-- [ ] **CoreDNS** customization for internal service discovery
-- [ ] DNS-based load balancing configuration
-- [ ] DNS monitoring and troubleshooting tools
-
-**Note:** External-DNS is fully operational with dual providers (Cloudflare + kashalls UniFi webhook). All ingress resources have external-dns annotations for automatic DNS management. See [External-DNS documentation](./applications/external-dns.md) for complete details.
-
-### 14. **VPN & Remote Access**
-
-- [ ] **Tailscale** or **WireGuard** - Secure remote access to cluster
-- [ ] **oauth2-proxy** - Single Sign-On (SSO) integration
-- [ ] Multi-factor authentication setup
-- [ ] Remote access policies and user management
-- [ ] VPN performance monitoring
-
-## 🔧 **Operational Improvements**
-
-### 15. **Documentation & Knowledge Management**
-
-- [ ] Create operational runbooks for common tasks
-- [ ] Document disaster recovery procedures
-- [ ] Capacity planning documentation
-- [ ] Update network topology diagrams
-- [ ] Performance baseline documentation
-
-### 16. **Testing & Validation**
-
-- [ ] Chaos engineering with **Chaos Monkey** or **Litmus**
-- [ ] Load testing framework for applications
-- [ ] Backup and restore testing automation
-- [ ] Network failure simulation and recovery testing
-- [ ] Performance regression testing
-
-### 17. **Capacity Planning & Optimization**
-
-- [ ] Resource utilization analysis and optimization
-- [ ] Storage capacity planning and alerting
-- [ ] Network bandwidth monitoring and optimization
-- [ ] Power consumption analysis
-- [ ] Cost tracking and optimization (if applicable)
+- [ ] Build and deployment automation for ARM64 custom containers
 
 ---
 
-## 📅 **Implementation Priority**
+## 🌐 **Network & Access Management**
 
-Items are organized by priority. Focus on:
+### 14. **CoreDNS Customization**
 
-### **Phase 1: Foundation & Reliability** ✅ COMPLETED
+- [ ] Document current CoreDNS configuration
+- [ ] Custom DNS records for internal services
+- [ ] DNS-based service discovery patterns
+- [ ] DNS monitoring and troubleshooting tools
+- [ ] Consider DNS caching optimizations
 
-1. ✅ External-DNS deployment (dual provider: Cloudflare + UniFi)
-2. ✅ Backup strategy (Velero + critical PVC backups + B2 storage)
-3. ✅ Enhanced alerting (AlertManager email notifications)
-4. ✅ Metrics server deployment
+### 15. **VPN & Remote Access**
 
-### **Phase 2: Security & Observability** ✅ COMPLETED
+- [ ] Evaluate **Tailscale** vs **WireGuard** for cluster access
+- [ ] Deploy chosen VPN solution
+- [ ] **oauth2-proxy** - Single Sign-On (SSO) integration
+- [ ] Multi-factor authentication for critical services
+- [ ] Document remote access policies and procedures
+- [ ] VPN performance monitoring
+
+---
+
+## 🔧 **Operational Improvements**
+
+### 16. **Documentation Enhancements**
+
+- [ ] Create operational runbooks for common tasks (pod restarts, rollbacks, etc.)
+- [ ] Document disaster recovery procedures (node failure, control plane failure)
+- [ ] Capacity planning documentation with growth projections
+- [ ] Create network topology diagrams to complement the existing network-info.md documentation
+- [ ] Performance baseline documentation
+- [ ] Document on-call procedures and escalation paths
+- [ ] Create k8s-docs-n37 guides for: cert-manager, metallb, ingress-nginx, localstack
+
+### 17. **Testing & Validation**
+
+- [ ] Chaos engineering with **Litmus** (lighter than Chaos Monkey)
+- [ ] Load testing framework for applications
+- [ ] Backup and restore testing automation (monthly validation)
+- [ ] Network failure simulation and recovery testing
+- [ ] Performance regression testing
+- [ ] Test node drain and pod eviction scenarios
+
+### 18. **Resource Optimization**
+
+- [x] Audit resource requests/limits across all workloads (7 workloads adjusted, 2026-02-11)
+- [x] Identify over-provisioned pods (resource right-sizing audit complete, net +928Mi requests)
+- [ ] Implement pod resource quotas per namespace
+- [ ] Storage capacity planning and alerting
+- [ ] Network bandwidth monitoring and optimization
+- [ ] Consider implementing Vertical Pod Autoscaler (VPA)
+
+---
+
+## 🌟 **Nice to Have**
+
+### 19. **Pi Cluster Specific Monitoring**
+
+- [ ] Power consumption tracking (requires PoE monitoring or UPS integration)
+- [ ] Track PoE power draw per node
+- [ ] NVMe thermal throttling detection
+- [ ] Track undervoltage events
+- [ ] ARM64-specific performance optimizations
+
+### 20. **Application Deployments**
+
+- [ ] Home Assistant integration
+- [ ] Private container registry (Harbor or similar)
+- [ ] Internal wiki or knowledge base
+- [ ] Status page (Uptime Kuma or similar)
+- [ ] Internal chat/collaboration tool
+
+### 21. **Observability Maturity Enhancements**
+
+- [ ] **Distributed Tracing** - Evaluate Jaeger or Tempo for trace collection
+- [ ] **Continuous Profiling** - Pyroscope for application performance profiling
+- [ ] **Service Level Objectives (SLOs)** - Define and monitor SLOs for critical services
+- [ ] **Error Budget Tracking** - Automated SLO/error budget reporting
+- [ ] **Anomaly Detection** - ML-based anomaly detection for metrics (Prometheus AI/ML)
+- [ ] **Synthetic Monitoring** - Automated user journey testing
+
+### 22. **Disaster Recovery Testing**
+
+- [ ] **Monthly DR Drills** - Automated disaster recovery validation
+- [ ] **Chaos Engineering** - Controlled failure injection (Litmus)
+- [ ] **Velero Restore Testing** - Automated monthly PVC restore validation
+- [ ] **Network Partition Testing** - Simulate network failures
+- [ ] **Node Failure Scenarios** - Test cluster resilience to node loss
+- [ ] **Control Plane Failure** - Test etcd backup/restore procedures
+- [ ] **DR Runbook Automation** - Convert manual runbooks to Argo Workflows
+
+### 23. **Cost Optimization & Efficiency**
+
+- [ ] **Resource Right-Sizing** - Analyze actual vs requested resources
+- [ ] **Spot/Preemptible Instances** - Not applicable for bare metal, document for future cloud consideration
+- [ ] **Storage Optimization** - Compress old logs, optimize retention policies
+- [ ] **Network Egress Optimization** - Monitor and optimize outbound traffic
+- [ ] **Power Consumption Tracking** - PoE monitoring and efficiency analysis
+- [ ] **Carbon Footprint** - Calculate and optimize cluster carbon footprint
+
+### 24. **LLM Hosting & AI Infrastructure** (Planning)
+
+- [ ] **GPU Hardware** - Add GPU-capable unit to cluster (planned)
+- [ ] **Evaluate inference frameworks** - vLLM, Ollama, LocalAI, llama.cpp for ARM64/GPU
+- [ ] **Kubernetes GPU scheduling** - NVIDIA device plugin or equivalent
+- [ ] **Model storage** - Plan NFS/iSCSI storage for large model weights (7B-70B+ parameter models)
+- [ ] **Resource isolation** - Dedicated node pool or taints/tolerations for GPU workloads
+- [ ] **API gateway** - OpenAI-compatible API endpoint for model serving
+- [ ] **Monitoring** - GPU utilization, inference latency, token throughput dashboards
+- [ ] **Model management** - Version control and deployment pipeline for models
+- [ ] **Network considerations** - High-bandwidth model loading, inference API exposure
+
+---
+
+## 📅 **Implementation Priorities**
+
+Items are organized by priority, not by timeline. Focus on:
+
+### **Phase 1: Foundation & Reliability** ✅ Complete
+
+1. ✅ Backup strategy (Velero + critical PVC backups)
+2. ✅ Enhanced alerting (AlertManager notifications)
+3. ✅ Metrics server deployment
+4. ✅ Blackbox exporter for endpoint monitoring
+
+### **Phase 2: Security & Observability** ✅ Complete
 
 1. ✅ Security scanning (Trivy Operator)
-2. ✅ Secrets management migration (Sealed Secrets)
+2. ✅ Secrets management migration (SealedSecrets)
 3. ✅ Blackbox exporter for endpoint monitoring
-4. ✅ Custom Grafana dashboards (43 total)
-5. ✅ Log-based alerting (Loki ruler)
+4. ✅ Custom Grafana dashboards
 
-### **Phase 3: Advanced Features** ✅ COMPLETED
+### **Phase 3: Advanced Features** ✅ Complete
 
-1. ✅ Network policies implementation (18 namespaces isolated, expanded through 2026-02-27)
-2. ✅ GitOps enhancements (Renovate deployed - automated dependency updates)
-3. ✅ Argo Workflows for pipeline automation (chart v0.47.3)
-4. ✅ Service mesh deployed (Istio Ambient v1.29.0)
-5. ✅ Runtime security (Falco v8.0.1 + OPA Gatekeeper v3.21.1 in deny mode)
-6. ✅ Promtail → Grafana Alloy migration (EOL migration, 2026-03-01)
+1. ✅ GitOps enhancements (Renovate deployed 2026-01-23)
+2. ✅ Network policies implementation (18 namespaces isolated)
+3. ✅ Development tools and CI/CD (Argo Workflows deployed 2026-01-24)
+4. ✅ Service mesh (Istio Ambient deployed 2026-01-28)
 
-### **Phase 4: Optimization & Expansion** 🚧 IN PROGRESS
+### **Phase 4: Optimization & Expansion**
 
-1. ✅ Storage performance dashboard (PR #383)
-2. ✅ Network utilization dashboard (PR #385)
-3. ✅ SealedSecrets key rotation (30-day rotation enabled)
-4. ✅ Ingress NGINX monitoring (7 alerts + Grafana dashboard, PR #498, 2026-03-01)
-5. ✅ Trivy compliance reporting CronJob (weekly summary to AlertManager, PR #494, 2026-03-01)
-6. ✅ Loki log-based alerting (9 LogQL rules, PR #489, 2026-03-01)
-7. Resource optimization and VPA
-8. Chaos engineering and resilience testing
-9. Advanced networking and VPN (Tailscale/WireGuard)
-10. Development tools (Gitea/GitLab, Harbor)
+1. Resource optimization and VPA
+2. Chaos engineering and resilience testing
+3. Advanced networking and VPN
+4. Additional application deployments
+
+---
+
+## 🔄 **ArgoCD Sync Wave Order**
+
+```
+Wave -100: tigera-operator (CNI foundation - ArgoCD-managed)
+Wave  -50: argocd (self-management)
+Wave  -35: metal-lb (networking foundation)
+Wave  -30: synology-csi (storage driver)
+Wave  -25: sealed-secrets (secrets management)
+Wave  -20: unipoller (UniFi metrics collection)
+Wave  -15: kube-prometheus-stack (monitoring stack)
+Wave  -12: loki (log aggregation)
+Wave  -11: alloy (log collection, replaced Promtail 2026-03-01)
+Wave  -10: cert-manager, external-dns, metrics-server (certificates & DNS & metrics)
+Wave   -8: argo-workflows (CI/CD)
+Wave   -7: localstack (S3 mock for Velero)
+Wave   -6: gatekeeper (admission control, policy enforcement)
+Wave   -5: velero, falco (backup, runtime security)
+```
 
 ---
 
@@ -284,7 +491,7 @@ Items are organized by priority. Focus on:
 - **Resource Constraints:** All implementations must consider the Pi 5 cluster constraints (80GB RAM total, 20 ARM cores)
 - **Testing Strategy:** Test all implementations in a development namespace before production deployment
 - **Documentation First:** Document all configurations and procedures for maintainability in this docs site
-- **GitOps Workflow:** All changes must go through PR workflow in homelab repo
+- **GitOps Workflow:** All changes must go through PR workflow in the homelab repository
 - **Regular Reviews:** Review and update this TODO list monthly based on cluster evolution
 - **Monitoring First:** Ensure monitoring is in place before deploying new workloads
 
@@ -292,7 +499,7 @@ Items are organized by priority. Focus on:
 
 ## 🔗 **References**
 
-- **homelab/.claude/notes/** - Session notes and context (CURRENT.md, REFERENCE.md, sessions/)
-- **homelab/TODO.md** - Infrastructure repository TODO list (should sync with this)
+- **homelab/TODO.md** - Infrastructure repository TODO list (source of truth — this page mirrors it)
 - **homelab/Hardware.md** - Cluster hardware specifications
 - **homelab/network-info.md** - Comprehensive network configuration
+- **k8s-docs-n37 Application Guides** - Per-application deployment documentation (see `docs/applications/` in this site)
