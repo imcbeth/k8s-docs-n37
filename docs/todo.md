@@ -33,7 +33,7 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 - **Velero Backblaze B2 Migration** - Migrated from LocalStack to Backblaze B2 for production backups (2026-01-14, PR #239)
 - **Velero CSI Snapshots** - Configured Velero to use CSI snapshots exclusively (2026-01-05)
-- **snapshot-controller Fix** - Downgraded from v8.2.0 → v6.3.1 to resolve VolumeSnapshot failures (2026-01-05)
+- **snapshot-controller Fix** - Temporarily downgraded from v8.2.0 → v6.3.1 to resolve VolumeSnapshot failures (2026-01-05), then upgraded to v8.2.1 with csi-snapshotter v8.4.0 (2026-01-11)
 - **Loki Memory Optimization** - Implemented GOMEMLIMIT, ingestion rate limits, reduced memory usage from 474Mi → 232Mi (2026-01-05)
 
 ### Monitoring & Observability (December 2025)
@@ -84,7 +84,7 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 - [x] **Alert Routing** - Critical → email, warning/info → null (reduce noise)
 - [x] **Velero Backup Alerts** - 7 PrometheusRule alerts for backup monitoring
 - [x] **HTML Email Templates** - Custom-formatted critical alert emails
-- [~] ~~Configure AlertManager webhook to Discord/Slack/Telegram~~ - Not used (email preferred)
+- ~~Configure AlertManager webhook to Discord/Slack/Telegram~~ - Not used (email preferred)
 - [x] Implement tiered alerting (warning → suppress, critical → email)
 - [x] **Predictive Disk Space Alerts** - Node filesystem, PVC, and Synology volume alerts with predict_linear() (2026-01-12)
 - [x] **NAS Health Alerts** - Disk failures, RAID degradation, temperature, bad sectors, power status (2026-01-12)
@@ -95,7 +95,7 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 - [x] **Velero** - Deployed for Kubernetes cluster backup (2025-12-27)
 - [x] **CSI Snapshots** - Configured Velero to use CSI snapshots exclusively (2026-01-05)
-- [x] **snapshot-controller** - Deployed v6.3.1 for VolumeSnapshot processing (2026-01-05)
+- [x] **snapshot-controller** - Temporarily deployed v6.3.1 (2026-01-05), then upgraded to v8.2.1 with csi-snapshotter v8.4.0 (2026-01-11)
 - [x] Backup critical PVCs (Prometheus 50Gi, Grafana 5Gi, Loki 20Gi)
 - [x] Daily PVC backups (2 AM, 30-day retention) - CSI snapshots operational
 - [x] Weekly cluster resource backups (3 AM Sunday, 90-day retention)
@@ -283,7 +283,7 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 **Phase 1: Argo Workflows Deployment** ✅ Complete
 
 - [x] Deploy Argo Workflows v3.7.8 (Helm chart 0.47.1)
-- [x] Configure sync-wave: -8 (after LocalStack, before Velero)
+- [x] Configure sync-wave: -8 (before LocalStack (-7) and Velero (-5))
 - [x] Set up artifact repository (Backblaze B2) ✅ Fixed (PRs #287-289, 2026-01-24)
 - [x] Configure resource limits for Pi cluster constraints:
   - Controller: 50m CPU / 128Mi RAM (request), 100m / 256Mi (limit)
