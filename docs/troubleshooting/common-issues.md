@@ -250,6 +250,68 @@ ArgoCD will then sync the new version.
 
 ---
 
+## Storage / iSCSI Issues
+
+### iSCSI "Portal doesn't exist" Warning in NAS Logs
+
+**Symptom:** Synology DSM logs show: `Initiator [...] failed to login to iSCSI Target [...] due to Portal doesn't exist.`
+
+**Cause:** A Released PV still has a NAS target entry, but the iSCSI target (LUN) has already been deleted from DSM. Nodes still have a stale `/etc/iscsi/nodes/<iqn>/` entry pointing to the gone target.
+
+**Fix:**
+
+```bash
+# 1. Find Released PVs
+kubectl get pv | grep Released
+
+# 2. Get the target IQN from the PV spec
+kubectl get pv <pv-name> -o jsonpath='{.spec.csi.volumeAttributes.targetIQN}'
+
+# 3. Delete the PV object
+kubectl delete pv <pv-name>
+
+# 4. Remove stale iscsid entries from nodes (run for each node pod in synology-csi)
+kubectl get pods -n synology-csi -l app=synology-csi-node
+kubectl exec -n synology-csi <node-pod> -c csi-plugin -- \
+  ls /host/etc/iscsi/nodes/
+kubectl exec -n synology-csi <node-pod> -c csi-plugin -- \
+  rm -rf /host/etc/iscsi/nodes/<iqn>
+```
+
+> See full guide: [iSCSI Troubleshooting](../storage/iscsi-troubleshooting)
+
+---
+
+### ArgoCD `prune: true` + SSA Deletes PVCs on Chart Upgrades
+
+**Symptom:** After a chart upgrade or ArgoCD sync, a PVC disappears and a new one is provisioned — orphaning the old iSCSI LUN on the NAS.
+
+**Cause:** `prune: true` + `ServerSideApply=true` causes ArgoCD to detect PVC or StatefulSet VolumeClaimTemplate differences and delete+recreate the resource. With `Retain` reclaim policy, the old LUN is left orphaned on the NAS.
+
+**Fix for standalone PVCs** (e.g. Grafana):
+
+```yaml
+# In chart values — add annotation to the PVC
+persistence:
+  annotations:
+    argocd.argoproj.io/sync-options: "Prune=false"
+```
+
+**Fix for StatefulSet VolumeClaimTemplates** (e.g. Loki, Trivy):
+
+```yaml
+# In ArgoCD Application manifest
+ignoreDifferences:
+  - group: apps
+    kind: StatefulSet
+    jqPathExpressions:
+      - .spec.volumeClaimTemplates
+```
+
+> See full guide: [ArgoCD PVC Protection](argocd-pvc-protection)
+
+---
+
 ## Velero Issues
 
 ### Velero CSI + Kopia Conflict
@@ -346,3 +408,5 @@ echo -n "secret-value" | base64
 | Loki memory | Disable external caches, set GOMEMLIMIT |
 | snapshot-controller v8 | Add `patch` verb to RBAC |
 | ARM64 Trivy | Use mirror.gcr.io registry |
+| iSCSI Portal doesn't exist | Released PV + stale iscsid entry; delete PV + `rm -rf /host/etc/iscsi/nodes/<iqn>` |
+| ArgoCD prune deletes PVCs | Add `Prune=false` annotation (standalone) or `ignoreDifferences: .spec.volumeClaimTemplates` (StatefulSet) |
