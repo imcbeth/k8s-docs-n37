@@ -61,7 +61,7 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 | Schedule | Time | Retention | Scope | Method |
 |----------|------|-----------|-------|--------|
 | `velero-daily-argocd` | 1:30 AM | 30 days | argocd namespace | Resources only |
-| `velero-daily-critical-pvcs` | 2:00 AM | 30 days | default, loki | CSI snapshots |
+| `velero-daily-critical-pvcs` | 2:00 AM | 30 days | default, loki, trivy-system, falco | CSI snapshots |
 | `velero-weekly-cluster-resources` | 3:00 AM Sunday | 90 days | All namespaces | Resources only |
 
 ### Daily ArgoCD Configuration Backup (1:30 AM)
@@ -91,15 +91,15 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 
 ## Cluster PVCs
 
-All persistent volumes in the cluster. The daily critical PVC backup schedule covers the `default` and `loki` namespaces.
+All persistent volumes in the cluster. The daily critical PVC backup schedule covers the `default`, `loki`, `trivy-system`, and `falco` namespaces.
 
 | Component | Namespace | Size | Storage Class | Data Type | Backed Up |
 |-----------|-----------|------|---------------|-----------|-----------|
 | **Prometheus** | default | 50Gi | synology-iscsi-retain | Metrics TSDB (10-day retention) | Yes (daily) |
 | **Loki** | loki | 20Gi | synology-iscsi-retain | Log chunks/TSDB (7-day retention) | Yes (daily) |
 | **Grafana** | default | 5Gi | synology-iscsi-retain | Dashboards, datasources, plugins | Yes (daily) |
-| **Trivy Server** | trivy-system | 5Gi | synology-iscsi-retain | Vulnerability database | No (recreatable) |
-| **Falco Redis** | falco | 1Gi | synology-iscsi-retain | Security event storage | No (ephemeral) |
+| **Trivy Server** | trivy-system | 5Gi | synology-iscsi-retain | Vulnerability database | Yes (daily) |
+| **Falco Redis** | falco | 1Gi | synology-iscsi-retain | Security event storage | Yes (daily) |
 
 ## Storage Backends
 
@@ -178,7 +178,7 @@ spec:
     # Source 1: Helm chart from VMware Tanzu
     - repoURL: https://vmware-tanzu.github.io/helm-charts
       chart: velero
-      targetRevision: 11.3.2
+      targetRevision: 11.4.0
       helm:
         releaseName: velero
         valueFiles:
