@@ -93,7 +93,7 @@ Trivy Operator is deployed via ArgoCD using the official Aqua Security Helm char
 
 **Configuration:** `manifests/base/trivy-operator/values.yaml`
 
-**Version:** Helm chart 0.31.0 (App version 0.29.0)
+**Version:** Helm chart 0.32.1 (App version 0.29.0)
 
 ### Resource Configuration
 
