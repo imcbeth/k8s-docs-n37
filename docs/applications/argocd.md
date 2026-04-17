@@ -11,7 +11,7 @@ ArgoCD is a declarative, GitOps continuous delivery tool for Kubernetes that aut
 
 - **Namespace:** `argocd`
 - **Helm Chart:** `argoproj/argo-cd`
-- **Chart Version:** `9.4.2`
+- **Chart Version:** `9.5.2`
 - **App Version:** `v3.3.0`
 - **Deployment:** Self-managed via ArgoCD
 - **Sync Wave:** `-50` (first application to deploy)
@@ -84,7 +84,7 @@ spec:
   sources:
     - chart: argo-cd
       repoURL: https://argoproj.github.io/argo-helm
-      targetRevision: 9.4.2
+      targetRevision: 9.5.2
       helm:
         releaseName: argocd
         valueFiles:
