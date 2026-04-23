@@ -1,4 +1,5 @@
 ---
+sidebar_position: 19
 title: "Zot OCI Registry"
 description: "CNCF OCI-compliant container registry with pull-through caching and CVE scanning"
 ---
