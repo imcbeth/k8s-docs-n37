@@ -271,14 +271,15 @@ kubectl get pv <pv-name> -o jsonpath='{.spec.csi.volumeAttributes.targetIQN}'
 kubectl delete pv <pv-name>
 
 # 4. Remove stale iscsid entries from nodes (run for each node pod in synology-csi)
-kubectl get pods -n synology-csi -l app=synology-csi-node
+kubectl get pods -n synology-csi -o name | grep synology-csi-node
+# Run for each matching node pod:
 kubectl exec -n synology-csi <node-pod> -c csi-plugin -- \
   ls /host/etc/iscsi/nodes/
 kubectl exec -n synology-csi <node-pod> -c csi-plugin -- \
   rm -rf /host/etc/iscsi/nodes/<iqn>
 ```
 
-> See full guide: [iSCSI Troubleshooting](../storage/iscsi-troubleshooting)
+> See full guide: [iSCSI Troubleshooting](../storage/iscsi-troubleshooting.md)
 
 ---
 
@@ -308,7 +309,7 @@ ignoreDifferences:
       - .spec.volumeClaimTemplates
 ```
 
-> See full guide: [ArgoCD PVC Protection](argocd-pvc-protection)
+> See full guide: [ArgoCD PVC Protection](./argocd-pvc-protection.md)
 
 ---
 

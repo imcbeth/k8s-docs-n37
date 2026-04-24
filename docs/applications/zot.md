@@ -1,5 +1,4 @@
 ---
-sidebar_position: 19
 title: "Zot OCI Registry"
 description: "CNCF OCI-compliant container registry with pull-through caching and CVE scanning"
 ---
@@ -102,10 +101,27 @@ spec:
       image: registry.k8s.n37.ca/myapp:latest
 ```
 
-No `imagePullSecret` is required for pods running within the cluster — Gatekeeper's `allowed-repos` constraint already includes `registry.k8s.n37.ca`, and Zot's ClusterIP service is reachable from all namespaces via the ingress.
+:::note imagePullSecret required
+Zot uses htpasswd authentication. Kubernetes image pulls require a Secret with registry credentials. Create an `imagePullSecret` and reference it in your Pod spec or ServiceAccount:
 
-:::note
-If your workload needs to pull from the registry without going through the ingress (e.g. during bootstrap), reference `zot.zot.svc.cluster.local:5000` directly and add an `imagePullSecret` with the htpasswd credentials.
+```bash
+kubectl create secret docker-registry zot-pull-secret \
+  --docker-server=registry.k8s.n37.ca \
+  --docker-username=admin \
+  --docker-password=<password> \
+  -n <your-namespace>
+```
+
+```yaml
+spec:
+  imagePullSecrets:
+    - name: zot-pull-secret
+  containers:
+    - name: myapp
+      image: registry.k8s.n37.ca/myapp:latest
+```
+
+Gatekeeper's `allowed-repos` constraint allows the hostname — the `imagePullSecret` handles authentication separately.
 :::
 
 ### Use as a Pull-Through Cache in Kubernetes Deployments
@@ -238,7 +254,7 @@ Zot is a StatefulSet with a RWO iSCSI PVC (`synology-iscsi-delete`). Only one no
 
 ## References
 
-- [Zot Documentation](https://zotregistry.dev/v2.1.2/)
+- [Zot Documentation](https://zotregistry.dev/v2.1.16/)
 - [Zot GitHub](https://github.com/project-zot/zot)
 - [CNCF Project Page](https://www.cncf.io/projects/zot/)
 

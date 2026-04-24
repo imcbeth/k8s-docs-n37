@@ -1,13 +1,12 @@
 ---
 title: "iSCSI Troubleshooting"
 description: "Diagnosing and resolving Synology iSCSI storage issues in the homelab cluster"
-sidebar_position: 2
 ---
 
 # iSCSI Troubleshooting
 
 This cluster uses the Synology CSI driver with iSCSI LUNs provisioned on the NAS at `10.0.1.204`.
-All PVCs use the `synology-iscsi-retain` StorageClass with `Retain` reclaim policy.
+PVCs use either `synology-iscsi-retain` (Retain reclaim policy) or `synology-iscsi-delete` (Delete reclaim policy) depending on the workload. Cleanup steps differ — `Retain` PVCs leave orphaned LUNs on the NAS that must be manually deleted; `Delete` PVCs clean up automatically.
 
 ## Quick Diagnostics
 
@@ -60,8 +59,8 @@ kubectl get pv <pv-name> -o jsonpath='{.spec.csi.volumeAttributes.targetIQN}'
 kubectl delete pv <pv-name>
 
 # 5. Remove stale iscsid entries from all nodes
-kubectl get pods -n synology-csi -l app=synology-csi-node -o name
-# Run for each node pod:
+kubectl get pods -n synology-csi -o name | grep synology-csi-node
+# Run for each matching node pod:
 kubectl exec -n synology-csi <node-pod> -c csi-plugin -- \
   rm -rf /host/etc/iscsi/nodes/<target-iqn>
 ```
@@ -181,5 +180,5 @@ iqn.2004-10.com.ubuntu:01:65feca77e5f9
 
 ## Related
 
-- [ArgoCD PVC Protection](../troubleshooting/argocd-pvc-protection) — preventing PVC deletion during upgrades
-- [Synology CSI](synology-csi) — CSI driver configuration and StorageClass reference
+- [ArgoCD PVC Protection](../troubleshooting/argocd-pvc-protection.md) — preventing PVC deletion during upgrades
+- [Synology CSI](synology-csi.md) — CSI driver configuration and StorageClass reference

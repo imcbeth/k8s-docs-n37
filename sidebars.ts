@@ -47,6 +47,7 @@ const sidebars: SidebarsConfig = {
       label: 'Storage',
       items: [
         'storage/synology-csi',
+        'storage/iscsi-troubleshooting',
       ],
     },
     {
@@ -76,6 +77,7 @@ const sidebars: SidebarsConfig = {
         'applications/istio',
         'applications/argo-workflows',
         'applications/localstack',
+        'applications/zot',
       ],
     },
     {
@@ -103,6 +105,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'troubleshooting/monitoring',
         'troubleshooting/common-issues',
+        'troubleshooting/argocd-pvc-protection',
       ],
     },
     {
