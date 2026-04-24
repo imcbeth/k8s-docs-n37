@@ -1,7 +1,6 @@
 ---
 title: "ArgoCD PVC Protection"
 description: "Preventing ArgoCD from deleting and recreating iSCSI PVCs during chart upgrades"
-sidebar_position: 3
 ---
 
 # ArgoCD PVC Protection
@@ -104,11 +103,11 @@ kubectl get pv <pv-name> -o jsonpath='{.spec.csi.volumeAttributes.targetIQN}'
 
 1. Delete the LUN in DSM → iSCSI Manager → LUN tab
 2. Delete the PV object: `kubectl delete pv <pv-name>`
-3. Remove stale iscsid entries from nodes (see [iSCSI Troubleshooting](../storage/iscsi-troubleshooting))
+3. Remove stale iscsid entries from nodes (see [iSCSI Troubleshooting](../storage/iscsi-troubleshooting.md))
 
 ---
 
 ## Related
 
-- [iSCSI Troubleshooting](../storage/iscsi-troubleshooting)
-- [Synology CSI](../storage/synology-csi)
+- [iSCSI Troubleshooting](../storage/iscsi-troubleshooting.md)
+- [Synology CSI](../storage/synology-csi.md)
