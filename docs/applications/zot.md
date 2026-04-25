@@ -116,7 +116,7 @@ spec:
       image: registry.k8s.n37.ca/myapp:latest
 ```
 
-`imagePullSecrets` are only needed for **push** operations (private image uploads). Gatekeeper's `allowed-repos` constraint already includes `registry.k8s.n37.ca`.
+`imagePullSecrets` are only needed when pulling from a registry that requires authentication — for example, if anonymous reads were disabled or when pulling from private repositories. Gatekeeper's `allowed-repos` constraint already includes `registry.k8s.n37.ca`.
 :::
 
 ### Use as a Pull-Through Cache in Kubernetes Deployments

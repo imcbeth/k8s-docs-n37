@@ -41,8 +41,9 @@ This deployment runs **two separate external-dns instances** for split-horizon D
 
 ```yaml
 provider: cloudflare
-domain-filter: n37.ca        # Matches k8s.n37.ca and lifeonabike.ca
-domain-filter: lifeonabike.ca
+domainFilters:
+  - n37.ca          # Matches k8s.n37.ca subzone
+  - lifeonabike.ca
 cloudflare-proxied: false  # Direct to MetalLB IPs
 ```
 
@@ -72,8 +73,9 @@ External-DNS → Webhook Provider → UniFi API → DNS Records
 ```yaml
 provider: webhook
 webhook-provider-url: http://external-dns-unifi-webhook:8888
-domain-filter: k8s.n37.ca
-domain-filter: lifeonabike.ca
+domainFilters:
+  - k8s.n37.ca
+  - lifeonabike.ca
 ```
 
 **Supported Record Types:**
