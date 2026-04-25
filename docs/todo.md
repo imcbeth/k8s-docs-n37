@@ -304,7 +304,7 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 **Phase 3: Advanced Features**
 
-- [ ] SSO integration via oauth2-proxy
+- [x] SSO integration via oauth2-proxy (deployed 2026-04-24, PR #583)
 - [ ] Workflow templates library
 - [ ] Automated dependency updates (Renovate integration)
 - [ ] Multi-cluster workflow support (if dev/staging clusters added)
@@ -332,10 +332,12 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 - [ ] Evaluate **Tailscale** vs **WireGuard** for cluster access
 - [ ] Deploy chosen VPN solution
-- [ ] **oauth2-proxy** - Single Sign-On (SSO) integration
+- [x] **oauth2-proxy** - GitHub SSO protecting Uptime Kuma, Falco UI, and Argo Workflows (deployed 2026-04-24, PRs #576–#583)
 - [ ] Multi-factor authentication for critical services
 - [ ] Document remote access policies and procedures
 - [ ] VPN performance monitoring
+
+**Documentation:** See [oauth2-proxy Guide](./applications/oauth2-proxy.md) for complete deployment details.
 
 ---
 
@@ -353,7 +355,7 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 
 ### 17. **Testing & Validation**
 
-- [ ] Chaos engineering with **Litmus** (lighter than Chaos Monkey)
+- [x] Chaos engineering with **Chaos Mesh** v2.8.2 (deployed 2026-04-21 — Litmus has no ARM64 images)
 - [ ] Load testing framework for applications
 - [ ] Backup and restore testing automation (monthly validation)
 - [ ] Network failure simulation and recovery testing
@@ -384,14 +386,16 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 ### 20. **Application Deployments**
 
 - [ ] Home Assistant integration
-- [ ] Private container registry (Harbor or similar)
+- [x] Private container registry — **Zot OCI Registry** v2.1.16 deployed 2026-04-23 (pull-through cache + private registry + CVE scanning)
 - [ ] Internal wiki or knowledge base
-- [ ] Status page (Uptime Kuma or similar)
+- [x] Status page — **Uptime Kuma** v1.23.17 deployed 2026-04-23, Prometheus metrics + AlertManager integration (PR #573)
 - [ ] Internal chat/collaboration tool
+
+**Documentation:** See [Zot OCI Registry Guide](./applications/zot.md) and [Uptime Kuma Guide](./applications/uptime-kuma.md).
 
 ### 21. **Observability Maturity Enhancements**
 
-- [ ] **Distributed Tracing** - Evaluate Jaeger or Tempo for trace collection
+- [x] **Distributed Tracing** - **Grafana Tempo** v2.9.0 deployed 2026-04-23 (monolithic mode, OTLP via Alloy, trace↔logs↔metrics correlation)
 - [ ] **Continuous Profiling** - Pyroscope for application performance profiling
 - [ ] **Service Level Objectives (SLOs)** - Define and monitor SLOs for critical services
 - [ ] **Error Budget Tracking** - Automated SLO/error budget reporting
@@ -401,7 +405,7 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 ### 22. **Disaster Recovery Testing**
 
 - [ ] **Monthly DR Drills** - Automated disaster recovery validation
-- [ ] **Chaos Engineering** - Controlled failure injection (Litmus)
+- [x] **Chaos Engineering** - **Chaos Mesh** v2.8.2 deployed 2026-04-21 (ARM64 compatible, pod-kill + network chaos)
 - [ ] **Velero Restore Testing** - Automated monthly PVC restore validation
 - [ ] **Network Partition Testing** - Simulate network failures
 - [ ] **Node Failure Scenarios** - Test cluster resilience to node loss
@@ -456,12 +460,13 @@ Items are organized by priority, not by timeline. Focus on:
 3. ✅ Development tools and CI/CD (Argo Workflows deployed 2026-01-24)
 4. ✅ Service mesh (Istio Ambient deployed 2026-01-28)
 
-### **Phase 4: Optimization & Expansion**
+### **Phase 4: Optimization & Expansion** (In Progress)
 
-1. Resource optimization and VPA
-2. Chaos engineering and resilience testing
-3. Advanced networking and VPN
-4. Additional application deployments
+1. ✅ Resource optimization audit (7 workloads adjusted)
+2. ✅ Chaos engineering — Chaos Mesh v2.8.2 deployed
+3. ✅ Additional application deployments — Zot, Uptime Kuma, Tempo, oauth2-proxy, Chaos Mesh
+4. ✅ ArgoCD GitHub OIDC via Dex (replaced user/password login)
+5. Advanced networking and VPN (ongoing)
 
 ---
 
@@ -482,6 +487,9 @@ Wave   -8: argo-workflows (CI/CD)
 Wave   -7: localstack (S3 mock for Velero)
 Wave   -6: gatekeeper (admission control, policy enforcement)
 Wave   -5: velero, falco (backup, runtime security)
+Wave   -2: zot (OCI registry, pull-through cache)
+Wave    0: chaos-mesh, oauth2-proxy, uptime-kuma, tempo
+Wave    5: lifeonabike (application)
 ```
 
 ---

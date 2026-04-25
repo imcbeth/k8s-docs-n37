@@ -11,7 +11,7 @@ ArgoCD is a declarative, GitOps continuous delivery tool for Kubernetes that aut
 
 - **Namespace:** `argocd`
 - **Helm Chart:** `argoproj/argo-cd`
-- **Chart Version:** `9.5.2`
+- **Chart Version:** `9.5.3`
 - **App Version:** `v3.3.0`
 - **Deployment:** Self-managed via ArgoCD
 - **Sync Wave:** `-50` (first application to deploy)
@@ -59,11 +59,11 @@ ArgoCD manages its own deployment through a bootstrap Application manifest. This
 - Handles authentication and authorization
 - Service Type: ClusterIP
 
-**Dex (Optional):**
+**Dex:**
 
-- OAuth2/OIDC authentication provider
-- Supports GitHub, Google, LDAP integration
-- Currently disabled (can be enabled for SSO)
+- OAuth2/OIDC authentication provider built into ArgoCD
+- GitHub connector configured for SSO login
+- See [GitHub OIDC](#github-oidc-via-dex) below
 
 ## Deployment Configuration
 
@@ -84,7 +84,7 @@ spec:
   sources:
     - chart: argo-cd
       repoURL: https://argoproj.github.io/argo-helm
-      targetRevision: 9.5.2
+      targetRevision: 9.5.3
       helm:
         releaseName: argocd
         valueFiles:
@@ -116,11 +116,64 @@ server:
 configs:
   cm:
     url: https://argocd.k8s.n37.ca
+    dex.config: |
+      connectors:
+        - type: github
+          id: github
+          name: GitHub
+          config:
+            clientID: $argocd-github-secret:client-id
+            clientSecret: $argocd-github-secret:client-secret
+            redirectURI: https://argocd.k8s.n37.ca/api/dex/callback
+            loadAllGroups: false
+  rbac:
+    policy.csv: |
+      g, imcbeth, role:admin
+      g, mcp, role:readonly
+      p, role:readonly, applications, get, *, allow
+      p, role:readonly, applications, list, *, allow
+    policy.default: role:''
 controller:
   replicas: 2
 ```
 
 ## Access and Authentication
+
+### GitHub OIDC via Dex
+
+ArgoCD uses GitHub OAuth for login via the built-in Dex OIDC provider. Visiting `https://argocd.k8s.n37.ca` shows a "Log in via GitHub" button.
+
+**How it works:**
+
+1. User clicks "Log in via GitHub"
+2. ArgoCD redirects to GitHub OAuth authorization page
+3. GitHub redirects back to `https://argocd.k8s.n37.ca/api/dex/callback`
+4. Dex exchanges the code for a token and sets the ArgoCD session
+
+**RBAC:**
+
+| GitHub user | ArgoCD role | Permissions |
+|-------------|-------------|-------------|
+| `imcbeth` | `role:admin` | Full access |
+| `mcp` | `role:readonly` | Read-only on all apps |
+| All others | `role:''` (denied) | No access |
+
+`policy.default: role:''` acts as a deny-all for any GitHub user not explicitly listed.
+
+**GitHub OAuth App:** `homelab-argocd`
+
+- Callback URL: `https://argocd.k8s.n37.ca/api/dex/callback`
+- This is a separate OAuth App from oauth2-proxy — GitHub OAuth Apps only support one callback URL per app.
+
+**Required secret label:** The `argocd-github-secret` SealedSecret must have label `app.kubernetes.io/part-of: argocd`. Without this label, Dex silently fails to resolve `$argocd-github-secret:client-id` references and login appears broken with no clear error.
+
+**Local admin fallback:** The local `admin` account remains active for emergency access if GitHub auth breaks.
+
+```bash
+# Get local admin password
+kubectl get secret argocd-initial-admin-secret -n argocd \
+  -o jsonpath="{.data.password}" | base64 -d
+```
 
 ### Web UI Access
 
@@ -136,23 +189,10 @@ Then open: `https://localhost:8080`
 
 ### CLI Access
 
-**Login:**
+**Login (uses local admin, not GitHub):**
 
 ```bash
 argocd login argocd.k8s.n37.ca --grpc-web
-```
-
-**Get Initial Admin Password:**
-
-```bash
-kubectl get secret argocd-initial-admin-secret -n argocd \
-  -o jsonpath="{.data.password}" | base64 -d
-```
-
-**Change Admin Password:**
-
-```bash
-argocd account update-password --grpc-web
 ```
 
 ## Projects
@@ -196,6 +236,12 @@ ArgoCD organizes applications into projects for access control and resource mana
 **Applications:**
 
 - localstack
+- zot
+- uptime-kuma
+- oauth2-proxy
+- chaos-mesh
+- tempo
+- lifeonabike
 
 ## Sync Waves
 
