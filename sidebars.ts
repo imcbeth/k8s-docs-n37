@@ -78,6 +78,9 @@ const sidebars: SidebarsConfig = {
         'applications/argo-workflows',
         'applications/localstack',
         'applications/zot',
+        'applications/oauth2-proxy',
+        'applications/uptime-kuma',
+        'applications/chaos-mesh',
       ],
     },
     {

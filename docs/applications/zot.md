@@ -34,8 +34,10 @@ Additional features enabled in this cluster:
 - **Prometheus metrics** — Scraped via ServiceMonitor at `/metrics`
 - **Storage scrub** — Integrity check runs every 24 hours
 
-:::note ARM64 Only
-The sync extension is configured to only pull `linux/arm64` images. All 5 cluster nodes are Raspberry Pi 5 (ARM64). Without this filter, a `docker pull nginx:latest` would download 12+ platform variants (~41 seconds). With it, only the ARM64 layer is fetched (~3–5 seconds).
+:::warning No platform filtering in v2.1.16
+Zot v2.1.16 does **not** support platform/architecture filtering in the sync `Content` struct. The `platforms` key does not exist in this version — using it causes Zot to exit at startup with `"invalid keys: platforms"` → CrashLoopBackOff.
+
+All multi-arch variants of an image are downloaded on first pull (~41 seconds for `nginx:latest` = 12+ platforms). This is a known limitation. Accept the first-pull latency or increase upstream proxy timeouts. Platform filtering is expected to be added in a future Zot release.
 :::
 
 ## Upstream Registries (Pull-Through)
@@ -73,7 +75,7 @@ docker pull registry.k8s.n37.ca/pause:3.10
 ```
 
 :::tip First Pull
-The first pull of any image triggers an on-demand sync from the upstream registry. This takes a few extra seconds while Zot downloads and caches the ARM64 layer. Every subsequent pull is instant.
+The first pull of any image triggers an on-demand sync from the upstream registry. Since platform filtering is not available in v2.1.16, all platform variants are downloaded (~41 seconds for multi-arch images like `nginx:latest`). Every subsequent pull is instant from the local cache.
 :::
 
 ### Push a Private Image
@@ -194,11 +196,12 @@ The full Zot `config.json` is embedded in `values.yaml` under `configFiles`. Key
         {
           "urls": ["https://registry-1.docker.io"],
           "onDemand": true,
-          "content": [{"prefix": "**", "platforms": [{"os": "linux", "arch": "arm64"}]}]
+          "content": [{"prefix": "**"}]
         }
       ]
     }
   }
+  // Note: "platforms" key is NOT supported in v2.1.16 and causes startup failure.
 }
 ```
 
@@ -214,7 +217,7 @@ Memory limit is set to 2Gi (Gatekeeper's maximum) to accommodate the Trivy CVE d
 
 ### First Pull Is Slow
 
-Expected — Zot is downloading the ARM64 image from the upstream registry on demand. Retry; the second pull will be instant from the local cache.
+Expected — Zot downloads all platform variants of the image on first pull (v2.1.16 has no platform filtering). For `nginx:latest` this is ~41 seconds. Subsequent pulls are instant from the local cache.
 
 ### 504 Gateway Timeout on Pull
 
