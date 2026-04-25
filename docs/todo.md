@@ -488,7 +488,7 @@ Wave   -7: localstack (S3 mock for Velero)
 Wave   -6: gatekeeper (admission control, policy enforcement)
 Wave   -5: velero, falco (backup, runtime security)
 Wave   -2: zot (OCI registry, pull-through cache)
-Wave    0: chaos-mesh, oauth2-proxy, uptime-kuma, tempo, lifeonabike
+Wave    0: chaos-mesh, oauth2-proxy, uptime-kuma, tempo
 Wave    5: lifeonabike (application)
 ```
 
