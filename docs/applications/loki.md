@@ -13,20 +13,24 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 
 - **Namespace:** `loki`
 - **Helm Chart:** `grafana/loki`
-- **Chart Version:** `6.55.0`
-- **Deployment Mode:** SingleBinary (monolithic)
+- **Chart Version:** `7.0.0`
+- **Deployment Mode:** SingleBinary (monolithic, explicit — Loki v7 default is SimpleScalable)
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-12` (after kube-prometheus-stack -15, before cert-manager -10)
 
-**Promtail:**
+**Log Collector: Grafana Alloy** *(replaced Promtail 2026-03-01)*
 
 - **Namespace:** `loki`
-- **Helm Chart:** `grafana/promtail`
-- **Chart Version:** `6.17.1` (App version 3.5.1)
-- **Deployment:** DaemonSet (one pod per node)
+- **Helm Chart:** `grafana/alloy`
+- **Chart Version:** `1.8.0`
+- **Deployment:** DaemonSet (one pod per node) + OTLP → Tempo forwarding
 - **Sync Wave:** `-11` (after Loki -12)
 
-**Note:** Promtail upgraded from 6.16.6 → 6.17.1 on 2026-01-07, eliminating 7 CRITICAL vulnerabilities.
+Promtail reached end-of-life in March 2026 and was replaced by Grafana Alloy. Alloy uses `loki.source.kubernetes` for pod log collection and a selective `labelmap` stage to stay within Loki's 15-label limit. It also forwards OpenTelemetry traces to Grafana Tempo via `otelcol.receiver.otlp` + `otelcol.exporter.otlp`.
+
+:::note Promtail (historical)
+Promtail chart 6.17.1 (app v3.5.1) was deployed until 2026-03-01. Replaced due to EOL. See archived session notes for migration details.
+:::
 
 ## Architecture
 

@@ -11,8 +11,8 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 
 - **Namespace:** `default`
 - **Helm Chart:** `prometheus-community/kube-prometheus-stack`
-- **Chart Version:** `82.18.0`
-- **App Version:** `v0.87.1`
+- **Chart Version:** `84.1.0`
+- **App Version:** `v0.90.1` (prometheus-operator)
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-15` (deploys after UniFi Poller, before cert-manager)
 

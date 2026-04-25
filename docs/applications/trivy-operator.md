@@ -215,7 +215,7 @@ kubectl get clustercompliancereport k8s-nsa-1.0 -o yaml
 A weekly CronJob (`compliance-report-summary`, deployed 2026-03-01) collects compliance data and posts a summary to AlertManager:
 
 - **Schedule:** Monday 8:00 AM UTC
-- **Image:** bitnami/kubectl:latest (includes kubectl, jq, curl)
+- **Image:** `registry.k8s.n37.ca/bitnami/kubectl:latest` (via Zot proxy; includes kubectl, jq, curl)
 - **Data collected:** All 4 ClusterComplianceReports (pass/fail/total) + vulnerability summary
 - **Delivery:** POST to AlertManager API as an informational alert
 - **Resources:** 50m/64Mi requests, 100m/128Mi limits
