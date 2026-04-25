@@ -11,8 +11,8 @@ ArgoCD is a declarative, GitOps continuous delivery tool for Kubernetes that aut
 
 - **Namespace:** `argocd`
 - **Helm Chart:** `argoproj/argo-cd`
-- **Chart Version:** `9.5.3`
-- **App Version:** `v3.3.0`
+- **Chart Version:** `9.5.4`
+- **App Version:** `v3.3.8`
 - **Deployment:** Self-managed via ArgoCD
 - **Sync Wave:** `-50` (first application to deploy)
 - **Sync Options:** `ServerSideApply=true`
@@ -20,6 +20,10 @@ ArgoCD is a declarative, GitOps continuous delivery tool for Kubernetes that aut
 
 :::info Version Update (2026-02-05)
 Upgraded from chart 9.2.4 to 9.4.1. Server-Side Apply enabled (PR #376) for better handling of large CRDs and reduced sync conflicts.
+:::
+
+:::info Version Update (2026-04-25)
+Upgraded chart 9.5.3 → 9.5.4, app v3.3.8. Application Controller memory limit bumped from 1536Mi → 2Gi after OOMKill at 31 apps under v3.3.8 (PR #590). Gatekeeper enforces a 2Gi hard ceiling — this is the maximum available.
 :::
 
 ## Purpose
@@ -84,7 +88,7 @@ spec:
   sources:
     - chart: argo-cd
       repoURL: https://argoproj.github.io/argo-helm
-      targetRevision: 9.5.3
+      targetRevision: 9.5.4
       helm:
         releaseName: argocd
         valueFiles:
@@ -551,22 +555,33 @@ To modify ArgoCD settings:
 
 ## Resource Usage
 
-**Application Controller:**
+**Application Controller (2 replicas):**
 
-- CPU: ~100-200m under normal load
-- Memory: ~256-512Mi
+- CPU: 100m request / 500m limit
+- Memory: 1Gi request / **2Gi limit** (Gatekeeper maximum)
+- History: OOMKilled at 1Gi (25 apps), again at 1536Mi (31 apps, v3.3.8). Bumped to 2Gi 2026-04-25.
 
 **Repo Server:**
 
-- CPU: ~50-100m
-- Memory: ~128-256Mi
+- CPU: 25m request / 500m limit
+- Memory: 256Mi request / 512Mi limit
+- Spikes to 400Mi+ when generating large manifests (tigera-operator, kube-prometheus-stack)
 
 **API Server:**
 
-- CPU: ~50-100m
-- Memory: ~128-256Mi
+- CPU: 25m request / 200m limit
+- Memory: 128Mi request / 256Mi limit
 
-**Total:** Minimal overhead for powerful automation capabilities on the Raspberry Pi cluster.
+**Redis:**
+
+- CPU: 10m request / 100m limit
+- Memory: 64Mi request / 128Mi limit
+
+**Total:** ~1.4Gi memory requests across all ArgoCD components on the Raspberry Pi cluster.
+
+:::warning Application Controller Memory
+The 2Gi limit is the hard ceiling enforced by OPA Gatekeeper's `container-limits` constraint. If the controller OOMKills again at 2Gi, the constraint itself would need to be relaxed — not a straightforward change.
+:::
 
 ## Related Documentation
 

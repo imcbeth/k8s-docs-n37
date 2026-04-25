@@ -10,7 +10,7 @@ External-DNS automatically synchronizes Kubernetes Ingress and Service resources
 ## Overview
 
 - **Namespace:** `external-dns`
-- **Image:** `registry.k8s.io/external-dns/external-dns:v0.20.0`
+- **Image:** `registry.k8s.n37.ca/external-dns/external-dns:v0.21.0` (via Zot proxy)
 - **Deployment:** Managed by ArgoCD (dual deployments)
 - **Sync Wave:** `-10` (deploys with cert-manager)
 
@@ -41,7 +41,9 @@ This deployment runs **two separate external-dns instances** for split-horizon D
 
 ```yaml
 provider: cloudflare
-domain-filter: k8s.n37.ca
+domainFilters:
+  - n37.ca          # Matches k8s.n37.ca subzone
+  - lifeonabike.ca
 cloudflare-proxied: false  # Direct to MetalLB IPs
 ```
 
@@ -52,7 +54,7 @@ cloudflare-proxied: false  # Direct to MetalLB IPs
 - **Target:** UniFi UDR7 controller at 10.0.1.1
 - **Protocol:** UniFi API via webhook provider
 - **Authentication:** UniFi API key
-- **Webhook:** `kashalls/external-dns-unifi-webhook` v0.7.0
+- **Webhook:** `kashalls/external-dns-unifi-webhook` v0.8.2 (via Zot proxy)
 - **Deployment:** `external-dns-unifi`
 - **ServiceAccount:** `external-dns-unifi`
 
@@ -63,7 +65,7 @@ UniFi OS does not support RFC2136 TSIG configuration, making dynamic DNS updates
 
 ```
 External-DNS → Webhook Provider → UniFi API → DNS Records
-               (ghcr.io/kashalls/external-dns-unifi-webhook:v0.7.0)
+               (registry.k8s.n37.ca/kashalls/external-dns-unifi-webhook:v0.8.2)
 ```
 
 **Configuration:**
@@ -71,7 +73,9 @@ External-DNS → Webhook Provider → UniFi API → DNS Records
 ```yaml
 provider: webhook
 webhook-provider-url: http://external-dns-unifi-webhook:8888
-domain-filter: k8s.n37.ca
+domainFilters:
+  - k8s.n37.ca
+  - lifeonabike.ca
 ```
 
 **Supported Record Types:**

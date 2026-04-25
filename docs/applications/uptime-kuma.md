@@ -12,7 +12,7 @@ Uptime Kuma is a self-hosted uptime monitoring tool that provides a real-time st
 | Property | Value |
 |----------|-------|
 | **Namespace** | `uptime-kuma` |
-| **Chart** | `helm-charts/uptime-kuma` v2.25.0 |
+| **Chart** | `helm-charts/uptime-kuma` v4.0.0 |
 | **App Version** | `v1.23.17` |
 | **ArgoCD App** | `uptime-kuma` (project: `infrastructure`, wave: `0`) |
 | **Status Page URL** | `https://status.k8s.n37.ca` |

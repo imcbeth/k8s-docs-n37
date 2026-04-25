@@ -17,7 +17,7 @@ Zot is a CNCF incubating, OCI-native container registry. It serves as the cluste
 | **ArgoCD App** | `zot` (project: `infrastructure`, wave: `-2`) |
 | **UI / API URL** | `https://registry.k8s.n37.ca` |
 | **Storage** | 50Gi iSCSI PVC (`synology-iscsi-delete`) |
-| **Auth** | htpasswd via SealedSecret (`zot-htpasswd`) |
+| **Auth** | htpasswd via SealedSecret (`zot-htpasswd`) — anonymous reads enabled (PR #595) |
 
 ## Purpose
 
@@ -55,7 +55,10 @@ Pull-through is **on-demand** — Zot only fetches an image when a client reques
 
 ### Login
 
+Login is only required for **push** operations. Anonymous pulls are enabled cluster-wide (no credentials needed for image pulls).
+
 ```bash
+# Only needed to push images:
 docker login registry.k8s.n37.ca
 # Username: admin
 # Password: (from zot-htpasswd SealedSecret)
@@ -103,27 +106,17 @@ spec:
       image: registry.k8s.n37.ca/myapp:latest
 ```
 
-:::note imagePullSecret required
-Zot uses htpasswd authentication. Kubernetes image pulls require a Secret with registry credentials. Create an `imagePullSecret` and reference it in your Pod spec or ServiceAccount:
-
-```bash
-kubectl create secret docker-registry zot-pull-secret \
-  --docker-server=registry.k8s.n37.ca \
-  --docker-username=admin \
-  --docker-password=<password> \
-  -n <your-namespace>
-```
+:::tip No imagePullSecret required for pulls
+As of PR #595, Zot has anonymous read access enabled (`accessControl.repositories["**"].anonymousPolicy: ["read"]`). Cluster pods can pull any image from `registry.k8s.n37.ca` without credentials. Just reference the image directly:
 
 ```yaml
 spec:
-  imagePullSecrets:
-    - name: zot-pull-secret
   containers:
     - name: myapp
       image: registry.k8s.n37.ca/myapp:latest
 ```
 
-Gatekeeper's `allowed-repos` constraint allows the hostname — the `imagePullSecret` handles authentication separately.
+`imagePullSecrets` are only needed when pulling from a registry that requires authentication — for example, if anonymous reads were disabled or when pulling from private repositories. Gatekeeper's `allowed-repos` constraint already includes `registry.k8s.n37.ca`.
 :::
 
 ### Use as a Pull-Through Cache in Kubernetes Deployments
@@ -143,6 +136,25 @@ This is particularly useful for:
 - **Air-gap resilience** — If Docker Hub is temporarily unavailable, cached images still serve
 - **Pull rate limits** — Docker Hub enforces pull limits for anonymous/free accounts. Zot's cache avoids repeated upstream pulls
 - **Speed** — LAN-speed pulls from the Pi cluster's local NAS vs internet downloads
+
+## Cluster Workloads Using Zot
+
+As of PR #595 (2026-04-25), the following directly-managed workloads pull images through Zot:
+
+| Workload | Original Registry | Zot Path |
+|----------|------------------|----------|
+| `cluster-healthcheck` CronWorkflow | `docker.io/bitnami/kubectl:latest` | `registry.k8s.n37.ca/bitnami/kubectl:latest` |
+| `velero-backup-validation` CronWorkflow | `docker.io/bitnami/kubectl:latest` | `registry.k8s.n37.ca/bitnami/kubectl:latest` |
+| `compliance-reporter` CronJob (trivy) | `docker.io/bitnami/kubectl:latest` | `registry.k8s.n37.ca/bitnami/kubectl:latest` |
+| `external-dns-cloudflare` Deployment | `registry.k8s.io/external-dns/external-dns:v0.21.0` | `registry.k8s.n37.ca/external-dns/external-dns:v0.21.0` |
+| `external-dns-unifi` Deployment | `registry.k8s.io/external-dns/external-dns:v0.21.0` | `registry.k8s.n37.ca/external-dns/external-dns:v0.21.0` |
+| `external-dns-unifi-webhook` Deployment | `ghcr.io/kashalls/external-dns-unifi-webhook:v0.8.2` | `registry.k8s.n37.ca/kashalls/external-dns-unifi-webhook:v0.8.2` |
+
+:::note Image path format
+Zot's on-demand sync uses a flat path — drop the upstream registry hostname. Zot checks all configured upstreams (Docker Hub, GHCR, quay.io, registry.k8s.io) in order when the image isn't cached locally. In practice, each path is unique to one upstream so there is no ambiguity.
+
+Helm chart-managed images (argocd, loki, grafana, etc.) pull directly from their upstreams. Routing Helm chart images through Zot requires per-chart registry override values — a separate effort.
+:::
 
 ## Web UI
 
