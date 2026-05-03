@@ -119,14 +119,19 @@ The oauth2-proxy Helm chart prepends `image.registry` to `image.repository`. Set
 Add three annotations to the service's Ingress:
 
 ```yaml
-nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth"
-nginx.ingress.kubernetes.io/auth-signin: "https://oauth.k8s.n37.ca/oauth2/start?rd=$scheme%3A%2F%2F$host$escaped_request_uri"
+nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.oauth2-proxy.svc.cluster.local:4180/oauth2/auth"
+nginx.ingress.kubernetes.io/auth-signin: "https://oauth.k8s.n37.ca/oauth2/start?rd=$scheme://$host$uri"
 nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email"
 ```
 
-:::warning Post-login redirect must include scheme and host
-`auth-signin` must use `$scheme%3A%2F%2F$host$escaped_request_uri` (URL-encoded `://`).
-Using `$escaped_request_uri` alone is path-only — oauth2-proxy has no host to redirect back to after login, resulting in a broken redirect loop.
+:::warning Use `$uri` not `$escaped_request_uri` in auth-signin
+ingress-nginx v1.14.x validates nginx variables in the `auth-signin` annotation against a strict allowlist. `$escaped_request_uri` is **not** on that list — the annotation is silently rejected and nginx never generates a login redirect, resulting in a blank 401 on every unauthenticated request.
+
+Use `$scheme://$host$uri` instead:
+
+- `$uri` (path only, no query string) is on the allowlist
+- Avoids a second issue with `$request_uri`: raw `&` characters in query strings would be parsed as extra `/oauth2/start` parameters, truncating the redirect URL
+- Acceptable for SPA dashboards (argo-workflows, falco, uptime-kuma) where query params are not needed for the initial auth redirect
 :::
 
 :::tip Use ClusterIP for auth-url
@@ -163,13 +168,27 @@ Access is restricted to specific GitHub users via the `github_users` config opti
 
 ## Troubleshooting
 
+### Blank 401 on every request (no redirect to GitHub login)
+
+The most common cause is an invalid `auth-signin` annotation. ingress-nginx v1.14.x rejects `$escaped_request_uri` (not in the nginx variable allowlist) — when this happens, no `error_page 401` redirect is generated. Check the controller logs:
+
+```bash
+kubectl logs -n ingress-nginx deployment/ingress-nginx-controller | grep "auth-signin contains invalid"
+```
+
+If you see `annotation auth-signin contains invalid value`, fix the annotation to use `$uri`:
+
+```yaml
+nginx.ingress.kubernetes.io/auth-signin: "https://oauth.k8s.n37.ca/oauth2/start?rd=$scheme://$host$uri"
+```
+
 ### Auth loop (redirecting indefinitely)
 
 Check that the `auth-signin` URL includes scheme and host:
 
 ```bash
 kubectl get ingress -n <namespace> -o yaml | grep auth-signin
-# Should contain: $scheme%3A%2F%2F$host$escaped_request_uri
+# Should contain: $scheme://$host$uri
 ```
 
 ### 401 on every request (cookie not accepted)
@@ -213,4 +232,4 @@ kubectl get endpoints -n oauth2-proxy
 
 ---
 
-**Last Updated:** 2026-04-25
+**Last Updated:** 2026-05-03

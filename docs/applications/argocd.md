@@ -173,6 +173,20 @@ ArgoCD uses GitHub OAuth for login via the built-in Dex OIDC provider. Visiting 
 
 **Local admin fallback:** The local `admin` account remains active for emergency access if GitHub auth breaks.
 
+:::warning Personal GitHub accounts require `scopes: '[preferred_username]'`
+The default ArgoCD RBAC `scopes: '[groups]'` matches `g` rules against the JWT `groups` claim. Personal GitHub accounts (no org/team memberships) always have `groups: []` (empty), so `g, imcbeth, role:admin` never fires — the user logs in successfully but sees no applications.
+
+Fix: set `scopes: '[preferred_username]'` in `configs.rbac`. ArgoCD then matches `g` rules against the `preferred_username` claim (GitHub username), and `g, imcbeth, role:admin` works correctly.
+
+```yaml
+configs:
+  rbac:
+    scopes: '[preferred_username]'
+```
+
+**Symptom:** Login via GitHub succeeds but ArgoCD shows an empty application list and all API calls return 403.
+:::
+
 ```bash
 # Get local admin password
 kubectl get secret argocd-initial-admin-secret -n argocd \
