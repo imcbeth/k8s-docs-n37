@@ -205,7 +205,7 @@ kubectl get events -n argo-workflows --sort-by='.lastTimestamp'
 
 ### UI returns 401 (no redirect to GitHub login)
 
-If visiting `https://workflows.k8s.n37.ca` shows a blank 401 instead of redirecting to GitHub login, the `auth-signin` ingress annotation may be invalid. See the [oauth2-proxy troubleshooting guide](./oauth2-proxy#blank-401-on-every-request-no-redirect-to-github-login).
+If visiting `https://workflows.k8s.n37.ca` shows a blank 401 instead of redirecting to GitHub login, the `auth-signin` ingress annotation may be invalid. See the [oauth2-proxy troubleshooting guide](./oauth2-proxy.md#blank-401-on-every-request-no-redirect-to-github-login).
 
 ### Permission Denied Errors in Workflows
 
