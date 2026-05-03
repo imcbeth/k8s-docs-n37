@@ -178,7 +178,7 @@ spec:
     # Source 1: Helm chart from VMware Tanzu
     - repoURL: https://vmware-tanzu.github.io/helm-charts
       chart: velero
-      targetRevision: 11.4.0
+      targetRevision: 12.0.0
       helm:
         releaseName: velero
         valueFiles:

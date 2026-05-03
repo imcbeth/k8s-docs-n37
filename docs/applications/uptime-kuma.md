@@ -233,4 +233,4 @@ kubectl delete pod -n uptime-kuma -l app.kubernetes.io/name=uptime-kuma
 
 ---
 
-**Last Updated:** 2026-04-25
+**Last Updated:** 2026-05-03
