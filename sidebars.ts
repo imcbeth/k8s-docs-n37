@@ -81,6 +81,14 @@ const sidebars: SidebarsConfig = {
         'applications/oauth2-proxy',
         'applications/uptime-kuma',
         'applications/chaos-mesh',
+        {
+          type: 'category',
+          label: 'Data Streaming',
+          items: [
+            'applications/kafka',
+            'applications/flink',
+          ],
+        },
       ],
     },
     {
