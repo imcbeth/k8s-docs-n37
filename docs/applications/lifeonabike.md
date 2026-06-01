@@ -25,7 +25,7 @@ The `lifeonabike` namespace hosts the web application at `lifeonabike.ca`, a Clo
 | Resource | Kind | Description |
 |----------|------|-------------|
 | `web` | Deployment | Web application (image from Zot registry) |
-| `web` | Service | ClusterIP on port 80 |
+| `web` | Service | ClusterIP port 80 → pod port 8080 (nginx non-root) |
 | `web` / `www` | Ingress | nginx ingress routing (TLS via cert-manager) |
 | `cloudflared` | Deployment | Cloudflare Tunnel (2 replicas) |
 | `cloudflared-config` | ConfigMap | Tunnel routing rules |
@@ -184,10 +184,14 @@ Git-crypt is configured to encrypt any file matching `*secret*`. SealedSecret fi
 The `lifeonabike` namespace has no dedicated NetworkPolicy — the Cloudflare Tunnel pods only need:
 
 - **Outbound HTTPS (443)** to Cloudflare's edge network
-- **Outbound HTTP (12000)** to `argo-events` (for the webhook routing)
-- **Outbound HTTP (80)** to `web.lifeonabike.svc.cluster.local` (served locally within the namespace)
+- **Outbound HTTP to argo-events:12000** (for the build webhook routing)
+- **Outbound HTTP to web Service:80** (served locally within the namespace via the ClusterIP Service)
 
-The ingress-nginx NetworkPolicy allows egress to `lifeonabike:8080` for web traffic.
+:::note Port mapping
+The `web` container runs nginx as a non-root user and binds to **port 8080** (non-privileged). The `web` Service maps **port 80 → targetPort 8080**. The Cloudflare Tunnel connects to the Service at port 80 (`web.lifeonabike.svc.cluster.local:80`), which kube-proxy translates to pod port 8080. The ingress-nginx NetworkPolicy egress rule allows port **8080** because ingress-nginx resolves backend Services to their pod endpoints (bypassing the Service ClusterIP) and connects directly to the pod on port 8080.
+:::
+
+The ingress-nginx NetworkPolicy allows egress to `lifeonabike:8080` for web traffic (pod endpoint port, not Service port).
 
 ## TLS Certificate
 
