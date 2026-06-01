@@ -14,7 +14,7 @@ Argo Workflows is the workflow engine for orchestrating parallel jobs on Kuberne
 |----------|-------|
 | **Namespace** | `argo-workflows` |
 | **Helm Chart** | `argo/argo-workflows` |
-| **Chart Version** | 1.0.13 |
+| **Chart Version** | 1.0.14 |
 | **App Version** | v4.x |
 | **ArgoCD App** | `argo-workflows` |
 | **UI URL** | `https://workflows.k8s.n37.ca` |
@@ -41,7 +41,7 @@ sources:
   # 1. Helm chart
   - repoURL: https://argoproj.github.io/argo-helm
     chart: argo-workflows
-    targetRevision: 1.0.13
+    targetRevision: 1.0.14
     helm:
       releaseName: argo-workflows
       valueFiles:

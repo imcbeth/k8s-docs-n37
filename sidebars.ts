@@ -61,6 +61,7 @@ const sidebars: SidebarsConfig = {
         'applications/kube-prometheus-stack',
         'applications/snmp-exporter',
         'applications/loki',
+        'applications/tempo',
         'applications/cert-manager',
         'applications/external-dns',
         'applications/metrics-server',

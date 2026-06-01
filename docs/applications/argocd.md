@@ -11,8 +11,8 @@ ArgoCD is a declarative, GitOps continuous delivery tool for Kubernetes that aut
 
 - **Namespace:** `argocd`
 - **Helm Chart:** `argoproj/argo-cd`
-- **Chart Version:** `9.5.4`
-- **App Version:** `v3.3.8`
+- **Chart Version:** `9.5.17`
+- **App Version:** `v3.4.3`
 - **Deployment:** Self-managed via ArgoCD
 - **Sync Wave:** `-50` (first application to deploy)
 - **Sync Options:** `ServerSideApply=true`
@@ -24,6 +24,10 @@ Upgraded from chart 9.2.4 to 9.4.1. Server-Side Apply enabled (PR #376) for bett
 
 :::info Version Update (2026-04-25)
 Upgraded chart 9.5.3 → 9.5.4, app v3.3.8. Application Controller memory limit bumped from 1536Mi → 2Gi after OOMKill at 31 apps under v3.3.8 (PR #590). Gatekeeper enforces a 2Gi hard ceiling — this is the maximum available.
+:::
+
+:::info Version Update (2026-06-01)
+Upgraded chart 9.5.4 → 9.5.17, app v3.3.8 → v3.4.3 via Renovate batch.
 :::
 
 ## Purpose
