@@ -76,6 +76,8 @@ const sidebars: SidebarsConfig = {
         },
         'applications/istio',
         'applications/argo-workflows',
+        'applications/argo-events',
+        'applications/lifeonabike',
         'applications/localstack',
         'applications/zot',
         'applications/oauth2-proxy',
