@@ -72,6 +72,53 @@ nginx.ingress.kubernetes.io/auth-signin: "https://oauth.k8s.n37.ca/oauth2/start?
 nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email"
 ```
 
+## lifeonabike Build Pipeline
+
+A `WorkflowTemplate` named `lifeonabike-build` provides automated CI/CD for `lifeonabike.ca`. It is submitted by Argo Events when a push lands on the `main` branch of `github.com/imcbeth/lifeonabike.ca`.
+
+### Steps
+
+| Step | Image | Action |
+|------|-------|--------|
+| `clone` | `alpine/git:2.43.0` | Shallow-clones the app repo, captures git SHA |
+| `build` | `gcr.io/kaniko-project/executor:v1.23.2` | Builds the Docker image, pushes `<sha>` + `latest` tags to Zot |
+| `deploy` | `alpine/k8s:1.31.0` | Runs `kubectl rollout restart deployment/web -n lifeonabike` |
+
+### Key Configuration
+
+```yaml
+# Kaniko pushes to in-cluster Zot over HTTP (pod-to-MetalLB HTTPS is broken in-cluster)
+- --destination=zot.zot.svc.cluster.local:5000/lifeonabike/lifeonabike.ca:{{inputs.parameters.image-tag}}
+- --insecure
+
+# Workflow pods bypass ztunnel — Kaniko and kubectl reach non-mesh endpoints
+podMetadata:
+  annotations:
+    ambient.istio.io/redirection: disabled
+```
+
+### Manual Trigger
+
+```bash
+argo submit --from workflowtemplate/lifeonabike-build \
+  -n argo-workflows \
+  -p revision=main
+```
+
+See the [lifeonabike guide](./lifeonabike.md) for full pipeline details, RBAC setup, and secrets.
+
+## Artifact Storage
+
+Argo Workflows uses **LocalStack S3** as the default artifact store. A `PreSync` Job (`localstack-argo-workflows-setup`) ensures the `argo-workflows` bucket exists before each sync.
+
+```yaml
+# Artifact repository config points at LocalStack
+endpoint: localstack.localstack.svc.cluster.local:4566
+bucket: argo-workflows
+```
+
+The CronWorkflows (cluster-healthcheck, velero-backup-validation) also use LocalStack for their intermediate artifacts.
+
 ## CronWorkflows
 
 Two CronWorkflows are deployed for automated cluster operations:
@@ -221,4 +268,4 @@ kubectl get rolebindings,clusterrolebindings -A | grep argo
 
 ---
 
-**Last Updated:** 2026-05-03
+**Last Updated:** 2026-06-01
