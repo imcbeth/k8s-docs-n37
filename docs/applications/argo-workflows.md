@@ -76,12 +76,45 @@ nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-R
 
 A `WorkflowTemplate` named `lifeonabike-build` provides automated CI/CD for `lifeonabike.ca`. It is submitted by Argo Events when a push lands on the `main` branch of `github.com/imcbeth/lifeonabike.ca`.
 
+### Pipeline Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Dev as 👨‍💻 Developer
+    participant GH as GitHub<br/>imcbeth/lifeonabike.ca
+    participant CF as ☁️ Cloudflare Edge
+    participant CFD as cloudflared pods<br/>(×2, ns: lifeonabike)
+    participant AE as Argo Events<br/>EventSource :12000
+    participant Sensor as Argo Events<br/>Sensor
+    participant AW as Argo Workflows
+    participant Git as alpine/git:v2.52.0<br/>(clone step)
+    participant Kaniko as kaniko:v1.24.0<br/>(build step)
+    participant Zot as Zot Registry<br/>zot.zot.svc.cluster.local:5000
+    participant K8s as Kubernetes<br/>deploy/web (lifeonabike ns)
+
+    Dev->>GH: git push main
+    GH->>CF: Webhook POST /push<br/>HMAC-SHA256 signed
+    CF->>CFD: Tunnel → HTTP
+    CFD->>AE: Forward POST :12000/push
+    AE->>AE: Verify HMAC signature<br/>Filter: body.ref == refs/heads/main
+    AE->>Sensor: Fire lifeonabike-push event
+    Sensor->>AW: Submit WorkflowTemplate<br/>lifeonabike-build (revision=main)
+    Note over AW: Workspace PVC provisioned<br/>synology-iscsi-delete-ssd · 2Gi
+    AW->>Git: Step 1 — clone<br/>shallow clone → capture git SHA
+    AW->>Kaniko: Step 2 — build<br/>Dockerfile → image layers
+    Kaniko->>Zot: Push :&lt;sha&gt; + :latest tags<br/>HTTP (insecure, in-cluster only)
+    AW->>K8s: Step 3 — deploy<br/>kubectl rollout restart deployment/web
+    K8s->>Zot: Pull new image<br/>via registry.k8s.n37.ca (HTTPS)
+    Note over AW: Workspace PVC auto-deleted<br/>(Delete reclaim policy)
+```
+
 ### Steps
 
 | Step | Image | Action |
 |------|-------|--------|
-| `clone` | `alpine/git:2.43.0` | Shallow-clones the app repo, captures git SHA |
-| `build` | `gcr.io/kaniko-project/executor:v1.23.2` | Builds the Docker image, pushes `<sha>` + `latest` tags to Zot |
+| `clone` | `alpine/git:v2.52.0` | Shallow-clones the app repo, captures git SHA |
+| `build` | `gcr.io/kaniko-project/executor:v1.24.0` | Builds the Docker image, pushes `<sha>` + `latest` tags to Zot |
 | `deploy` | `alpine/k8s:1.31.0` | Runs `kubectl rollout restart deployment/web -n lifeonabike` |
 
 ### Key Configuration
