@@ -11,8 +11,8 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 
 - **Namespace:** `default`
 - **Helm Chart:** `prometheus-community/kube-prometheus-stack`
-- **Chart Version:** `84.1.0`
-- **App Version:** `v0.90.1` (prometheus-operator)
+- **Chart Version:** `86.1.0`
+- **App Version:** `v0.91.0` (prometheus-operator)
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-15` (deploys after UniFi Poller, before cert-manager)
 
@@ -22,7 +22,7 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 
 **Purpose:** Time-series database for metrics collection and storage
 
-- **Version:** v3.11.2
+- **Version:** v3.12.0
 - **Replicas:** 1
 - **Storage:** 50Gi persistent volume (Synology iSCSI)
 - **Retention:** Configured for long-term metrics storage
@@ -37,6 +37,7 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 
 **Purpose:** Metrics visualization and dashboarding
 
+- **Version:** `13.0.1-security-01`
 - **Replicas:** 1
 - **Authentication:** Admin credentials stored in secret
 - **Datasource:** Pre-configured Prometheus datasource

@@ -29,7 +29,7 @@ The NGINX Ingress Controller is a Kubernetes controller that manages external ac
 
 - **Namespace:** ingress-nginx
 - **Type:** Deployment (single replica)
-- **Helm Chart:** ingress-nginx v4.14.3
+- **Helm Chart:** ingress-nginx v4.15.1
 - **Controller Version:** v1.14.3
 - **LoadBalancer IP:** 10.0.10.10 (via MetalLB)
 - **Deployment Method:** ArgoCD with Helm chart (ServerSideApply)
@@ -105,7 +105,7 @@ spec:
   sources:
     - repoURL: https://kubernetes.github.io/ingress-nginx
       chart: ingress-nginx
-      targetRevision: 4.14.3
+      targetRevision: 4.15.1
       helm:
         releaseName: ingress-nginx
         valueFiles:
@@ -747,7 +747,7 @@ ingress-nginx namespace has a NetworkPolicy restricting traffic:
 
 ---
 
-**Last Updated:** 2026-03-01
+**Last Updated:** 2026-06-01
 **Status:** Production, Healthy
 **Managed By:** ArgoCD (`manifests/applications/ingress-nginx-config.yaml`)
 **LoadBalancer IP:** 10.0.10.10

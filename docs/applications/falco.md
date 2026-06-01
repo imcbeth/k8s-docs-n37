@@ -71,7 +71,7 @@ Falco is deployed via ArgoCD using the official Falcosecurity Helm chart.
 
 **Configuration:** `manifests/base/falco/values.yaml`
 
-**Version:** Helm chart 8.0.2 (App version 0.43.0)
+**Version:** Helm chart 9.0.0 (App version 0.44.0, falcoctl 0.13.0)
 
 **Sync Wave:** -5 (after monitoring stack for Prometheus/Loki integration)
 
@@ -317,6 +317,18 @@ kubectl rollout restart daemonset/falco -n falco
    ```bash
    kubectl exec -n falco daemonset/falco -- falcoctl artifact list
    ```
+
+### WebUI Shows No Events After Redis Restart
+
+**Symptom:** Falcosidekick WebUI is running but shows 0 events; events continue to appear in Falcosidekick logs.
+
+**Cause:** The RediSearch index is created only when the WebUI pod starts. If Redis is restarted independently (e.g., by ArgoCD sync or OOM), the WebUI continues running but its index is gone — new events are written but the search queries return nothing.
+
+**Fix:** Restart the WebUI pod to force index recreation:
+
+```bash
+kubectl rollout restart deployment/falco-falcosidekick-ui -n falco
+```
 
 ### Alertmanager Not Receiving Alerts
 

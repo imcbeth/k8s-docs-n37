@@ -11,8 +11,8 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 
 - **Namespace:** `velero`
 - **Helm Chart:** `vmware-tanzu/velero`
-- **Chart Version:** `12.0.0`
-- **App Version:** `v1.18.0`
+- **Chart Version:** `12.0.1`
+- **App Version:** `v1.18.1`
 - **Deployment:** Managed by ArgoCD
 - **Backup Storage:** Backblaze B2 (production)
 - **Backup Strategy:** Daily PVC backups + Weekly cluster resource backups
@@ -178,7 +178,7 @@ spec:
     # Source 1: Helm chart from VMware Tanzu
     - repoURL: https://vmware-tanzu.github.io/helm-charts
       chart: velero
-      targetRevision: 12.0.0
+      targetRevision: 12.0.1
       helm:
         releaseName: velero
         valueFiles:
@@ -205,6 +205,17 @@ spec:
 ```
 
 **Note:** The third source deploys the kustomization resources including the SealedSecret for B2 credentials.
+
+:::warning velero-plugin-for-aws pinned to v1.13.2
+The AWS plugin is pinned to `v1.13.2` in `manifests/base/velero/values.yaml`. Do **not** upgrade to v1.14.x — that version sends an `x-amz-tagging` header that Backblaze B2 rejects, causing all backup uploads to fail with a 400 error. This pin must be maintained manually until B2 adds support for the tagging header (PR #681).
+
+```yaml
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:v1.13.2
+```
+
+:::
 
 ## Resource Allocation
 
