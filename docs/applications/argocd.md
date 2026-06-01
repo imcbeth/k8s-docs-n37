@@ -38,6 +38,62 @@ ArgoCD serves as the foundation of the GitOps workflow by:
 
 ## Architecture
 
+### GitOps Flow
+
+```mermaid
+graph LR
+    Dev["👨‍💻 Developer\ngit push"]
+    GitHub["GitHub\nimcbeth/homelab"]
+
+    subgraph ArgoCD ["ArgoCD  ·  argocd.k8s.n37.ca"]
+        Repo["Repo Server\n(clone + render)"]
+        Ctrl["App Controller\n(diff + sync)"]
+        API["API Server\n(UI + CLI)"]
+    end
+
+    subgraph K8s ["Kubernetes Cluster"]
+        Resources["Kubernetes Resources\n(Deployments, Services, CRDs …)"]
+    end
+
+    Dev -->|"git push main"| GitHub
+    GitHub -->|"SSH poll  every ~3 min"| Repo
+    Repo -->|"Helm render\nKustomize render"| Ctrl
+    Ctrl -->|"kubectl apply (SSA)"| Resources
+    Resources -->|"live state"| Ctrl
+    Ctrl --> API
+```
+
+### Application Structure (~40 apps, sync-wave ordered)
+
+```mermaid
+graph TB
+    Bootstrap["Bootstrap ArgoCD Application\n(self-managed, sync-wave -50)"]
+
+    subgraph Wave1 ["-100 to -30  —  Infrastructure Foundation"]
+        I1["tigera-operator  -100\nCalico CNI"]
+        I2["istio-base/istiod/cni/ztunnel  -45 to -42\nService mesh"]
+        I3["network-policies  -40\nNamespace isolation"]
+        I4["metallb  -35\nLoadBalancer IPs"]
+        I5["ingress-nginx  -30\nHTTP/S ingress"]
+    end
+
+    subgraph Wave2 ["-25 to -6  —  Platform Services"]
+        P1["sealed-secrets  -25"]
+        P2["cert-manager  -10\nexternal-dns  -9"]
+        P3["kube-prometheus-stack  -15\nloki  -12  alloy  -11  tempo  0"]
+        P4["gatekeeper  -6\ngatekeeper-policies  -5"]
+        P5["velero  -5\nfalco  -5\ntrivy-operator  0"]
+    end
+
+    subgraph Wave3 ["-8 to 0  —  Applications"]
+        A1["argo-workflows  -8\nargo-events  -8"]
+        A2["localstack  -7\nzot  -2"]
+        A3["lifeonabike  5\nuptime-kuma  0\noauth2-proxy  0"]
+    end
+
+    Bootstrap --> Wave1 --> Wave2 --> Wave3
+```
+
 ### Self-Management
 
 ArgoCD manages its own deployment through a bootstrap Application manifest. This creates a self-healing, self-upgrading system where ArgoCD's configuration is version-controlled in git.

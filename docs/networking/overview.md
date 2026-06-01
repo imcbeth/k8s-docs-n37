@@ -8,15 +8,71 @@ description: "Comprehensive network architecture documentation for the Raspberry
 
 This document describes the complete network architecture for the Raspberry Pi Kubernetes homelab cluster.
 
+## Network Topology
+
+```mermaid
+graph TB
+    Internet(("🌐 Internet"))
+
+    subgraph UDR ["UniFi Dream Router — UDR7  ·  10.0.1.1"]
+        Router["Routing · Firewall · DHCP · DNS\nCyberSecure Enhanced — IDS + Threat Prevention"]
+    end
+
+    subgraph SW ["UniFi USW-Pro-24-PoE"]
+        Switch["24-Port PoE Managed Switch\nPowers all 5 Raspberry Pi nodes"]
+    end
+
+    subgraph VLAN1 ["VLAN 1 — Home  ·  10.0.1.0/24  ·  SSID: micro-net"]
+        NAS["Synology DS925+  10.0.1.204\niSCSI · SMB · SNMP · DSM"]
+        Devices1["Desktops · Laptops · Media"]
+    end
+
+    subgraph VLAN2 ["VLAN 2 — IoT  ·  10.0.2.0/24  ·  SSID: micro-iot"]
+        IoT["Smart Home Devices\nisolated from home VLAN"]
+    end
+
+    subgraph VLAN10 ["VLAN 10 — Kubernetes  ·  10.0.10.0/24"]
+        direction LR
+        CP["control-plane\n10.0.10.214"]
+        N1["node01\n10.0.10.235"]
+        N2["node02\n10.0.10.211"]
+        N3["node03\n10.0.10.244"]
+        N4["node04\n10.0.10.220"]
+    end
+
+    subgraph VLAN20 ["VLAN 20 — Video  ·  10.0.20.0/24"]
+        Cameras["IP Cameras · NVR\nisolated"]
+    end
+
+    subgraph VLAN99 ["VLAN 99 — Guest  ·  10.0.99.0/24  ·  SSID: micro-guest"]
+        Guest["Guest Devices\ninternet-only, isolated"]
+    end
+
+    subgraph VLAN100 ["VLAN 100 — Work  ·  10.0.100.0/24"]
+        Work["Work Devices · Corp VPN"]
+    end
+
+    Internet <--> UDR
+    UDR <--> SW
+    SW <--> VLAN1
+    SW <--> VLAN2
+    SW <--> VLAN10
+    SW <--> VLAN20
+    SW <--> VLAN99
+    SW <--> VLAN100
+    VLAN10 -->|"iSCSI  ·  port 3260"| NAS
+```
+
 ## VLAN Configuration
 
-| Name | VLAN ID | Subnet | Gateway | Purpose |
-|------|---------|---------|---------|---------|
-| Home | 1 | 10.0.1.0/24 | 10.0.1.1 | Primary home network, NAS, gateway |
-| IoT | 2 | 10.0.2.0/24 | 10.0.2.1 | Internet of Things devices |
-| Kubernetes | 10 | 10.0.10.0/24 | 10.0.10.1 | Kubernetes cluster nodes and services |
-| Work | 100 | 10.0.100.0/24 | 10.0.100.1 | Work devices and VPN |
-| Guest | 99 | 10.0.99.0/24 | 10.0.99.1 | Guest network |
+| Name | VLAN ID | Subnet | Gateway | Purpose | SSID |
+|------|---------|---------|---------|---------|------|
+| Home | 1 | 10.0.1.0/24 | 10.0.1.1 | Primary home network, NAS, gateway | micro-net |
+| IoT | 2 | 10.0.2.0/24 | 10.0.2.1 | Internet of Things devices (isolated) | micro-iot |
+| Kubernetes | 10 | 10.0.10.0/24 | 10.0.10.1 | Kubernetes cluster nodes and services | — |
+| Video | 20 | 10.0.20.0/24 | 10.0.20.1 | IP cameras and NVR (isolated) | — |
+| Guest | 99 | 10.0.99.0/24 | 10.0.99.1 | Guest network (internet-only) | micro-guest |
+| Work | 100 | 10.0.100.0/24 | 10.0.100.1 | Work devices and VPN | — |
 
 ## Wireless Networks
 
@@ -67,6 +123,45 @@ This document describes the complete network architecture for the Raspberry Pi K
   - **Note:** Pi-hole manifests remain in the homelab repository for historical reference but are not deployed to the cluster
 
 ## Kubernetes Cluster Network (VLAN 10)
+
+```mermaid
+graph TB
+    subgraph NAS ["Synology DS925+  ·  10.0.1.204  (VLAN 1)"]
+        Vol2["Volume 2 — HDD Pool\nRetain storage classes\n(Grafana, Prometheus, Loki …)"]
+        Vol4["Volume 4 — SSD Pool\nDelete storage classes\n(build workspaces, ephemeral)"]
+    end
+
+    subgraph K8s ["Kubernetes Cluster  ·  VLAN 10  ·  10.0.10.0/24"]
+        subgraph CP ["control-plane  ·  10.0.10.214"]
+            APIServer["kube-apiserver · etcd\nkube-scheduler\nkube-controller-manager"]
+        end
+
+        subgraph Workers ["Worker Nodes (all: Ubuntu 24.04, K8s v1.35, 16 GB RAM, ARM64)"]
+            N1["node01  ·  10.0.10.235"]
+            N2["node02  ·  10.0.10.211"]
+            N3["node03  ·  10.0.10.244"]
+            N4["node04  ·  10.0.10.220"]
+        end
+
+        subgraph Networking ["Cluster Networking"]
+            Calico["Calico CNI\nPod CIDR 192.168.0.0/16\nIP-in-IP encapsulation"]
+            Istio["Istio Ambient Mesh\nmTLS via ztunnel (port 15008)"]
+            MLB["MetalLB L2\nLB Pool 10.0.10.10–10.0.10.99"]
+            Ingress["ingress-nginx\n10.0.10.10 (LoadBalancer)"]
+        end
+
+        subgraph Storage ["Storage"]
+            CSI["Synology CSI Driver\ncsi.san.synology.com"]
+            SvcCIDR["Service CIDR\n10.96.0.0/12"]
+        end
+    end
+
+    CP & N1 & N2 & N3 & N4 -->|"iSCSI  ·  port 3260"| NAS
+    CSI -->|"LUN provisioning via DSM API\nport 5000/5001"| NAS
+    Vol2 -.->|"synology-iscsi-retain\nsynology-iscsi-delete"| CSI
+    Vol4 -.->|"synology-iscsi-retain-ssd\nsynology-iscsi-delete-ssd"| CSI
+    MLB --> Ingress
+```
 
 ### Node IP Addresses
 
@@ -247,10 +342,10 @@ See the [cert-manager guide](../applications/cert-manager.md) for detailed confi
   - All VLANs → Internet via gateway
   - Guest VLAN (99): Isolated, internet-only
 
-### Port Forwarding
+### Public Access
 
-- **Status:** Not configured (no public-facing services)
-- **Cloudflare Tunnel:** Potential future use for secure public access
+- **Port Forwarding:** Not configured — no ports exposed directly from the router
+- **Cloudflare Tunnel:** ✅ Deployed — `lifeonabike.ca` and `build-webhook.n37.ca` are served via outbound tunnel (no inbound firewall rules required). See [Cloudflare Tunnel](cloudflare-tunnel.md) for architecture and setup.
 
 ### Network Policies (Kubernetes)
 
@@ -463,7 +558,7 @@ kubectl get l2advertisement -n metallb-system -o yaml
 - [x] ~~Deploy Service Mesh~~ ✅ Istio Ambient deployed
 - [ ] Set up VPN for secure remote cluster access (Tailscale or WireGuard)
 - [ ] Document actual ISP bandwidth and latency baselines
-- [ ] Create network topology diagram
+- [x] ~~Create network topology diagram~~ ✅ Mermaid diagrams added to this page
 - [ ] Implement egress traffic monitoring
 - [ ] Consider IPv6 enablement
 - [ ] Waypoint proxies for L7 policies (Istio Ambient)

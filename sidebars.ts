@@ -39,6 +39,7 @@ const sidebars: SidebarsConfig = {
       label: 'Networking',
       items: [
         'networking/overview',
+        'networking/cloudflare-tunnel',
         'networking/terraform',
       ],
     },
