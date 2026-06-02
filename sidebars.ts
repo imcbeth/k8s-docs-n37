@@ -40,6 +40,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'networking/overview',
         'networking/cloudflare-tunnel',
+        'networking/coredns',
         'networking/terraform',
       ],
     },
