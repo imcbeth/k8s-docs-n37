@@ -107,6 +107,13 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Development',
+      items: [
+        'development/pre-commit-ci',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Security',
       items: [
         'security/secrets-management',
