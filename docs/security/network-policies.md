@@ -595,6 +595,63 @@ git commit -m "feat: Add NetworkPolicy for <namespace>"
 git push
 ```
 
+## Gotchas
+
+These are the failure modes that have actually bitten us. Read this section before debugging — every one of these has cost a session at least once.
+
+### HBONE bypass requires BOTH ends ambient-meshed
+
+A common assumption: "the destination namespace has a bare HBONE allow on port 15008, so all in-cluster traffic to it works." It doesn't. Istio Ambient's source-side ztunnel only **uses** HBONE if the destination has a meshed target. If the destination namespace lacks the `istio.io/dataplane-mode=ambient` label, traffic from a meshed pod goes direct TCP — the source pod IP is the literal sender, and the bare HBONE rule is irrelevant.
+
+**Example** (blackbox-exporter SLO probes, 2026-06-02): blackbox is in `default` (ambient). Probing `argo-workflows-server.argo-workflows:2746` worked because both ns are ambient — HBONE bypass on port 15008 carries the traffic. Probing `zot.zot:5000/v2/` timed out because zot is NOT meshed — the source IP was the blackbox pod, but the zot NetworkPolicy didn't list blackbox as an allowed ingress source.
+
+**Fix pattern**: when source is meshed and destination is *not*, add an explicit ingress rule on the destination NetworkPolicy:
+
+```yaml
+- from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: <source-ns>
+      podSelector:
+        matchLabels:
+          app: <source-app>
+  ports:
+    - protocol: TCP
+      port: <app-port>
+```
+
+### NetworkPolicy fixes need both directions
+
+Adding an ingress allow on the destination's NetPol is half the work — the source namespace's egress NetPol must also permit the destination port. This bit us when wiring blackbox-exporter to zot: zot's ingress was opened in one PR, then the next day we hit the symptom again because the `default` namespace's egress NetPol only allowed ports 80/443/8443/161 to `10.0.0.0/8`. Port 5000 needed an explicit egress add.
+
+**Debug pattern**:
+
+```bash
+# From inside the source pod, test the path
+kubectl -n <src-ns> exec <pod> -- wget --timeout=8 -qO- "http://<svc>.<dst-ns>:<port>/path"
+
+# If timeout: check both directions
+kubectl get networkpolicy -n <dst-ns> -o yaml | yq '.items[].spec.ingress'
+kubectl get networkpolicy -n <src-ns> -o yaml | yq '.items[].spec.egress'
+```
+
+### Pod-to-MetalLB VIP hairpin (kube-proxy KUBE-EXT chain)
+
+Pods can resolve `*.k8s.n37.ca` to MetalLB VIP `10.0.10.10` via split-horizon DNS, but most pods *cannot* reach that VIP. The kube-proxy `KUBE-EXT-<svc>` chain only DNATs LoadBalancer external IPs for traffic with iptables `--src-type LOCAL` (= the node itself originated the packet). Pod traffic fails that check and the packet is left undelivered.
+
+**Workaround** for monitors/probes:
+
+- **Mesh-meshed pods** can reach the VIP via ztunnel HBONE (which bypasses kube-proxy's broken path).
+- **Non-meshed pods** must use the ClusterIP service DNS directly — e.g. `argocd-server.argocd:80`, not `argocd.k8s.n37.ca`.
+
+This is why the SLO probe set is split into `blackbox-availability` (HTTPS via ingress — only works for ingresses that don't redirect across the hairpin) and `blackbox-availability-internal` (HTTP via ClusterIP — works universally).
+
+See the [SLOs guide](../monitoring/slos.md#why-two-jobs) and [CoreDNS](../networking/coredns.md#public-service-through-split-horizon-argocdk8sn37ca) for more.
+
+### Calico IPIP rewrites source IP across nodes
+
+For cross-node pod-to-pod traffic, Calico's IPIP encapsulation rewrites the source IP. `ipBlock` rules matching node IPs become unreliable for K8s API → webhook traffic. Use bare port rules or namespaceSelector instead.
+
 ## Troubleshooting
 
 ### Traffic Unexpectedly Blocked
@@ -613,11 +670,21 @@ git push
    kubectl describe networkpolicy -n <ns> | grep 15008
    ```
 
-3. **Check if source namespace is allowed:**
+3. **Check if source namespace is allowed (ingress side):**
 
    ```bash
-   kubectl get networkpolicy -n <target-ns> -o yaml | grep -A5 namespaceSelector
+   kubectl get networkpolicy -n <target-ns> -o yaml | yq '.items[].spec.ingress'
    ```
+
+4. **Check if the source namespace's egress permits the destination port:**
+
+   ```bash
+   kubectl get networkpolicy -n <source-ns> -o yaml | yq '.items[].spec.egress'
+   ```
+
+   *Both* sides must permit the path. See the "fixes need both directions" gotcha above.
+
+5. **If source is meshed and destination is not**, the HBONE bypass doesn't apply — the destination must allow the source pod explicitly on the application port.
 
 ### K8s API Timeout
 
