@@ -102,6 +102,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'monitoring/overview',
         'monitoring/grafana-dashboards',
+        'monitoring/slos',
       ],
     },
     {
