@@ -158,12 +158,29 @@ timeout: 5s
 
 - `http://argocd-server.argocd:80` - ArgoCD server
 
-#### External Services (HTTPS)
+#### External Services (HTTPS — cert expiry)
 
 - `https://argocd.k8s.n37.ca` - ArgoCD external access
 - `https://grafana.k8s.n37.ca` - Grafana dashboards
 - `https://google.com` - External connectivity test
 - `https://cloudflare.com` - External connectivity test
+
+#### SLO Availability Probes
+
+These targets carry the `slo_target="0.995"` label and feed into the [SLO recording rules and burn-rate alerts](../monitoring/slos.md).
+
+**`blackbox-availability` job** — end-to-end HTTPS through ingress-nginx (`slo_path="ingress"`):
+
+- `https://argocd.k8s.n37.ca` - argocd-server (TLS passthrough)
+- `https://grafana.k8s.n37.ca` - Grafana (HTTPS termination)
+
+**`blackbox-availability-internal` job** — HTTP via ClusterIP Service (`slo_path="backend"`). Bypasses ingress-nginx for services where the end-to-end path can't be probed reliably from in-cluster (oauth2-proxy redirects + MetalLB VIP hairpin):
+
+- `http://argo-workflows-server.argo-workflows:2746/`
+- `http://zot.zot:5000/v2/`
+- `http://web.lifeonabike:80/`
+
+See the [SLO guide](../monitoring/slos.md#adding-a-new-slo-target) for how to add new targets, NetworkPolicy considerations, and probe module choice.
 
 #### DNS Servers
 
@@ -181,12 +198,14 @@ timeout: 5s
 
 ### Scrape Configuration
 
-The Blackbox Exporter is configured in Prometheus via `additionalScrapeConfigs` with four separate jobs:
+The Blackbox Exporter is configured in Prometheus via `additionalScrapeConfigs` with these scrape jobs:
 
 1. **blackbox-http**: HTTP endpoint monitoring (30s interval)
-2. **blackbox-https**: HTTPS with cert expiry (60s interval)
-3. **blackbox-dns**: DNS query monitoring (30s interval)
-4. **blackbox-icmp**: ICMP ping monitoring (30s interval)
+2. **blackbox-https**: HTTPS with cert expiry — `https_cert_expiry` module (60s interval)
+3. **blackbox-availability**: HTTPS 2xx availability for SLO inputs — `https_2xx` module, `slo_target="0.995"`, `slo_path="ingress"` (30s interval)
+4. **blackbox-availability-internal**: HTTP 2xx availability via ClusterIP for SLO inputs — `http_2xx` module, `slo_target="0.995"`, `slo_path="backend"` (30s interval)
+5. **blackbox-dns**: DNS query monitoring (30s interval)
+6. **blackbox-icmp**: ICMP ping monitoring (30s interval)
 
 ### Relabeling Configuration
 
