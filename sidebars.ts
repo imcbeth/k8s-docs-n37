@@ -118,6 +118,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'security/secrets-management',
         'security/network-policies',
+        'security/resource-quotas',
         'security/runtime-security',
         'applications/falco',
         'applications/gatekeeper',
