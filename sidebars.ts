@@ -41,6 +41,7 @@ const sidebars: SidebarsConfig = {
         'networking/overview',
         'networking/cloudflare-tunnel',
         'networking/coredns',
+        'networking/cluster-topology',
         'networking/terraform',
       ],
     },
