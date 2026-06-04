@@ -120,6 +120,7 @@ const sidebars: SidebarsConfig = {
         'operations/runbooks',
         'operations/disaster-recovery',
         'operations/capacity-planning',
+        'operations/performance-baseline',
       ],
     },
     {
