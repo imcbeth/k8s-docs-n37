@@ -119,6 +119,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'operations/runbooks',
         'operations/disaster-recovery',
+        'operations/capacity-planning',
       ],
     },
     {
