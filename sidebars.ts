@@ -117,6 +117,7 @@ const sidebars: SidebarsConfig = {
       label: 'Operations',
       items: [
         'operations/runbooks',
+        'operations/disaster-recovery',
       ],
     },
     {

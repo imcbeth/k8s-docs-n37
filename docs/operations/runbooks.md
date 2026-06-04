@@ -263,6 +263,7 @@ The order matters: Synology NAS must be **up** before nodes boot, otherwise iSCS
 
 ## Related
 
+- **[Disaster Recovery](./disaster-recovery.md)** — when a runbook isn't enough (node loss, control plane failure, full restore)
 - **[ArgoCD](../applications/argocd.md)** — multi-source patterns, sync waves
 - **[Velero](../applications/velero.md)** — backup schedules + restore command reference
 - **[Network Policies](../security/network-policies.md)** — when NetPol is the actual blocker
