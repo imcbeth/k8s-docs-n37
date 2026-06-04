@@ -114,6 +114,13 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Operations',
+      items: [
+        'operations/runbooks',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Security',
       items: [
         'security/secrets-management',
