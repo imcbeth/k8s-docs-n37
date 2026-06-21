@@ -9,6 +9,8 @@ Istio Ambient mode provides a sidecarless service mesh architecture for the home
 
 :::info Version history
 Upgraded from 1.28.3 → 1.30.0 on 2026-06-01 via Renovate batch PR. The upgrade follows the standard sequential minor-version path: 1.28 → 1.29 → 1.30. No ambient-mode breaking changes in this range.
+
+Subsequent patch bump to **1.30.1** on 2026-06-21 (Renovate PR #741). `istio-base` required a manual sync after the apply — chart CRD labels (`helm.sh/chart: base-1.30.0` → `base-1.30.1`) created drift that auto-sync didn't pick up. Triggered via `kubectl patch operation` with `prune: true`. See [REFERENCE.md gotcha "Renovate chart minor bumps may need manual sync"](https://github.com/imcbeth/homelab/blob/main/.claude/notes/REFERENCE.md).
 :::
 
 ## Architecture
