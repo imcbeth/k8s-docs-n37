@@ -294,6 +294,91 @@ velero backup get --selector=schedule=weekly-cluster-backup | head -5
 
 If the schedule hasn't run in >48h, fix that **before** the NAS dies, not after.
 
+## Case study — the 16-day silent outage (2026-06-21)
+
+This is a postmortem of a multi-workload outage that went undetected for sixteen days. It's documented here because the failure mode and the design fix matter more than the incident itself — they shape every future "let's add monitoring or auto-remediation" decision.
+
+### What happened
+
+On 2026-06-21 a routine `/cluster-healthcheck` run found five workloads in `CrashLoopBackOff`:
+
+- `prometheus-kube-prometheus-stack-prometheus-0`
+- `loki-0` (144 restarts over 16 days)
+- `kube-prometheus-stack-grafana-*`
+- `uptime-kuma-*` (144 restarts)
+- `falco-falcosidekick-ui-redis-0`
+
+All five had the same root cause: their iSCSI-backed PVCs had been remounted read-only by btrfs after some session interruption around 2026-06-05. The kernel-level mount was RO. Three of the four globalmounts on `node04` were RO at the device level, not just the pod bind-mount.
+
+ArgoCD reported every app `Synced + Healthy` the entire time.
+
+### Why nothing alerted
+
+The `pvc-ro-remediator` CronJob had been verified working end-to-end on 2026-06-07. The original design queried Prometheus for firing `PVCMountReadOnly` alerts:
+
+```sh
+curl http://prometheus:9090/api/v1/alerts
+  | jq '.data.alerts[] | select(.labels.alertname=="PVCMountReadOnly" and .state=="firing")'
+```
+
+When Prometheus's own PVC went RO, Prometheus crashed → the curl failed → the Job exited non-zero → `BackoffLimitExceeded`. The CronJob's `failedJobsHistoryLimit: 3` pruned the failure history within ~6 minutes. Every subsequent 2-minute run failed the same way.
+
+AlertManager kept running fine (different PVC, RW). But it had no alerts to deliver because Prometheus rule evaluation was down.
+
+### The dependency cycle
+
+The remediator's failure mode is what makes this important. It's not just "Prometheus broke." It's that the remediator system **depended on Prometheus to know what was broken**. When Prometheus went down, the *entire* observability + auto-remediation stack went silent at the same time.
+
+```
+Prometheus PVC goes RO
+  ↓
+Prometheus crashes
+  ↓
+Rule evaluation stops (no alerts evaluated)
+  ↓
+Remediator curl to Prometheus fails
+  ↓
+CronJob Jobs all fail (BackoffLimitExceeded)
+  ↓
+Jobs prune from history within 6 min
+  ↓
+Other workloads keep crashing for 16 days
+```
+
+This is the textbook "monitor the system from the system" anti-pattern.
+
+### Recovery
+
+Manual, step by step:
+
+1. **Deleted Prometheus, Loki, Grafana pods on `node03`** — node03's globalmount was still RW, fresh pods got clean mounts.
+2. **Discovered 3 of 4 globalmounts on `node04`** were RO at the kernel level — pod delete alone wasn't enough.
+3. **Cordoned `node04`**, deleted the 3 affected pods (Grafana, Falco-Redis, Uptime Kuma). They rescheduled to other nodes; CSI driver did fresh attaches.
+4. **Uncordoned `node04`** — its RO globalmounts cleaned up when the next pod requested a volume.
+
+Total recovery time: ~45 minutes once the issue was identified.
+
+### The fix
+
+[PR #753](https://github.com/imcbeth/homelab/pull/753) rewrote the remediator to query the `pvc-mount-monitor` DaemonSet pods directly via the Service endpoints, bypassing Prometheus entirely. See [PVC RO Mount Auto-Remediation](../storage/pvc-ro-automation.md#why-query-the-monitors-directly-not-via-prometheus) for the full design rationale.
+
+### Lessons that apply beyond this incident
+
+1. **An auto-remediation system that depends on the system being remediated is worse than no automation.** People stop watching because "the automation has it covered."
+
+2. **ArgoCD `Synced + Healthy` ≠ "the automation works."** ArgoCD checks resource definitions match git. It doesn't run the CronJobs and verify the output. The signal lived inside Job pod logs, which got pruned by `failedJobsHistoryLimit: 3`.
+
+3. **Dead-man switches need to run on a path independent of the system they're watching.** If a Prometheus alert is your only signal that the remediator stopped working, you'll lose both at the same time.
+
+4. **Failure-history retention should be longer than the detection window.** `failedJobsHistoryLimit: 3` at a 2-minute cadence means 6 minutes of history. Useful for normal debugging, completely inadequate as a forensics tool for a 16-day incident.
+
+5. **iSCSI RO can be at the globalmount layer, not just the pod bind-mount.** Pod delete creates a fresh pod but it bind-mounts the same RO device. Cross-node reschedule (drain or cordon-then-delete) forces a fresh CSI attach.
+
+### Open follow-ups
+
+- **Dead-man-switch alert** for the remediator — should fire if no successful Job has completed in the last N hours, *and the alert path must not depend on Prometheus rule evaluation*. The hard part is "not depending on Prom" — possibilities being considered: AlertManager external heartbeat receiver, healthchecks.io style external monitoring, or a sidecar that emits to a non-Prom path.
+- **Failure-history retention** — bump `failedJobsHistoryLimit` on the remediator to something like 50 so a forensics review N days later still has data. Trade-off is etcd object count.
+
 ## Validating the DR posture
 
 The cluster runs a monthly DR validation CronWorkflow (deployed 2026-03-25, see `manifests/base/argo-workflows/dr-validation-cronworkflow.yaml`) that:
