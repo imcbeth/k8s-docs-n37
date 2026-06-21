@@ -10,7 +10,7 @@ Metrics Server provides container resource metrics (CPU, memory) for Kubernetes 
 ## Overview
 
 - **Namespace:** `kube-system`
-- **Chart:** `metrics-server` v3.13.0
+- **Chart:** `metrics-server` v3.13.1 (as of 2026-06-21, via Renovate PR #750)
 - **App Version:** v0.8.0
 - **Repository:** [kubernetes-sigs/metrics-server](https://kubernetes-sigs.github.io/metrics-server/)
 - **Deployment:** Managed by ArgoCD

@@ -14,7 +14,7 @@ Argo Events is the event-driven automation layer that bridges external events (G
 |----------|-------|
 | **Namespace** | `argo-events` |
 | **Helm Chart** | `argo/argo-events` |
-| **Chart Version** | 2.4.21 |
+| **Chart Version** | 2.4.22 (as of 2026-06-21, via Renovate PR #740) |
 | **App Version** | v1.9.10 |
 | **ArgoCD App** | `argo-events` |
 | **Sync Wave** | -8 |
