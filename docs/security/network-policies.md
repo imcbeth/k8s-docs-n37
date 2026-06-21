@@ -620,9 +620,28 @@ A common assumption: "the destination namespace has a bare HBONE allow on port 1
       port: <app-port>
 ```
 
-### NetworkPolicy fixes need both directions
+### NetworkPolicy fixes need both directions — including same-namespace
 
-Adding an ingress allow on the destination's NetPol is half the work — the source namespace's egress NetPol must also permit the destination port. This bit us when wiring blackbox-exporter to zot: zot's ingress was opened in one PR, then the next day we hit the symptom again because the `default` namespace's egress NetPol only allowed ports 80/443/8443/161 to `10.0.0.0/8`. Port 5000 needed an explicit egress add.
+Adding an ingress allow on the destination's NetPol is half the work — the source namespace's egress NetPol must also permit the destination port. **The same applies to same-namespace traffic** when the policy declares `policyTypes: [Egress]`. Pod-to-pod within a namespace is denied by default in that case unless there's an explicit intra-ns allow rule.
+
+**Five instances of this bit us during the PVC RO automation rollout in 2026-06**:
+
+| PR | Missing piece | Symptom |
+|---|---|---|
+| #736 | `synology-csi` ingress :9300 | Prom scrape into the namespace failed |
+| #738 | `default` egress :9300 | Prom scrape couldn't leave default ns |
+| #739 + #746 | `synology-csi` egress :9090 | remediator curl to Prom timed out |
+| #747 | `default` ingress :9090 from `synology-csi` | remediator curl to Prom timed out |
+| #763 | `synology-csi` intra-ns egress :9300 | remediator curl to monitor pods (same ns!) timed out |
+
+The last one is the trap — both the source pod (`pvc-ro-remediator`) and destination (`pvc-mount-monitor`) lived in `synology-csi`. The instinct is "they're in the same namespace, no policy needed." When the policy declares `Egress`, that instinct is wrong.
+
+**Cross-component path checklist.** Before opening a PR that introduces a new cross-pod metric scrape or API call, verify all four corners:
+
+1. **Source-side egress** — the source pod's namespace allows outbound on the destination port
+2. **Destination-side ingress** — the destination pod's namespace allows inbound on that port from the source namespace
+3. **If same-namespace**: there's an explicit intra-ns allow rule (egress AND ingress with `kubernetes.io/metadata.name: <same-ns>` selectors)
+4. **If cross-node and meshed**: bare port 15008 (HBONE) ingress/egress rules; ztunnel link-local `169.254.7.127/32` rule
 
 **Debug pattern**:
 
@@ -633,6 +652,11 @@ kubectl -n <src-ns> exec <pod> -- wget --timeout=8 -qO- "http://<svc>.<dst-ns>:<
 # If timeout: check both directions
 kubectl get networkpolicy -n <dst-ns> -o yaml | yq '.items[].spec.ingress'
 kubectl get networkpolicy -n <src-ns> -o yaml | yq '.items[].spec.egress'
+
+# If same-namespace, verify there's an intra-ns rule
+kubectl get networkpolicy -n <ns> -o json | jq '
+  .items[].spec.egress[] | select(.to[]?.namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "<ns>")
+'
 ```
 
 ### Pod-to-MetalLB VIP hairpin (kube-proxy KUBE-EXT chain)
