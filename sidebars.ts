@@ -51,6 +51,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'storage/synology-csi',
         'storage/iscsi-troubleshooting',
+        'storage/pvc-ro-automation',
       ],
     },
     {
