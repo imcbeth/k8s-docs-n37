@@ -156,6 +156,88 @@ kubectl patch pv <pv> -p '{"metadata":{"finalizers":null}}' --type=merge
 
 ---
 
+## PVC mount went read-only (EROFS)
+
+**Symptoms.** A pod is `Running` but the application inside is failing writes with `Read-only file system` / `EROFS` / `Input/output error`. Loki, Uptime Kuma, Falco-Redis, Prometheus, Grafana are the historical victims because they hold the largest PVCs.
+
+Signs to look for in pod logs:
+
+- Loki: `error running loki: ... read-only file system` then crashloop
+- Uptime Kuma: `chown: changing ownership of '/app/data/...': Read-only file system`
+- Redis: `Failed opening the temp RDB file ...: Input/output error`
+- Prometheus / Grafana: tsdb / sqlite write errors, then crashloop
+
+**Diagnose.**
+
+```bash
+# Confirm the underlying mount is RO
+LOKI_NODE=$(kubectl get pod -n loki loki-0 -o jsonpath='{.spec.nodeName}')
+MON=$(kubectl get pod -n synology-csi -l app.kubernetes.io/name=pvc-mount-monitor \
+  --field-selector=spec.nodeName=$LOKI_NODE \
+  -o jsonpath='{.items[0].metadata.name}')
+
+kubectl exec -n synology-csi $MON -- /bin/sh -c \
+  "awk '\$2 ~ /kubernetes.io~csi.*\\/mount/ && \$4 ~ /^ro,/' /host/proc/1/mounts"
+# Any output = pod's CSI mount is RO
+
+# Also check the globalmount (the underlying iSCSI device)
+kubectl exec -n synology-csi $MON -- /bin/sh -c \
+  "grep -E 'kubernetes.io/csi.*synology.*globalmount' /host/proc/1/mounts"
+# Look for `ro,` in column 4 of the matching line
+```
+
+**Resolve (automation should handle this; manual is the fallback).**
+
+The [PVC RO Mount Auto-Remediation](../storage/pvc-ro-automation.md) pipeline catches this automatically within ~4 minutes. Verify it ran:
+
+```bash
+# Latest remediator pod logs (should show 'no RO mounts detected' OR 'ACTION pvc=... pod=...')
+kubectl get pod -n synology-csi -l app.kubernetes.io/name=pvc-ro-remediator \
+  --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}{"\n"}' \
+  | xargs -I{} kubectl logs -n synology-csi {}
+```
+
+If the automation didn't act (e.g., the affected pod is in a [protected namespace](../storage/pvc-ro-automation.md#why-a-protected-namespace-allowlist) like `kube-system`, or the automation itself is broken), the manual fix matches what the automation does:
+
+```bash
+# Simple case: pod bind-mount is RO but the underlying iSCSI device is RW
+kubectl delete pod -n <ns> <affected-pod>
+# Wait for pod to come back Running; verify writes work
+```
+
+**Hard case — iSCSI globalmount itself is RO.** Pod delete is insufficient because the fresh pod bind-mounts the same RO device. Cross-node reschedule forces the CSI driver to do a fresh attach on a different node:
+
+```bash
+# Cordon the affected node
+kubectl cordon <node>
+
+# Delete the affected pods (they'll reschedule elsewhere)
+kubectl delete pod -n <ns> <pod>
+
+# Wait for fresh pod to be Running on a new node
+kubectl get pod -n <ns> <pod> -o wide
+
+# Uncordon — the RO globalmount on the original node is now detached and clean
+kubectl uncordon <node>
+```
+
+**Verify.**
+
+```bash
+# Mount state across all CSI mounts
+PROM=prometheus-kube-prometheus-stack-prometheus-0
+kubectl -n default exec $PROM -c prometheus -- \
+  wget -qO- "http://localhost:9090/api/v1/query?query=count(pvc_mount_readonly==1)" \
+  | python3 -c "import json,sys;r=json.load(sys.stdin)['data']['result'];print('RO mounts:',r[0]['value'][1] if r else 0)"
+# Expect: RO mounts: 0
+```
+
+**Pitfall.** If multiple pods on the same node are affected, they likely share the same root cause (often the iSCSI session itself went unhealthy). Doing the cross-node reschedule for one pod doesn't fix the others. Cordon + delete the entire affected workload set in one pass.
+
+**See also.** [PVC RO Mount Auto-Remediation](../storage/pvc-ro-automation.md) — the full automation guide, including the lessons from a 16-day silent outage that motivated the monitor-direct architecture.
+
+---
+
 ## Certificate renewal — manual trigger
 
 **Symptoms.** `SSLCertificateExpiresIn30Days` warning fired; cert-manager hasn't renewed automatically.
