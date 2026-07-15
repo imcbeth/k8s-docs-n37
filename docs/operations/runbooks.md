@@ -8,6 +8,40 @@ description: "Step-by-step procedures for common operational tasks: stuck syncs,
 
 Concrete step-by-step procedures for the things that actually break. Each runbook starts with **symptoms** (how you'd notice the problem), then **diagnose**, then **resolve**, then **verify**.
 
+## ArgoCD app stuck in `Progressing` state
+
+**Symptoms.** `ArgoCDAppProgressing` alert firing (default `for: 1h`). App shows `Synced + Progressing` but no rollout is actually happening.
+
+**Diagnose.**
+
+```bash
+# Which resources are keeping the app in Progressing?
+kubectl get application <app> -n argocd -o json | \
+  jq '.status.resources[] | select(.health.status != "Healthy")'
+
+# Non-Running / non-Ready pods in the target namespace
+kubectl get pod -n <ns> -o wide | grep -v Running
+
+# What's the operation currently doing?
+kubectl get application <app> -n argocd \
+  -o jsonpath='{.status.operationState.message}{"\n"}'
+```
+
+**Common root causes:**
+
+- **Pod stuck `RunContainerError`** — a chaos-mesh experiment or admission webhook mutation swapped the container image to something the runtime can't exec. Check `kubectl describe pod <pod> -n <ns>` for the actual error. See [chaos-mesh self-lockup recovery](../applications/chaos-mesh.md#chaos-mesh-pods-running-pauselatest-self-lockup) if the image is `pause:latest`.
+- **Job stuck (never completing)** — usually a PreSync/PostSync hook waiting on a dependency. Check `kubectl get job -n <ns>` and delete the hook Job if it's genuinely stuck.
+- **StatefulSet replica won't come up** — often iSCSI RO cascade. See [PVC mount went read-only](#pvc-mount-went-read-only-erofs) below.
+
+**Resolve.**
+
+1. Fix the underlying resource (delete stuck pod, delete stuck Job, kubectl rollout restart, etc.).
+2. Alert clears within ~1 min once `argocd_app_info{health_status="Progressing"}` drops.
+
+**See also.** [ArgoCD alerting section](../applications/argocd.md#alerting) — the alert set and rationale.
+
+---
+
 ## ArgoCD application stuck OutOfSync
 
 **Symptoms.** App shows `OutOfSync` for >10 minutes; sync history shows no new attempts; manual sync errors with a permission or hook failure.

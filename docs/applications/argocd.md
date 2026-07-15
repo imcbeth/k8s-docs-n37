@@ -454,6 +454,27 @@ argocd repo add git@github.com:imcbeth/homelab.git \
   --ssh-private-key-path ~/.ssh/id_rsa --grpc-web
 ```
 
+## Alerting
+
+Three PrometheusRule alerts fire on sustained app-state anomalies. They complement (not replace) the built-in `ArgoCDAppNotHealthy` rules from kube-prometheus-stack, which only trigger on `Degraded` transitions.
+
+Manifest: `manifests/base/kube-prometheus-stack/argocd-alerts.yaml`
+
+| Alert | Trigger | Wait | Rationale |
+|---|---|---|---|
+| `ArgoCDAppProgressing` | `argocd_app_info{health_status="Progressing"} == 1` | 1h | Long enough to skip normal rollouts; catches sustained `Progressing` from pods stuck in `RunContainerError`, unfinished Jobs, stalled Deployments |
+| `ArgoCDAppDegraded` | `argocd_app_info{health_status="Degraded"} == 1` | 15m | Stronger signal — ArgoCD has decided something has definitively failed. Shorter wait because Degraded doesn't occur during normal rollouts |
+| `ArgoCDAppUnknown` | `health_status="Unknown"` **OR** `sync_status="Unknown"` for 30m | 30m | The `or` matters: `argocd_app_info` has separate `health_status` and `sync_status` labels. Sealed-secrets 2026-06-21 was `health=Healthy` (runtime fine) but `sync=Unknown` (chart repo 404 → can't render manifests to compare). Either being Unknown means reconciliation is blind |
+
+**Motivating incident** (2026-07-12): chaos-mesh app sat in `Synced + Progressing` for 11 days because 3 of its pods were `RunContainerError`. No default rule fired. `ArgoCDAppProgressing` (1h) would have caught it ~1h after the initial failure. See the [chaos-mesh troubleshooting section](./chaos-mesh.md#chaos-mesh-pods-running-pauselatest-self-lockup) for the full incident.
+
+**Verification pattern** — the alert lifecycle for `ArgoCDAppUnknown` was observed live: `pending` for ~1 minute (4 eval samples for sealed-secrets) → `inactive` when sync transitioned to `Synced` before the 30m `for:` threshold. Confirms tuning is right:
+
+```promql
+count_over_time(ALERTS{alertname="ArgoCDAppUnknown",alertstate="pending"}[2h])   # went to 4
+count_over_time(ALERTS{alertname="ArgoCDAppUnknown",alertstate="firing"}[2h])    # stayed 0
+```
+
 ## Troubleshooting
 
 ### Application Won't Sync
