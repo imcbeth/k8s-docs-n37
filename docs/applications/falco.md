@@ -87,31 +87,72 @@ Optimized for Raspberry Pi 5 cluster:
 | Redis (redis-stack) | 50m | 200m | 1536Mi | 2Gi |
 | WebUI init container | 10m | 50m | 32Mi | 64Mi |
 
-:::note Redis Memory Sizing (Updated 2026-02-27)
-The redis-stack server (with RediSearch, TimeSeries, JSON, Bloom, Gears modules) requires significantly more memory than plain redis. The RDB dump can exceed 1GB. `maxmemory` only caps key data, not module overhead (indexes, metadata). Container memory limit must account for both.
+:::note Redis Memory Sizing (Updated 2026-07-15 — the 3-PR fix arc)
+The redis-stack server (with RediSearch, TimeSeries, JSON, Bloom, Gears modules) requires significantly more memory than plain redis. `maxmemory` only caps key data, NOT module overhead (indexes, metadata) OR BGSAVE fork copy-on-write spike. Container memory limit must account for all three.
 
-Configuration:
+**Working configuration (as of 2026-07-15):**
 
 - **Storage**: 2Gi PVC (expanded from 1Gi when 99% full, PR #473)
 - **Memory limit**: 2Gi (Gatekeeper max), request 1536Mi
-- **TTL**: 30 days to prevent unbounded data growth
+- **TTL**: 7 days (was 30d — see saga below)
 - **Eviction**: `allkeys-lru` with `maxmemory: 1000mb`
+- **Persistence**: disabled with `save ""` (avoids fork memory spike)
 
 ```yaml
 falcosidekick:
   webui:
-    ttl: "30d"
+    ttl: "7d"                       # was 30d; see saga
     redis:
       storageSize: "2Gi"
       resources:
         requests:
           memory: 1536Mi
         limits:
-          memory: 2Gi
-      config:
-        maxmemory: "1000mb"
-        maxmemory-policy: "allkeys-lru"
+          memory: 2Gi                # Gatekeeper cap
+      customConfig:                  # NOT `config:` — see saga
+        - "maxmemory 1000mb"
+        - "maxmemory-policy allkeys-lru"
+        - 'save ""'                  # disable RDB → no fork spike
 ```
+
+**Chart key gotcha:** the correct key is `webui.redis.customConfig` (a LIST of strings), NOT `webui.redis.config` (a map). Helm silently drops unknown keys → any `config:` block is ignored, live Redis runs unbounded until it hits the container limit. This bug lived silently in our config for months (876 OOMKills across 21 days) before we noticed on 2026-07-13.
+
+**Memory budget for the 2Gi container limit:**
+
+| Line item | MiB |
+|---|---|
+| Redis key data (maxmemory 1000mb) | 1000 |
+| RediSearch + TimeSeries + JSON module overhead | ~300 |
+| BGSAVE fork COW headroom (mitigated by `save ""`) | 600 |
+| Process + kernel overhead | 148 |
+| **Total budget** | **2048** |
+
+**TTL trade-off:** 30d meant ~167k events accumulating to a 1.19 GiB dataset — pushed past `maxmemory` (1000mb) and forced constant LRU eviction plus OOM risk. 7d stabilizes around ~40k events (~280 MiB), well within budget. Falco alerts also go via AlertManager email; the sidekick UI is a live-events viewer, not the primary audit trail.
+
+**PVC gotcha — `save ""` doesn't clean OLD dump.rdb:** disabling snapshots prevents NEW writes but leaves any existing file on disk. Redis reloads `/data/dump.rdb` on every startup regardless of the `save` config. If persistence was previously enabled, do a one-time cleanup after adding `save ""`:
+
+```bash
+kubectl exec -n falco falco-falcosidekick-ui-redis-0 -- rm -f /data/dump.rdb /data/temp-*.rdb
+kubectl exec -n falco falco-falcosidekick-ui-redis-0 -- redis-cli FLUSHDB
+kubectl delete pod -n falco falco-falcosidekick-ui-redis-0
+```
+
+Otherwise every "fresh" pod reloads whatever the old dump.rdb held (in our case: 322 MB compressed → 1.19 GiB in memory before the first new event lands).
+
+**Redis memory profile diagnosis pattern** (reusable for any Redis OOM investigation):
+
+```bash
+kubectl exec -n falco falco-falcosidekick-ui-redis-0 -- redis-cli INFO memory     # used vs peak vs RSS
+kubectl exec -n falco falco-falcosidekick-ui-redis-0 -- redis-cli DBSIZE          # key count
+kubectl exec -n falco falco-falcosidekick-ui-redis-0 -- redis-cli MODULE LIST     # redis-stack overhead source
+kubectl exec -n falco falco-falcosidekick-ui-redis-0 -- redis-cli --scan | head   # key patterns
+kubectl exec -n falco falco-falcosidekick-ui-redis-0 -- redis-cli TTL <sample>    # retention
+kubectl exec -n falco falco-falcosidekick-ui-redis-0 -- ls -lh /data              # persisted files
+```
+
+The 3-PR fix arc (PRs #793 → #795 → #797 in the homelab repo) — each solved a real issue but only the last one identified the root cause. Ordered chronologically so future debug sessions don't stop at "set maxmemory" like the first attempt did.
+
+:::
 
 :::
 
