@@ -167,6 +167,7 @@ The topic-operator watches for `KafkaTopic` CRDs with label `strimzi.io/cluster:
 - **entity-operator bootstrap uses port 9091**: The internal `REPLICATION` listener, not port 9092. NetworkPolicies from `strimzi-system` must allow egress to `kafka` on 9091 in addition to 9092.
 - **KRaft CONTROLPLANE port 9090**: The `describeMetadataQuorum` call follows the controller endpoint from Kafka metadata. This second connection goes to port 9090 — must be open from `strimzi-system` → `kafka`.
 - **user-operator liveness probe kills ARM64 JVM**: JVM on ARM64 needs ~35s to start; probe fires at 30s. Remove `userOperator` from `entityOperator` unless KafkaUser CRDs are actually needed.
+- **Strimzi minor bumps drop Kafka versions.** Discovered 2026-07-16: strimzi-kafka-operator chart 1.0.x → 1.1.0 removed Kafka 4.1.x from the supported set. Our `Kafka` CR was pinned at `spec.kafka.version: 4.1.2` → operator refused to reconcile → app went Degraded within minutes of the chart upgrade. Fix: bump the Kafka CR alongside the operator (`spec.kafka.version: 4.2.1` picked; supported in 1.1.0 are 4.2.0/4.2.1/4.3.0). Before ANY strimzi chart-minor bump: check the operator's release notes for `Supported Kafka versions` and bump the CR alongside if needed. Single-broker KRaft cluster upgrades roll cleanly — just a pod restart.
 
 ## References
 

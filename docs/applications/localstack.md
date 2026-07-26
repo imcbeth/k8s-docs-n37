@@ -110,6 +110,35 @@ Velero has been migrated to Backblaze B2 for production backups. LocalStack rema
 |-----------|-------------|-----------|----------------|--------------|
 | localstack | 100m | 500m | 256Mi | 1Gi |
 
+## Deployment strategy — Recreate required
+
+The localstack Deployment has:
+
+- `replicas: 1` (single-replica)
+- One RWO iSCSI PVC (mounted at `/var/lib/localstack`)
+
+With the default `RollingUpdate` strategy, this shape **deadlocks** on any pod template change (livenessProbe update, image bump, resource change):
+
+1. Deployment controller creates the new pod
+2. New pod stuck `ContainerCreating` with Multi-Attach error (waiting for old pod to release the RWO volume)
+3. Deployment controller won't kill the old pod until the new is Ready
+4. Deadlock — new pod never becomes Ready, old pod never dies
+
+Discovered 2026-07-16 when PR #732's livenessProbe rollout stalled for 3+ hours in this exact state.
+
+**Fix — always use Recreate for this shape:**
+
+```yaml
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate                    # kill old first, then start new
+```
+
+Same pattern applies to any single-replica Deployment on a RWO PVC (uptime-kuma has the same config for the same reason). StatefulSets are unaffected because their VolumeClaimTemplates give each replica its own PVC.
+
+## Troubleshooting
+
 ## Troubleshooting
 
 ### Service Not Responding

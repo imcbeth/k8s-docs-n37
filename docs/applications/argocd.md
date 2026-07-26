@@ -129,6 +129,19 @@ ArgoCD manages its own deployment through a bootstrap Application manifest. This
 - GitHub connector configured for SSO login
 - See [GitHub OIDC](#github-oidc-via-dex) below
 
+## Chart v10 NetworkPolicy default
+
+Chart v10.0.0 (released 2026-07-16-ish) flipped `global.networkPolicy.create` from `false` → `true`. The chart now installs its own NetworkPolicies by default. On this cluster we manage argocd NetPols separately in `manifests/base/network-policies/argocd/network-policy.yaml`, so we opt out explicitly:
+
+```yaml
+# manifests/base/argocd/argocd-config.yaml
+global:
+  networkPolicy:
+    create: false
+```
+
+Without the opt-out, the chart-managed policies would overlap with our hand-written ones and create conflicting rules. Applied in PR #820 as a no-op-at-9.7.1 pre-flight before the v10 chart bump in PR #815.
+
 ## Deployment Configuration
 
 ### Application Manifest
