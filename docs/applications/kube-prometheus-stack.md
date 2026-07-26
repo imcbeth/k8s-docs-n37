@@ -186,6 +186,50 @@ resources:
     memory: 128Mi
 ```
 
+## Chart-major upgrades: CRD upgradeJob + Gatekeeper
+
+Chart-minor bumps within a major line (e.g., 87.x → 87.y) are handled by ArgoCD auto-sync and reach steady state in seconds. **Chart-major bumps require the CRD upgradeJob** — historically we had to run `kubectl apply --server-side` for the 10 monitoring.coreos.com CRDs before the operator would start.
+
+The 2026-07-16 bump 86.3.2 → 87.16.1 (prometheus-operator v0.91.0 → v0.92.1) introduced the reusable path:
+
+```yaml
+crds:
+  enabled: true
+  upgradeJob:
+    enabled: true
+    forceConflicts: true              # take SSA field ownership from existing CRDs
+    resources:                        # Gatekeeper require-resource-limits
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    podLabels:                        # Gatekeeper require-labels
+      app.kubernetes.io/name: kube-prometheus-stack-crds-upgrade
+```
+
+All three keys are required on this cluster:
+
+- **`upgradeJob.enabled: true`** — chart creates a PreSync Job that kubectl-applies the new CRDs before the operator starts.
+- **`forceConflicts: true`** — needed to take SSA field-ownership from CRDs installed by the previous chart version.
+- **`resources`** — Gatekeeper's `require-resource-limits` constraint denies pod creation without CPU limits. Without this, the Job creation is denied with `admission webhook "validation.gatekeeper.sh" denied the request: [require-resource-limits] Container <kubectl> does not have a CPU limit set`. The Job retries every ~20s indefinitely.
+- **`podLabels`** — Gatekeeper's `require-labels` constraint. Without `app.kubernetes.io/name` on the pod template, admission is denied at the second gate.
+
+**Reference PRs** (homelab): #820 (initial enable), #821 (resources), #822 (podLabels). After the second fix landed, the CRD upgrade Job completed in ~20s and every subsequent chart-minor bump (87.19.0, 87.19.1) has been zero-intervention.
+
+**Verification pattern** for future chart-major bumps:
+
+```bash
+# Watch the upgradeJob pod
+kubectl get job -n default kube-prometheus-stack-crds-upgrade
+kubectl logs -n default -l job-name=kube-prometheus-stack-crds-upgrade --tail=50
+
+# Verify the operator is on the new version
+kubectl get deploy -n default kube-prometheus-stack-operator \
+  -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+```
+
 ## Deployment via ArgoCD
 
 The stack is deployed using GitOps through ArgoCD with a multi-source configuration:
