@@ -73,11 +73,11 @@ Legend:
 
 | Hostname | IP Address | Role | OS | Kubernetes |
 |----------|------------|------|-----|------------|
-| control-plane | 10.0.10.214 | Control Plane | Ubuntu 24.04.3 LTS | v1.35.0 |
-| node01 | 10.0.10.235 | Worker | Ubuntu 24.04.3 LTS | v1.35.0 |
-| node02 | 10.0.10.211 | Worker | Ubuntu 24.04.3 LTS | v1.35.0 |
-| node03 | 10.0.10.244 | Worker | Ubuntu 24.04.3 LTS | v1.35.0 |
-| node04 | 10.0.10.220 | Worker | Ubuntu 24.04.3 LTS | v1.35.0 |
+| control-plane | 10.0.10.214 | Control Plane | Ubuntu 24.04.3 LTS | v1.36.3 |
+| node01 | 10.0.10.235 | Worker | Ubuntu 24.04.3 LTS | v1.36.3 |
+| node02 | 10.0.10.211 | Worker | Ubuntu 24.04.3 LTS | v1.36.3 |
+| node03 | 10.0.10.244 | Worker | Ubuntu 24.04.3 LTS | v1.36.3 |
+| node04 | 10.0.10.220 | Worker | Ubuntu 24.04.3 LTS | v1.36.3 |
 
 ### Expansion Hardware (per node)
 
