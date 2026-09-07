@@ -27,7 +27,7 @@ cert-manager is a Kubernetes controller that automates the management and issuan
 - **Namespace:** cert-manager
 - **Project:** infrastructure
 - **Sync Wave:** -10
-- **Helm Chart:** jetstack/cert-manager v1.19.3
+- **Helm Chart:** jetstack/cert-manager v1.21.1 (as of 2026-09-06, via Renovate PR #851)
 - **Auto-Sync:** Enabled (prune, selfHeal)
 
 ### Resources

@@ -11,7 +11,7 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 
 - **Namespace:** `default`
 - **Helm Chart:** `prometheus-community/kube-prometheus-stack`
-- **Chart Version:** `87.19.1` (as of 2026-07-26). Major bump 86.x → 87.x on 2026-07-16 (PR #816). Notable images: prometheus-operator `v0.92.1`, prometheus `v3.13.1`, alertmanager `v0.33.1`. Chart v87 upgrade path requires the `crds.upgradeJob` — see Deployment Notes below for the Gatekeeper-compatible values.
+- **Chart Version:** `90.0.0` (as of 2026-09-07). Three chart-major bumps in quick succession: 87→89 (PR #854) and 89→90 (PR #873), both on 2026-09-06/07. Notable images: prometheus-operator `v0.93.1`, prometheus `v3.14.0`, alertmanager `v0.34.0`, thanos `v0.42.4`. Chart v87 upgrade path requires the `crds.upgradeJob` — see Deployment Notes below for the Gatekeeper-compatible values.
 - **App Version:** `v0.91.0` (prometheus-operator)
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-15` (deploys after UniFi Poller, before cert-manager)

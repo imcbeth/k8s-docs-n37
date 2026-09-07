@@ -14,8 +14,8 @@ Apache Kafka message broker deployed on Kubernetes via the Strimzi operator, use
 |----------|-------|
 | **Namespace** | `kafka` |
 | **Operator namespace** | `strimzi-system` |
-| **Kafka version** | 4.1.2 (KRaft mode, no ZooKeeper) |
-| **Strimzi chart** | 1.0.0 |
+| **Kafka version** | 4.2.1 (KRaft mode, no ZooKeeper) |
+| **Strimzi chart** | 1.2.0 (as of 2026-09-07, via Renovate PR #878) |
 | **ArgoCD App** | `kafka` (project: `infrastructure`) |
 | **Istio Mesh** | Enabled (Ambient mode) |
 
