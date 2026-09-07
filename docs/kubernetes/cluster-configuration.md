@@ -64,7 +64,7 @@ Each worker drain detaches all its RWO iSCSI PVCs. iSCSI reattach on the target 
 
 ### Chaos-mesh Wednesday fires
 
-`pod-kill-prometheus`, `network-delay-loki`, `cpu-stress-unipoller` all fire Wed 09:00-11:00 UTC. **Do NOT run kubeadm upgrades on Wednesday.** Chaos-mesh Schedule CRD (v2.8.x) has no `spec.suspend` field, so to disable Schedules you have to comment them out of the kustomization or edit the cron. For short (<24h) upgrade windows on other days, the day-of-week gap is usually sufficient.
+`pod-kill-prometheus`, `network-delay-loki`, `cpu-stress-unipoller` all fire Wed 09:00-11:00 UTC. **Do NOT run kubeadm upgrades on Wednesday.** Chaos-mesh Schedule CRD (v2.8.x) has no `spec.suspend` field, so to disable Schedules you have to comment them out of the kustomization or edit the cron. For short (&lt;24h) upgrade windows on other days, the day-of-week gap is usually sufficient.
 
 ### Gatekeeper PDB drain wait
 
