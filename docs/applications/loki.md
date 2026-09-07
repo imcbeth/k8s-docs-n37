@@ -13,7 +13,7 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 
 - **Namespace:** `loki`
 - **Helm Chart:** `grafana/loki`
-- **Chart Version:** `7.1.0` (as of 2026-07-16, via Renovate PR #803). appVersion: loki 3.6.8.
+- **Chart Version:** `7.3.0` (as of 2026-09-07, via Renovate PR #881). appVersion: loki 3.6.11.
 - **Deployment Mode:** SingleBinary (monolithic, explicit — Loki v7 default is SimpleScalable)
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-12` (after kube-prometheus-stack -15, before cert-manager -10)
@@ -22,7 +22,7 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 
 - **Namespace:** `loki`
 - **Helm Chart:** `grafana/alloy`
-- **Chart Version:** `1.8.0`
+- **Chart Version:** `1.12.1` (Alloy, as of 2026-09-07 via Renovate PR #881; appVersion v1.19.2)
 - **Deployment:** DaemonSet (one pod per node) + OTLP → Tempo forwarding
 - **Sync Wave:** `-11` (after Loki -12)
 

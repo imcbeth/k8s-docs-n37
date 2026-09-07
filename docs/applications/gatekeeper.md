@@ -86,7 +86,7 @@ ConstraintTemplates create custom CRDs that Constraints depend on. Splitting int
 
 **Configuration:** `manifests/base/gatekeeper/values.yaml`
 
-**Version:** Helm chart 3.22.2 (Gatekeeper v3.22.2)
+**Version:** Helm chart 3.23.1 (Gatekeeper v3.23.1, as of 2026-09-06 via Renovate PR #867)
 
 **Sync Wave:** -6 (after monitoring stack, before Velero/Falco)
 
