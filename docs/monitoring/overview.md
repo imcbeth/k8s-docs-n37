@@ -253,6 +253,11 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: example-alert
+  namespace: default
+  labels:
+    # NOT OPTIONAL. Prometheus's ruleSelector matches on this label.
+    # Without it the rule is created without error and never loads.
+    release: kube-prometheus-stack
 spec:
   groups:
   - name: example
@@ -261,6 +266,12 @@ spec:
       expr: container_memory_usage_bytes > 1e9
       for: 5m
 ```
+
+:::danger The `release` label is load-bearing
+Prometheus is configured with `ruleSelector: matchLabels: {release: kube-prometheus-stack}`. A PrometheusRule **without** that label is accepted by the API server, appears in `kubectl get prometheusrule`, reports no error anywhere, and is **never loaded**. Every alert inside it silently does not exist.
+
+This has bitten the cluster three times and cost a 16-day undetected backup outage. It is now enforced in CI — see [Making dormant rules impossible](#making-dormant-rules-impossible).
+:::
 
 ### Custom PrometheusRule Alerts
 
@@ -278,6 +289,42 @@ In addition to the 100+ default alerts from kube-prometheus-stack, the following
 | `trivy-operator-alerts` | 12 | Critical CVEs, RBAC issues, compliance failures, exposed secrets |
 
 **Total Custom Alerts:** ~70 across 8 PrometheusRules
+
+### Making dormant rules impossible
+
+On **2026-09-07** an audit compared every PrometheusRule in git against what Prometheus had actually loaded via `/api/v1/rules`. **Seven rules had never evaluated**, some for months:
+
+| PrometheusRule | Dormant since | What was silently missing |
+|----------------|---------------|---------------------------|
+| `velero-alerts` | 198 days | Backup-failure detection (see the [Velero incident](../applications/velero.md#incident-16-days-of-silent-backup-failure-2026-07-31)) |
+| `slo-alerts` | since creation | **The entire SLO burn-rate framework** |
+| `pi-cluster-alerts` | since creation | PMIC undervoltage detection — silent-corruption risk |
+| `storage-alerts` | since creation | Disk-space prediction, NAS health |
+| `blackbox-exporter-alerts` | since creation | Endpoint availability, SSL expiry |
+| `network-alerts` | since creation | Interface down, packet loss |
+| `log-pipeline-alerts` | since creation | Loki ingestion failures |
+| `pvc-mount-monitor` | since creation | Read-only PVC detection |
+
+Fixing them took rule groups from **55 → 71**. The failure mode is entirely silent: nothing logs, nothing errors, and the CRD looks fine.
+
+A warning had already been written in the repo's `REFERENCE.md` **before** six of these were introduced — documentation alone demonstrably did not prevent recurrence. So the check is now a pre-commit hook, `scripts/validate-prometheusrules.sh`, which scans **by content rather than filename** (any file containing `kind: PrometheusRule`, including multi-document files) and fails the commit listing every offender.
+
+```bash
+# Creation proves nothing. Always confirm the rule LOADED:
+kubectl -n default exec prometheus-kube-prometheus-stack-prometheus-0 \
+  -c prometheus -- wget -qO- localhost:9090/api/v1/rules \
+  | grep -c '<YourAlertName>'
+```
+
+### Alert design principles
+
+The same audit found **66 alerts firing simultaneously** — a state functionally identical to no alerting at all, because nobody reads a 66-item list. Working it down to **8** produced these rules of thumb, each learned from a specific false positive:
+
+- **Match the threshold to the cadence.** A flat 24h "backup delayed" threshold fired on the *weekly* schedule 6 days out of 7. The backup was fine; the threshold was wrong. An alert that cries wolf 6 days a week recreates the original outage by training people to ignore it.
+- **Alert on change or outliers, not on standing state.** `CriticalVulnerabilitiesDetected` fired once per workload with any CRITICAL CVE — 51 permanently-firing alerts describing a condition nobody could clear today. Replaced with a 24h *delta* plus a per-image outlier threshold.
+- **A percentage is not harm.** `CPUThrottlingHigh` fired for ~52 days on containers using 3–15% of their limits. CFS accounts in 100ms periods, so a burst wanting a full core for a few milliseconds throttles *regardless of quota size*. The replacement requires high throttling **and** high utilization together.
+- **Scope selectors to the thing you mean.** Synology volume alerts matched storage-pool entries as well as volumes; disk-temperature alerts applied spinning-disk thresholds to NVMe, which runs hotter by design.
+- **A watcher must not share a failure mode with what it watches.** See the [PVC read-only automation](../storage/pvc-ro-automation.md) dead-man switch.
 
 ### Common Alert Categories
 

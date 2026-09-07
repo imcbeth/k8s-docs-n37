@@ -278,14 +278,44 @@ ArgoCD checks that the resource definitions match git. It doesn't run the CronJo
 
 A pod's `/var/lib/kubelet/pods/<UID>/volumes/.../mount` is a bind-mount of the CSI driver's `/var/lib/kubelet/plugins/.../globalmount`. If the *globalmount* is RO, pod delete creates a fresh pod that bind-mounts the same RO globalmount — recovery requires cross-node reschedule (drain or cordon-then-delete) to force the CSI driver to do a fresh attach.
 
+:::danger The observability path was inert until 2026-09-07
+`pvc-mount-monitor-alerts` was missing the `release: kube-prometheus-stack` label, so Prometheus never loaded it. **`PVCMountReadOnly` and `PVCMountMonitorDown` could never have fired** — the detector was exporting metrics correctly and nothing was watching them.
+
+The *remediation* path was unaffected (the CronJob reads endpoints directly, not Prometheus), so read-only events were still being auto-fixed — which is precisely why nobody noticed the alerts were missing. Fixed in PR #896 and now enforced in CI; see [Making dormant rules impossible](../monitoring/overview.md#making-dormant-rules-impossible).
+:::
+
+## The dead-man switch (2026-09-07)
+
+The detector and the remediator both depend on the same things: Prometheus scraping, the `pvc-mount-monitor` DaemonSet, and — critically — **healthy PVCs**. Prometheus itself stores on an iSCSI PVC. If a read-only cascade takes out Prometheus, the machinery built to detect and fix read-only cascades goes down with it, and the failure is **silent**: no alert can fire, because the thing that fires alerts is part of the outage.
+
+`remediator-deadman` is a CronJob that runs every 6 hours (`17 */6 * * *`) and is deliberately built with a **disjoint dependency set** from what it watches:
+
+| Depends on | Deliberately does *not* depend on |
+|---|---|
+| kube-apiserver | Prometheus / Alertmanager |
+| A Secret already in `default` | Any PVC — the Job mounts **no volumes** |
+| Outbound TLS to Gmail | The `pvc-mount-monitor` DaemonSet |
+| | The `synology-csi` driver |
+
+It queries the Kubernetes API directly for the remediator CronJob's `lastScheduleTime`. If the remediator hasn't run within the expected window, it sends mail itself via `curl --url smtps://smtp.gmail.com:465` — no mail client, no Alertmanager in the path.
+
+:::tip A watcher must not share a failure mode with what it watches
+This is the general principle, and it's worth applying elsewhere. An alert that lives inside the system it monitors will be quietest exactly when things are worst. All three paths (healthy, stale, API-unreachable) were tested live on 2026-09-07, including a real SMTP delivery.
+:::
+
+:::caution It lives in the kube-prometheus-stack kustomization on purpose
+`remediator-deadman.yaml` is listed in `manifests/base/kube-prometheus-stack/kustomization.yaml`, **not** `synology-csi/`, even though it watches a synology-csi CronJob. The synology-csi kustomization sets `namespace: synology-csi`, which would rewrite the resources that must stay in `default` — the SMTP Secret lives there and Secrets are not cross-namespace. The kps kustomization sets no `namespace:`, so the explicit per-resource namespaces survive. The RBAC half (Role + RoleBinding) is correctly in `synology-csi`; the ServiceAccount, ConfigMap and CronJob are in `default`.
+:::
+
 ## Components reference
 
 | Object | Manifest | Purpose |
 |---|---|---|
+| `CronJob remediator-deadman` | `manifests/base/kube-prometheus-stack/remediator-deadman.yaml` | Out-of-band check that the remediator is still running |
 | `DaemonSet pvc-mount-monitor` | `manifests/base/synology-csi/pvc-mount-monitor.yaml` | Per-node `/host/proc/1/mounts` reader |
 | `Service pvc-mount-monitor` (headless) | same | Endpoint discovery for the remediator and Prometheus |
 | `PodMonitor pvc-mount-monitor` | same | Prometheus scrape config |
-| `PrometheusRule pvc-mount-monitor-alerts` | same | `PVCMountReadOnly` + `PVCMountMonitorDown` (observability path) |
+| `PrometheusRule pvc-mount-monitor-alerts` | same | `PVCMountReadOnly` + `PVCMountMonitorDown` (observability path) — **was dormant until 2026-09-07**, see below |
 | `CronJob pvc-ro-remediator` | `manifests/base/synology-csi/pvc-ro-remediator.yaml` | Auto-remediation, every 2 min |
 | `ServiceAccount pvc-ro-remediator` | same | RBAC subject |
 | `ClusterRole pvc-ro-remediator` | same | `pods get/list/delete`, `endpoints get/list` |

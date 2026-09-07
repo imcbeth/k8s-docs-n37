@@ -509,9 +509,22 @@ The following PrometheusRule alerts monitor backup health:
 **Critical Alerts:**
 
 - **VeleroBackupFailed**: Backup failures detected in last hour
-- **VeleroBackupDelayed**: No successful backup in 24+ hours
+- **VeleroBackupDelayed**: No successful backup in 24+ hours — **daily schedules only** (`schedule=~"velero-daily-.*"`)
+- **VeleroWeeklyBackupDelayed**: No successful backup in 8+ days — **weekly schedules only** (`schedule=~"velero-weekly-.*"`)
 - **VeleroBackupStorageLocationUnavailable**: S3 storage unreachable
 - **VeleroBackupMetricAbsent**: Velero metrics not being scraped
+
+#### Why the delay alert is split by cadence
+
+Originally a single flat 24-hour threshold covered every schedule. Once `velero-alerts` was resurrected from 198 days dormant, it immediately began firing on `velero-weekly-cluster-resources` (cron `0 3 * * 0`) — **6 days out of every 7**. The weekly backup was succeeding exactly on schedule; the threshold was simply wrong for a weekly cadence.
+
+That matters more than the false positive itself. `VeleroBackupDelayed` is precisely the alert that should have caught the 16-day silent outage below. An alert that cries wolf 6 days a week trains you to ignore it — which recreates the original failure by a different route.
+
+The weekly threshold is **8 days** (the 7-day interval plus a day of slack), so one missed run alerts but an on-time run never does.
+
+:::caution Adding a new schedule
+The daily rule deliberately matches only `velero-daily-.*`. If you add a schedule with a different prefix it will be **un-alerted** rather than silently mis-thresholded — a visible gap beats a wrong threshold. Add a matching rule when you add the schedule.
+:::
 
 **Warning Alerts:**
 
