@@ -101,6 +101,53 @@ All persistent volumes in the cluster. The daily critical PVC backup schedule co
 | **Trivy Server** | trivy-system | 5Gi | synology-iscsi-retain | Vulnerability database | Yes (daily) |
 | **Falco Redis** | falco | 1Gi | synology-iscsi-retain | Security event storage | Yes (daily) |
 
+## Incident: 16 days of silent backup failure (2026-07-31)
+
+Every Velero backup failed for ~16 days without anyone noticing. Two independent faults had to line up, and both are worth guarding against.
+
+### Fault 1 — a version pin that did not pin
+
+`velero-plugin-for-aws` **v1.14.x sends an `x-amz-tagging` header on every PutObject**. Backblaze B2 rejects it:
+
+```
+rpc error: ... PutObject, https response error StatusCode: 400,
+api error InvalidArgument: Unsupported header 'x-amz-tagging' received for this API call.
+```
+
+The plugin had been pinned to **v1.13.2** (which predates object tagging) with a comment in `values.yaml`. On 2026-07-16 Renovate bumped it to v1.14.2 **straight past that comment** — a comment is not a pin. Every backup went to `Failed` from that day.
+
+:::danger A pin comment does nothing
+`# PINNED — do not bump` in a values file has no effect on Renovate. Anything pinned for a compatibility reason must be in `renovate.json` `ignoreDeps` (or carry an `allowedVersions` constraint).
+
+Watch the dep name too: `ignoreDeps: ["synology-csi"]` silently never matched, because Renovate's depName for that image is `synology/synology-csi`. A wrong-named entry is as ineffective as no entry, with no warning. Match the name exactly as it appears in the PR title.
+:::
+
+### Fault 2 — the alert that would have caught it had never loaded
+
+`VeleroBackupFailed` and `VeleroBackupDelayed` existed and looked correct. They had **never fired in 198 days** — the `velero-alerts` PrometheusRule sat in the `velero` namespace without the `release: kube-prometheus-stack` label that Prometheus's `ruleSelector` requires, so Prometheus never loaded it. `kubectl get prometheusrule` listed it happily; `/api/v1/rules` showed zero velero rules.
+
+:::warning A PrometheusRule existing is not a PrometheusRule loading
+Always confirm a new or moved rule actually reached Prometheus:
+
+```bash
+kubectl -n default exec prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
+  wget -qO- localhost:9090/api/v1/rules | grep -c '<YourAlertName>'
+```
+
+A rule in the wrong namespace or missing the `release` label is invisible — and silently so.
+:::
+
+### Detecting this class of failure
+
+`velero_backup_last_successful_timestamp` is the single most useful signal — it is a per-schedule gauge that keeps ticking up when backups stop:
+
+```promql
+# Hours since the last successful backup, per schedule
+(time() - velero_backup_last_successful_timestamp) / 3600
+```
+
+During the incident this read ~382h while ArgoCD still showed the velero app `Synced + Healthy` — app health says nothing about whether backups succeed.
+
 ## Storage Backends
 
 ### Backblaze B2 (Production - Active)
