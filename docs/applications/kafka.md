@@ -163,11 +163,31 @@ The topic-operator watches for `KafkaTopic` CRDs with label `strimzi.io/cluster:
 
 ## Gotchas
 
-- **Strimzi 1.0.0 requires Kafka 4.x**: Earlier versions (3.x) are not supported. KRaft mode is mandatory.
+- **Strimzi 1.x requires Kafka 4.x**: Earlier versions (3.x) are not supported. KRaft mode is mandatory.
 - **entity-operator bootstrap uses port 9091**: The internal `REPLICATION` listener, not port 9092. NetworkPolicies from `strimzi-system` must allow egress to `kafka` on 9091 in addition to 9092.
 - **KRaft CONTROLPLANE port 9090**: The `describeMetadataQuorum` call follows the controller endpoint from Kafka metadata. This second connection goes to port 9090 — must be open from `strimzi-system` → `kafka`.
 - **user-operator liveness probe kills ARM64 JVM**: JVM on ARM64 needs ~35s to start; probe fires at 30s. Remove `userOperator` from `entityOperator` unless KafkaUser CRDs are actually needed.
 - **Strimzi minor bumps drop Kafka versions.** Discovered 2026-07-16: strimzi-kafka-operator chart 1.0.x → 1.1.0 removed Kafka 4.1.x from the supported set. Our `Kafka` CR was pinned at `spec.kafka.version: 4.1.2` → operator refused to reconcile → app went Degraded within minutes of the chart upgrade. Fix: bump the Kafka CR alongside the operator (`spec.kafka.version: 4.2.1` picked; supported in 1.1.0 are 4.2.0/4.2.1/4.3.0). Before ANY strimzi chart-minor bump: check the operator's release notes for `Supported Kafka versions` and bump the CR alongside if needed. Single-broker KRaft cluster upgrades roll cleanly — just a pod restart.
+
+  **Read the full support matrix, not a snippet.** On 2026-09-07 the 1.1.0 → 1.2.0 bump was nearly rejected on this gotcha, based on an `STRIMZI_KAFKA_IMAGES` env dump that showed only its first line (`4.2.0=...`). The complete list showed 1.1.0 supports 4.2.0/4.2.1/4.3.0 and **1.2.0 supports those plus 4.3.1** — it adds a version and drops nothing. Extract the whole list before concluding:
+
+  ```bash
+  helm template s strimzi/strimzi-kafka-operator --version <ver> \
+    | grep -oE "[0-9]+\.[0-9]+\.[0-9]+=quay\.io/strimzi/kafka" | sed 's/=.*//' | sort -u
+  ```
+
+- **Chart 1.2.0 causes permanent ArgoCD drift on the `kafkas` CRD.** The chart renders an empty `properties: {}` at `.spec.versions[0].schema.openAPIV3Schema.properties.status.properties.clusterSecurity.properties`, and the apiserver **strips empty `properties` maps** when persisting a CRD schema. Desired and live can therefore never converge — the app sits `OutOfSync` forever and selfHeal retries indefinitely. (This is unlike ordinary chart-label drift, which selfHeal clears in 30-60s.) Fix with a tightly-scoped `ignoreDifferences`:
+
+  ```yaml
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      name: kafkas.kafka.strimzi.io
+      jqPathExpressions:
+        - '.spec.versions[].schema.openAPIV3Schema.properties.status.properties.clusterSecurity.properties'
+  ```
+
+  Scope it to the one CRD and the one node — ignoring the whole schema would mask real changes.
 
 ## References
 

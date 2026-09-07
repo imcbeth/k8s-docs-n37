@@ -129,6 +129,35 @@ ArgoCD manages its own deployment through a bootstrap Application manifest. This
 - GitHub connector configured for SSO login
 - See [GitHub OIDC](#github-oidc-via-dex) below
 
+## Stale repo cache after chart bumps
+
+After merging a chart bump and applying the Application manifest, ArgoCD frequently reports **`Synced + Healthy` while the pods still run the OLD image**. The app-controller rendered from a cached copy of the chart and is comparing against that render.
+
+Observed **14+ times**, including all ten apps simultaneously in one 2026-09-06 batch — and it affects plain `base/` git-source files (cloudflared, pvc-ro-remediator), not just Helm chart sources. Treat it as the norm for bumps, not an anomaly.
+
+:::warning Verify the running image, never just ArgoCD status
+
+```bash
+kubectl get deploy/<name> -n <ns> -o jsonpath='{.spec.template.spec.containers[0].image}'
+```
+
+If it still shows the old tag:
+
+```bash
+kubectl annotate application <app> -n argocd argocd.argoproj.io/refresh=hard --overwrite
+sleep 25
+kubectl patch application <app> -n argocd --type=merge \
+  -p '{"operation":{"initiatedBy":{"username":"manual"},"sync":{"prune":true}}}'
+```
+
+:::
+
+### Do not confuse this with chart-label drift
+
+Chart-label drift (`helm.sh/chart`, `app.kubernetes.io/version` changing on a bump) is a *different* thing and **selfHeal resolves it natively in 30-60 seconds** — verified empirically on 2026-07-12 with a controlled SSA-label corruption test. Earlier docs claimed those needed a manual sync; that was misdiagnosis from force-syncing before selfHeal had a chance. Wait 60s before intervening.
+
+A third variant exists that selfHeal can *never* fix: when the chart renders a field the apiserver strips, desired and live cannot converge. See the [Kafka page](./kafka.md#gotchas) for the strimzi `kafkas` CRD case and the `ignoreDifferences` remedy.
+
 ## Chart v10 NetworkPolicy default
 
 Chart v10.0.0 (released 2026-07-16-ish) flipped `global.networkPolicy.create` from `false` → `true`. The chart now installs its own NetworkPolicies by default. On this cluster we manage argocd NetPols separately in `manifests/base/network-policies/argocd/network-policy.yaml`, so we opt out explicitly:

@@ -43,6 +43,45 @@ ingress-nginx ──► oauth2-proxy (GitHub SSO) ──► Uptime Kuma UI
 
 ## Prometheus Integration
 
+:::danger /metrics uses HTTP Basic auth, not Bearer
+Uptime Kuma's `/metrics` endpoint expects **HTTP Basic** with an *empty username* and the API key as the *password*. A ServiceMonitor using `authorization.credentials` sends `Authorization: Bearer <key>` and gets **HTTP 401**.
+
+This cost 38 days of a dark scrape target (2026-07-30 → 2026-09-06). The API key was valid the whole time; only the scheme was wrong. Verified from the Prometheus pod:
+
+| Auth sent | Result |
+|---|---|
+| none | 401 |
+| `Authorization: Bearer <key>` | 401 |
+| `Authorization: Basic base64(":" + <key>)` | **200 + metrics** |
+
+Correct ServiceMonitor shape — note the secret needs **both** a `username` and a `password` key (username is an empty string):
+
+```yaml
+endpoints:
+  - port: http
+    path: /metrics
+    interval: 60s
+    basicAuth:
+      username:
+        name: uptime-kuma-metrics-token
+        key: username        # empty string
+      password:
+        name: uptime-kuma-metrics-token
+        key: password        # the uk1_... API key
+```
+
+Reproduce the check by hand:
+
+```bash
+KEY=$(kubectl get secret -n default uptime-kuma-metrics-token -o jsonpath='{.data.password}' | base64 -d)
+IP=$(kubectl get endpoints -n uptime-kuma uptime-kuma -o jsonpath='{.subsets[0].addresses[0].ip}')
+kubectl -n default exec prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
+  wget -S -qO- --header="Authorization: Basic $(printf ':%s' "$KEY" | base64)" \
+  "http://$IP:3001/metrics" 2>&1 | head -3
+```
+
+:::
+
 ### ServiceMonitor
 
 The ServiceMonitor lives in the **`default` namespace** (alongside Prometheus), not in `uptime-kuma`. This is required because Prometheus Operator RBAC only permits reading bearer token secrets from the namespace where Prometheus runs.

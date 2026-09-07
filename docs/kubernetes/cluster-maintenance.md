@@ -32,6 +32,45 @@ These workloads have PersistentVolumeClaims backed by the Synology NAS via iSCSI
 | Trivy Server | trivy-system | StatefulSet | 5Gi |
 | Falco Redis | falco | StatefulSet | 2Gi |
 
+## After any kubeadm upgrade: re-check static pod customizations
+
+`kubeadm upgrade apply` **rewrites** `/etc/kubernetes/manifests/*.yaml` and silently discards local edits. These files are host-level and **not in git**, so nothing detects the drift — no ArgoCD diff, no alert on the manifest.
+
+The 1.36 upgrade reverted `--bind-address=0.0.0.0` → `127.0.0.1` on **both** kube-controller-manager and kube-scheduler. Their Prometheus scrape targets went dark for **38 days** before anyone noticed (2026-07-30 → 2026-09-06). `TargetDown` fired correctly the whole time.
+
+```bash
+# Verify after every upgrade
+ssh -i ~/.ssh/id_ed25519_k8s imcbeth@10.0.10.214 \
+  "sudo grep -H bind-address /etc/kubernetes/manifests/kube-controller-manager.yaml \
+                             /etc/kubernetes/manifests/kube-scheduler.yaml"
+# Expect --bind-address=0.0.0.0 on BOTH. 127.0.0.1 breaks metrics scraping.
+```
+
+If reverted, back up and restore:
+
+```bash
+ssh -i ~/.ssh/id_ed25519_k8s imcbeth@10.0.10.214 "
+  TS=\$(date +%Y%m%d%H%M%S)
+  sudo mkdir -p /root/k8s-manifest-backups
+  for f in kube-controller-manager kube-scheduler; do
+    sudo cp /etc/kubernetes/manifests/\$f.yaml /root/k8s-manifest-backups/\$f.yaml.\$TS
+    sudo sed -i 's/--bind-address=127.0.0.1/--bind-address=0.0.0.0/' /etc/kubernetes/manifests/\$f.yaml
+  done"
+# kubelet reloads static pods automatically within ~30s.
+```
+
+:::tip A firing alert nobody reads is the same as no alert
+This is a distinct failure from the [Velero PrometheusRule that never loaded](../applications/velero.md#fault-2--the-alert-that-would-have-caught-it-had-never-loaded). Here detection worked perfectly for 77 days on two other targets and 38 days on these — the gap was *attention*, not instrumentation.
+
+When reviewing cluster health, enumerate firing alerts explicitly rather than assuming quiet means healthy:
+
+```bash
+kubectl -n default exec prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
+  wget -qO- 'http://localhost:9090/api/v1/query?query=ALERTS{alertstate="firing"}'
+```
+
+:::
+
 ## Graceful Shutdown
 
 Use this procedure when the NAS needs maintenance, or for any planned full cluster shutdown.
