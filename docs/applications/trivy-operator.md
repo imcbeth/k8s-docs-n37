@@ -267,18 +267,52 @@ All alerts restored to active status after the v0.29.0 vulnerability scanning bu
 - `CriticalClusterRoleRBACIssues`: ClusterRoles with CRITICAL RBAC issues
 - `HighClusterRoleRBACIssues`: ClusterRoles with >10 HIGH severity issues
 - `CriticalConfigurationIssues`: Critical Kubernetes misconfigurations
-- `HighRiskRBACPermissions`: Dangerous cluster role permissions
 - `ExposedSecretsDetected`: Secrets found in images (immediate action required)
 - `CISKubernetesBenchmarkFailures`: CIS compliance failures
 - `NSAKubernetesHardeningFailures`: NSA hardening failures
 - `PSSBaselineComplianceFailures`: Pod Security Standards Baseline failures (added 2026-03-01)
 - `PSSRestrictedComplianceFailures`: Pod Security Standards Restricted failures (added 2026-03-01)
 
-**Restored Alerts (since PR #410):**
+**Vulnerability Alerts (redesigned 2026-09-07):**
 
-- `CriticalVulnerabilitiesDetected`: Any image with CRITICAL CVEs
+- `CriticalVulnerabilitiesIncreased`: cluster-wide CRITICAL count rose vs. 24h ago
+- `ImageCriticalVulnerabilitiesHigh`: a single image carries >10 CRITICALs (`for: 6h`)
 - `HighVulnerabilityCount`: Image has >20 HIGH vulnerabilities
 - `ClusterCriticalVulnerabilityThresholdExceeded`: >100 CRITICAL CVEs cluster-wide
+
+#### Why `CriticalVulnerabilitiesDetected` was removed
+
+The old rule was `trivy_image_vulnerabilities{severity="Critical"} > 0`, evaluated **per workload**. On this cluster that meant **51 permanently-firing alerts** — over three quarters of everything Alertmanager was showing.
+
+Every one of them was true. That was the problem. They described a standing condition nobody could act on today: upstream images ship with CRITICAL CVEs, most have no fixed version available, and the set barely changes week to week. The alerts carried no information because they never changed state.
+
+The replacement asks two questions that *are* actionable:
+
+```yaml
+# 1. Did it get worse? (a new CVE, or a newly-vulnerable image landed)
+- alert: CriticalVulnerabilitiesIncreased
+  expr: |
+    sum(trivy_image_vulnerabilities{severity="Critical"})
+    - sum(trivy_image_vulnerabilities{severity="Critical"} offset 24h) > 0
+
+# 2. Is any single image an outlier worth prioritising?
+- alert: ImageCriticalVulnerabilitiesHigh
+  expr: |
+    sum by (image_repository, image_tag) (trivy_image_vulnerabilities{severity="Critical"}) > 10
+  for: 6h
+```
+
+The standing total is still visible on dashboards and in `ClusterCriticalVulnerabilityThresholdExceeded` — it just no longer pages per workload. Routine CVE reduction belongs in the [remediation workflow](./trivy-vulnerability-remediation.md), not in the alert stream.
+
+:::note `HighRiskRBACPermissions` deleted as a duplicate
+It was an un-aggregated twin of `CriticalClusterRoleRBACIssues` — same underlying condition, counted per ClusterRole instead of summed, so every real finding alerted twice.
+:::
+
+#### On stale VulnerabilityReports
+
+Trivy writes one VulnerabilityReport per **ReplicaSet**, so reports for superseded ReplicaSets linger. This was investigated on 2026-09-07 as a suspected source of inflated counts and **the suspicion did not hold up**: only **12 of 111** reports pointed at dead ReplicaSets, stale entries (e.g. `argocd:v3.4.5`) aged out unaided, and all four images matching `ImageCriticalVulnerabilitiesHigh` were verified as genuinely running.
+
+Cleanup would mean lowering `revisionHistoryLimit` across many Helm charts to prune the ~311 dead ReplicaSets (median age 138 days). Judged not worth the churn. Recorded here so the same theory isn't re-investigated from scratch.
 
 ### Metrics
 
@@ -329,7 +363,7 @@ For detailed vulnerability response procedures, see: [Trivy Vulnerability Remedi
 
 **Alert Behavior:**
 
-- CriticalVulnerabilitiesDetected alert firing as expected (multiple images affected)
+- Vulnerability alerting reworked 2026-09-07 — `CriticalVulnerabilitiesDetected` replaced by delta + outlier rules (see [Monitoring and Alerts](#monitoring-and-alerts))
 - HighVulnerabilityCount alert firing for images with >20 HIGH CVEs
 - No false positives detected in first 24 hours
 - Email notifications confirmed working via AlertManager

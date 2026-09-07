@@ -443,16 +443,39 @@ Ensure Synology firewall allows SNMP from Kubernetes nodes:
 
 ## Alerting
 
+### Threshold calibration (2026-09-07)
+
+The deployed Synology alerts in `manifests/base/kube-prometheus-stack/storage-alerts.yaml` were audited against actual readings and three classes of false positive were corrected. Worth reading before copying the examples below.
+
+**1. Split disk temperature by media type.** A single `> 50` threshold applied spinning-disk expectations to NVMe, which idles hotter *by design*. The cache drives alerted permanently while operating perfectly normally:
+
+| Media | Selector | Warning | Critical |
+|---|---|---|---|
+| HDD | `diskID!~"M\\.2.*"` | 50°C | 60°C |
+| NVMe | `diskID=~"M\\.2.*"` | 60°C | 70°C |
+
+**2. Scope volume alerts to actual volumes.** The selector also matched storage-**pool** entries, which report differently and alerted on a condition that didn't exist. Now constrained to `raidName=~"Volume.*"`.
+
+**3. System temperature 50 → 70°C.** The NAS runs warmer than 50°C under entirely normal load; the original threshold described an idle machine in a cold room.
+
+The general lesson: a threshold copied from a generic example describes generic hardware. Check what your device actually reports at rest and under load before trusting it.
+
 ### Recommended Alerts
 
-**Disk Temperature:**
+**Disk Temperature** (split by media type — see above):
 
 ```yaml
-- alert: DiskHighTemperature
-  expr: diskTemperature > 50
+- alert: SynologyDiskTemperatureHigh
+  expr: diskTemperature{diskID!~"M\\.2.*"} > 50    # HDD
   for: 10m
   annotations:
-    summary: "Disk {{ $labels.disk }} temperature high"
+    summary: "Disk {{ $labels.diskID }} temperature high"
+
+- alert: SynologyNVMeTemperatureHigh
+  expr: diskTemperature{diskID=~"M\\.2.*"} > 60    # NVMe runs hotter
+  for: 10m
+  annotations:
+    summary: "NVMe {{ $labels.diskID }} temperature high"
 ```
 
 **Volume Nearly Full:**

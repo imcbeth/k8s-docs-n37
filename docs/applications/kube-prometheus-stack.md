@@ -174,6 +174,41 @@ resources:
 Grafana sidecars (grafana-sc-dashboard, grafana-sc-datasources) watch ConfigMaps across many namespaces. The original 64Mi limit caused OOMKills. Increased to 256Mi for stability.
 :::
 
+### CPU throttling: why `CPUThrottlingHigh` is disabled (2026-09-07)
+
+The upstream `CPUThrottlingHigh` rule had been firing continuously for **~52 days** across node-exporter, unifi-poller and the Grafana dashboard sidecar. Those containers were throttled on **51–78%** of CFS periods while using only **3–15% of their CPU limits**.
+
+Raising the limits helped real performance — node-exporter scrape time dropped **801ms → 205ms**:
+
+| Container | Old limit | New limit |
+|---|---|---|
+| node-exporter | 100m | 300m |
+| grafana sidecar | 100m | 200m |
+| unifi-poller | 100m | 200m |
+
+But throttling only moved **51% → 29%**, because the metric doesn't measure what the alert implies. CFS accounts CPU in **100ms periods**; a process that wants a full core for a few milliseconds is throttled in that period *regardless of how large the quota is*. Clearing the 25% threshold would need a ~1000m limit on a process averaging 14m — reserving a whole core to silence an alert.
+
+So the upstream rule is disabled and replaced with one that requires throttling **and** saturation together:
+
+```yaml
+# values.yaml
+defaultRules:
+  disabled:
+    CPUThrottlingHigh: true
+```
+
+```yaml
+# pi-cluster-alerts.yaml — fires only when the limit is genuinely too low
+- alert: CPUThrottlingHighSaturated
+  expr: |
+    (throttled_periods / total_periods > 0.25)
+    and on (namespace, pod, container)
+    (cpu_usage / cpu_limit > 0.5)
+  for: 30m
+```
+
+**Reading it:** high throttling with *low* utilization is normal burst behaviour on this cluster and is not actionable. High throttling with *high* utilization means the limit is actually constraining work — raise it.
+
 ### Node Exporter (per node)
 
 ```yaml

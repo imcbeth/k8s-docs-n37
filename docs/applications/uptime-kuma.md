@@ -196,6 +196,16 @@ strategy:
 
 ## Common Operations
 
+:::warning Monitors are the cluster's one significant piece of unmanaged state
+Every other piece of cluster configuration is declared in git and reconciled by ArgoCD. **Monitor definitions are not.** They live in Uptime Kuma's SQLite database on its PVC and can only be created, edited or deleted through the web UI. Consequences:
+
+- Monitor changes are **invisible to code review** and leave no audit trail.
+- There is no drift detection — a monitor deleted by accident is simply gone.
+- **They cannot be fixed by a PR.** During the 2026-09-07 alert triage, a monitor pointing at a Flink batch demo (a Service that only exists while a job runs) had to be handed back for a manual UI click, because no GitOps change could touch it.
+
+Recovery relies on Velero backing up the PVC, which does work — but restore granularity is the whole database, not one monitor. Tracked as an open gap; Uptime Kuma 1.x has no REST API for monitor CRUD, so closing it properly depends on the 2.x migration below.
+:::
+
 ### Adding a Monitor
 
 1. Log in to `https://status.k8s.n37.ca`
@@ -203,6 +213,20 @@ strategy:
 3. Select monitor type (HTTP/HTTPS, TCP, DNS, etc.)
 4. Configure check interval and alert thresholds
 5. Assign to a status page group
+
+:::tip Only monitor things that are meant to be up
+A monitor pointing at a batch job's Service reports `DOWN` for the entire time no job is running — which is most of the time, and is correct behaviour rather than a fault. `UptimeKumaMonitorDown` then fires forever and the whole monitor set gets ignored. Monitor **services**; use workflow/job alerting for batch work.
+:::
+
+### Pending: the 1.x → 2.x migration
+
+The image is deliberately pinned to `1.23.17-debian` while the chart tracks appVersion 2.5.0. This is a **deferred decision, not an oversight**:
+
+- 2.x carries a **data migration** — monitors, heartbeat history and settings all live on the PVC.
+- 1.23.x no longer receives fixes, so staying is not viable indefinitely.
+- 2.x adds the REST API that would let monitors become GitOps-managed, closing the gap described above.
+
+The recommendation is to migrate, but on its own change window with a fresh Velero backup and a tested rollback path — not as a side effect of a routine chart bump. Renovate's chart PRs are safe to merge meanwhile: they change templates only and do not restart the pod.
 
 ### Checking Prometheus Metrics
 

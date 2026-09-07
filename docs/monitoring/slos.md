@@ -8,6 +8,12 @@ description: "Multi-window multi-burn-rate Service Level Objective monitoring fo
 
 Service Level Objectives (SLOs) are quantitative reliability targets for the cluster's critical services. The homelab's SLO framework lives in Prometheus and follows the [Google SRE Workbook multi-window multi-burn-rate](https://sre.google/workbook/alerting-on-slos/) pattern.
 
+:::warning This framework did not actually run until 2026-09-07
+Everything below was written, committed, deployed, and visible in `kubectl get prometheusrule` — but **`slo-alerts` was missing the `release: kube-prometheus-stack` label**, so Prometheus's `ruleSelector` never matched it and the rules never loaded. No recording rule was ever computed and no burn-rate alert could ever have fired.
+
+If you consulted this page between its creation and 2026-09-07 and concluded the cluster was meeting its SLOs, that conclusion had no data behind it. **The error budget history starts 2026-09-07**, not at page creation. Fixed in PR #896; now enforced by a pre-commit hook — see [Making dormant rules impossible](./overview.md#making-dormant-rules-impossible).
+:::
+
 ## Goals
 
 - **Detect real degradation fast** without flapping on transient blips.
