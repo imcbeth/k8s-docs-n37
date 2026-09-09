@@ -148,6 +148,58 @@ A rule in the wrong namespace or missing the `release` label is invisible — an
 
 During the incident this read ~382h while ArgoCD still showed the velero app `Synced + Healthy` — app health says nothing about whether backups succeed.
 
+## Backup coverage is not backup success (2026-09-07)
+
+Every Velero alert on this cluster answered one question: *did the backups we configured run?* None answered the other one: *are they pointed at everything that matters?*
+
+`uptime-kuma` held a **5Gi iSCSI PVC, 135 days old, containing 14 monitors and 1.95M heartbeats, that had never been backed up once.** Not a Velero fault — the namespace was simply never added to `velero-daily-critical-pvcs`. Its StorageClass is `synology-iscsi-**delete**`, so there was no reclaim-policy safety net either. Every nightly backup reported `Completed`, with zero errors, the entire time.
+
+It surfaced only because a one-way Uptime Kuma migration needed a rollback and there wasn't one.
+
+### Current coverage
+
+`velero-daily-critical-pvcs` (`0 2 * * *`, CSI snapshots, 30-day TTL):
+
+| Namespace | Holds |
+|---|---|
+| `default` | Prometheus, Grafana |
+| `loki` | Loki |
+| `trivy-system` | Trivy vulnerability DB |
+| `falco` | Falco Sidekick Redis |
+| `uptime-kuma` | Monitors + heartbeat history — **added 2026-09-07 (#907)** |
+| `zot` | OCI registry — **added 2026-09-08 (#910)** |
+
+Deliberately unprotected, and recorded as such so the alert stays quiet:
+
+| Namespace | Why |
+|---|---|
+| `localstack` | test S3 emulator, disposable |
+| `tempo` | 5.8M of short-TTL traces, regenerable |
+
+`zot` was the debatable one — 50Gi, mostly pull-through cache that repopulates from upstream. It is backed up anyway because it is **also the local push target**: images built and pushed to `registry.k8s.n37.ca` may exist nowhere else, and separating those from cached layers after a loss is not practical. CSI snapshots are copy-on-write, so the nightly cost is the delta rather than 50Gi.
+
+### The alert that closes the gap
+
+`PVCNotCoveredByBackup` fires on any PVC in a namespace no schedule covers:
+
+```yaml
+expr: |
+  kube_persistentvolumeclaim_info{
+    namespace!~"default|loki|trivy-system|falco|uptime-kuma|zot|localstack|tempo"
+  }
+for: 6h   # short-lived PVCs from restore tests and CI must not fire
+```
+
+Adding a namespace to the schedule means adding it to this exclusion too. That coupling is deliberate: it forces an explicit decision about whether a new stateful workload is worth protecting, instead of defaulting to silence.
+
+### Lingering VolumeSnapshots mean failure, not success
+
+Worth knowing before drawing conclusions from `kubectl get volumesnapshot -A`: after a **successful** backup, Velero deletes the `VolumeSnapshot` and `VolumeSnapshotContent` objects, having recorded the snapshot handle in the backup. Their absence is normal.
+
+Snapshots that **linger** are orphans from backups that failed before finalize. On 2026-09-07 this cluster had 81 of them, and the dates gave it away: 07-17 → 07-31 at 5/day is exactly the 16-day B2 outage window. They were evidence of the *old* failure, not of a current one.
+
+Check `status.csiVolumeSnapshotsCompleted` on the backup, and prove restorability with a real restore — not by counting CRs.
+
 ## Storage Backends
 
 ### Backblaze B2 (Production - Active)
@@ -528,6 +580,7 @@ The daily rule deliberately matches only `velero-daily-.*`. If you add a schedul
 
 **Warning Alerts:**
 
+- **PVCNotCoveredByBackup**: a PVC exists in a namespace no schedule covers (`for: 6h`)
 - **VeleroBackupDurationHigh**: Backup taking >30 minutes
 - **VeleroVolumeSnapshotLocationUnavailable**: CSI snapshot location unavailable
 - **VeleroPartialBackupFailure**: Some resources not backed up
@@ -807,6 +860,40 @@ kubectl delete namespace velero-test
 ```
 
 ### Test 2: PVC Backup/Restore
+
+:::danger Scope a restore test wrongly and it fails for the wrong reason
+A restore limited to `persistentvolumeclaims,persistentvolumes` **will fail**, and it fails in a way that looks exactly like data loss:
+
+```
+ProvisioningFailed: error getting handle for DataSource Type VolumeSnapshot by Name
+  <handle>: volumesnapshots.snapshot.storage.k8s.io "<handle>" not found
+```
+
+The PVC sits `Pending` forever. Nothing is wrong with the backup — the restore simply excluded the `VolumeSnapshot` and `VolumeSnapshotContent` objects that Velero must recreate **first**, before the PVC referencing them can bind.
+
+This produced a false "backups are unrestorable" conclusion on 2026-09-07. Always include the snapshot resources:
+
+```yaml
+includedResources:
+  - persistentvolumeclaims
+  - persistentvolumes
+  - volumesnapshots.snapshot.storage.k8s.io          # required
+  - volumesnapshotcontents.snapshot.storage.k8s.io   # required
+```
+
+Or omit `includedResources` entirely and let Velero restore everything in the backup.
+:::
+
+:::tip A restore is not verified until you read the data
+`Restore: Completed` and `PVC: Bound` prove the plumbing worked, not that the bytes arrived. Mount the restored PVC in a throwaway pod and check the contents — for a database, an integrity check plus row counts:
+
+```bash
+kubectl -n <restore-ns> exec verify-pod -- \
+  sqlite3 /app/data/kuma.db "pragma integrity_check; select count(*) from monitor;"
+```
+
+Note that Gatekeeper will reject a bare debug pod here — this cluster requires the `app.kubernetes.io/name` label and explicit resource limits on every pod.
+:::
 
 For comprehensive PVC testing procedures, see `manifests/base/velero/README.md` in the homelab repository.
 
