@@ -205,7 +205,20 @@ Every other piece of cluster configuration is declared in git and reconciled by 
 
 Recovery relies on Velero backing up the PVC — which **now** works, as of PR #907; before that this namespace was in no backup schedule at all. Restore granularity is the whole database, not one monitor.
 
-**This gap is now closable.** It was blocked on 1.x having no REST API for monitor CRUD; 2.5.3 has one. Closing it properly is a design question — reconciling monitor definitions from git against the API, deciding what wins on conflict — and deserves its own change rather than a bolt-on.
+**This gap is NOT closed by the 2.x migration.** An earlier version of this page claimed 2.5.3 added a REST API for monitor CRUD. Probing the running instance on 2026-09-09 disproved it:
+
+| Endpoint | Content-Type | Verdict |
+|---|---|---|
+| `/api/monitors` | `text/html` | SPA fallback |
+| `/api/v1/monitors` | `text/html` | SPA fallback |
+| `/api/entry-page` | `application/json` | real |
+| `/api/totally-made-up-xyz` | `text/html` | **control** |
+
+All four returned **HTTP 200** — unknown routes fall through to `index.html`, so a 200 proves nothing without a known-negative control.
+
+Uptime Kuma's programmatic interface remains **socket.io**. Declarative management would mean implementing an unofficial protocol and maintaining it across upgrades.
+
+The cheaper option is **drift detection** rather than reconciliation: export monitors from the SQLite DB on a schedule, diff against a committed list, and alert on divergence. That buys visibility and change detection without the protocol risk — but not declarative management.
 :::
 
 ### Adding a Monitor
