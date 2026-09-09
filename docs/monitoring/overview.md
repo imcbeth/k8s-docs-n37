@@ -325,6 +325,7 @@ The same audit found **66 alerts firing simultaneously** — a state functionall
 - **A percentage is not harm.** `CPUThrottlingHigh` fired for ~52 days on containers using 3–15% of their limits. CFS accounts in 100ms periods, so a burst wanting a full core for a few milliseconds throttles *regardless of quota size*. The replacement requires high throttling **and** high utilization together.
 - **Scope selectors to the thing you mean.** Synology volume alerts matched storage-pool entries as well as volumes; disk-temperature alerts applied spinning-disk thresholds to NVMe, which runs hotter by design.
 - **A watcher must not share a failure mode with what it watches.** See the [PVC read-only automation](../storage/pvc-ro-automation.md) dead-man switch.
+- **Alert on coverage, not only on success.** Every Velero alert asked "did the backups run?" and all of them said yes for 135 days while a PVC sat outside their scope entirely. A monitor that only checks whether the configured work succeeded cannot see work that was never configured. See [backup coverage is not backup success](../applications/velero.md#backup-coverage-is-not-backup-success-2026-09-07).
 
 ### Common Alert Categories
 

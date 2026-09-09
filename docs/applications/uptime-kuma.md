@@ -12,8 +12,8 @@ Uptime Kuma is a self-hosted uptime monitoring tool that provides a real-time st
 | Property | Value |
 |----------|-------|
 | **Namespace** | `uptime-kuma` |
-| **Chart** | `helm-charts/uptime-kuma` v4.2.0 (as of 2026-09-07, via Renovate PR #880). **Image is deliberately pinned to `1.23.17-debian`** — the chart's appVersion is 2.5.0, but we stay on the 1.x line. Chart bumps therefore change templates only and do not restart the pod. |
-| **App Version** | `v1.23.17` |
+| **Chart** | `helm-charts/uptime-kuma` v4.2.0 |
+| **App Version** | **`2.5.3`** — migrated from `1.23.17-debian` on 2026-09-07 (PR #908). See [The 1.x → 2.x migration](#the-1x--2x-migration-2026-09-07). |
 | **ArgoCD App** | `uptime-kuma` (project: `infrastructure`, wave: `0`) |
 | **Status Page URL** | `https://status.k8s.n37.ca` |
 | **Storage** | 5Gi iSCSI PVC (`synology-iscsi-delete`) |
@@ -203,7 +203,9 @@ Every other piece of cluster configuration is declared in git and reconciled by 
 - There is no drift detection — a monitor deleted by accident is simply gone.
 - **They cannot be fixed by a PR.** During the 2026-09-07 alert triage, a monitor pointing at a Flink batch demo (a Service that only exists while a job runs) had to be handed back for a manual UI click, because no GitOps change could touch it.
 
-Recovery relies on Velero backing up the PVC, which does work — but restore granularity is the whole database, not one monitor. Tracked as an open gap; Uptime Kuma 1.x has no REST API for monitor CRUD, so closing it properly depends on the 2.x migration below.
+Recovery relies on Velero backing up the PVC — which **now** works, as of PR #907; before that this namespace was in no backup schedule at all. Restore granularity is the whole database, not one monitor.
+
+**This gap is now closable.** It was blocked on 1.x having no REST API for monitor CRUD; 2.5.3 has one. Closing it properly is a design question — reconciling monitor definitions from git against the API, deciding what wins on conflict — and deserves its own change rather than a bolt-on.
 :::
 
 ### Adding a Monitor
@@ -218,15 +220,67 @@ Recovery relies on Velero backing up the PVC, which does work — but restore gr
 A monitor pointing at a batch job's Service reports `DOWN` for the entire time no job is running — which is most of the time, and is correct behaviour rather than a fault. `UptimeKumaMonitorDown` then fires forever and the whole monitor set gets ignored. Monitor **services**; use workflow/job alerting for batch work.
 :::
 
-### Pending: the 1.x → 2.x migration
+## The 1.x → 2.x migration (2026-09-07)
 
-The image is deliberately pinned to `1.23.17-debian` while the chart tracks appVersion 2.5.0. This is a **deferred decision, not an oversight**:
+Migrated `1.23.17-debian` → `2.5.3`. Completed in ~58 minutes with **zero restarts** and no data loss.
 
-- 2.x carries a **data migration** — monitors, heartbeat history and settings all live on the PVC.
-- 1.23.x no longer receives fixes, so staying is not viable indefinitely.
-- 2.x adds the REST API that would let monitors become GitOps-managed, closing the gap described above.
+### Two things that would have broken it
 
-The recommendation is to migrate, but on its own change window with a fresh Velero backup and a tested rollback path — not as a side effect of a routine chart bump. Renovate's chart PRs are safe to merge meanwhile: they change templates only and do not restart the pod.
+**1. The tag suffix silently disappeared.** 1.x published `-debian` variants; **2.x dropped the suffix entirely.** The unsuffixed tag *is* the Debian build, and `-slim` is the smaller one. Writing `2.5.3-debian` by analogy yields an `ImagePullBackOff`, not a useful error.
+
+The `-rootless` variants are a separate trap: they run as uid 1000 and **cannot write this PVC**, whose files are `root:root 755`. Switching to rootless requires a `chown` first. The unsuffixed image runs as root, matching 1.x, which is why the migration needed no ownership work.
+
+**2. The liveness probe would have killed the migration mid-write.** This is the one that mattered.
+
+Uptime Kuma rewrites its schema on first start, and here also re-aggregated **1.95M heartbeat rows** off an iSCSI PVC. The existing probe was `initialDelaySeconds: 180` with `failureThreshold: 3` at `periodSeconds: 30` — so the kubelet would have killed the container roughly **270 seconds in**, on a half-rewritten SQLite database, and then done it again on every restart.
+
+Measured rate was **~2%/minute**, i.e. ~58 minutes. The migration was never going to finish inside 270s.
+
+```yaml
+# Raised for the migration, reverted afterwards (PR #909)
+livenessProbe:
+  initialDelaySeconds: 900   # was 180
+```
+
+:::caution Raise this before any future major upgrade of this app
+900s is correct for a migration and wrong for steady state — a wedged pod goes uncaught for 15 minutes. It was returned to 180 once the migration finished and the pod had rolled cleanly. Any future major version bump needs the same temporary raise.
+:::
+
+### What the logs look like
+
+The schema conversion — the irreversible part — finishes in the first ~90 seconds and the pod goes `Ready`. A **second, much longer pass** then runs in the background while the app serves normally:
+
+```
+[DB] INFO: Migrating Aggregate Table
+[DB] INFO: [DON'T STOP] Migrating monitor '...' (1 of 14 total) - total migration progress 0.07%
+...
+[DB] INFO: Aggregate Table Migration Completed
+```
+
+`[DON'T STOP]` is literal. A `Ready` pod does **not** mean the migration is done. Do not restart the pod, sync the app, or drain its node until `Aggregate Table Migration Completed` appears.
+
+### Heartbeat counts drop, and that is correct
+
+| Table | Before | After |
+|---|---|---|
+| `heartbeat` (raw) | 1,950,590 | **31,957** |
+| `stat_daily` | — | 1,400 |
+| `stat_hourly` | — | 10,094 |
+| `stat_minutely` | — | 20,172 |
+
+2.x rolls history into aggregate tables and keeps raw rows only for a recent window. `stat_daily` reaches back to **2026-06-02**, the original earliest data — uptime percentages and graphs are intact. Only raw per-check detail beyond the retention window is pruned. A 97% drop in `heartbeat` rows is the expected outcome, not data loss.
+
+### Rollback
+
+The migration is **one-way** — a 2.x database cannot be opened by 1.x. Rollback is restore-from-backup only. Three artifacts were taken first, each verified `pragma integrity_check: ok` with 14 monitors / 1,950,531 heartbeats:
+
+1. `/app/data/pre2x.db` on the PVC (via sqlite3 `.backup`, so the 138MB WAL is folded in — a plain `cp` would have silently lost it)
+2. An off-cluster gzip of the same file
+3. The nightly Velero schedule, which covers this namespace as of PR #907
+
+:::danger This PVC had never been backed up
+Preparing this migration is what surfaced it: `uptime-kuma` held a 135-day-old 5Gi PVC that **no Velero schedule covered**, on a `synology-iscsi-delete` StorageClass with no reclaim-policy safety net. Backups had been reporting `Completed` the entire time — the namespace was simply outside their scope. See [Velero → backup coverage](./velero.md#backup-coverage-is-not-backup-success-2026-09-07).
+:::
 
 ### Checking Prometheus Metrics
 
