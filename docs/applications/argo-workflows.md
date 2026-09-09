@@ -142,7 +142,26 @@ See the [lifeonabike guide](./lifeonabike.md) for full pipeline details, RBAC se
 
 ## Artifact Storage
 
-Argo Workflows uses **LocalStack S3** as the default artifact store. A `PreSync` Job (`localstack-argo-workflows-setup`) ensures the `argo-workflows` bucket exists before each sync.
+Argo Workflows uses **LocalStack S3** as the default artifact store.
+
+:::danger The bucket does not survive a LocalStack restart
+An earlier version of this page said a `PreSync` Job (`localstack-argo-workflows-setup`) *"ensures the bucket exists before each sync"*. It did not. It was a plain Job that ran **once** at install time, and LocalStack loses all buckets whenever it restarts — `PERSISTENCE=1` is set but is a no-op on the community edition ([details](./localstack.md#persistence-is-a-licensed-feature)).
+
+The result on 2026-09-09 was that **every build failed**:
+
+```
+lifeonabike-build-zmgqg  Failed
+wait: Error (exit code 64): failed to put file: The specified bucket does not exist
+```
+
+Bucket creation now lives in a LocalStack **init hook** that runs on every start, and the one-shot Job has been removed. If artifact uploads start failing, check the bucket exists before anything else:
+
+```bash
+kubectl -n localstack exec deploy/localstack -- \
+  curl -s -o /dev/null -w '%{http_code}\n' http://localhost:4566/argo-workflows
+```
+
+:::
 
 ```yaml
 # Artifact repository config points at LocalStack
@@ -210,6 +229,41 @@ cron workflow must have at least one schedule
 ```
 
 **Fix:** Update all CronWorkflow manifests to use `schedules:` (array).
+
+## Alerting — a label bug made four alerts inert
+
+Found 2026-09-09. Four of the eight Argo alerts selected `argo_workflows_gauge{status="..."}`, but the metric's label is **`phase`**, not `status`. That selector matches **zero series**, so these could never fire:
+
+- `ArgoWorkflowFailed`
+- `ArgoWorkflowError`
+- `ArgoWorkflowStuck`
+- `ArgoWorkflowHighFailureRate`
+
+Proven rather than inferred: two real workflow failures that day produced no alert at all, and `increase(argo_workflows_gauge{status="Failed"}[6h])` returned empty.
+
+Three of them also applied `increase()` — a **counter** function — to a gauge.
+
+### `ArgoWorkflowHighFailureRate` was rewritten, not patched
+
+It derived a 24-hour failure *ratio* from `increase()` over the gauge. That is unsound regardless of the label: the gauge counts workflows **currently present**, and completed workflows are TTL'd away within hours, so there is no 24h history in it to rate.
+
+```promql
+# now — what a gauge can honestly answer
+sum(argo_workflows_gauge{phase=~"Failed|Error"}) > 3
+```
+
+Several failed at once means something systemic; a single bad run is covered by `ArgoWorkflowFailed`.
+
+:::tip Verify a selector matches before trusting an alert
+A rule with a wrong label name is `health: ok` and permanently `inactive` — indistinguishable from "nothing is wrong". Check it matches real series:
+
+```bash
+kubectl -n default exec prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
+  wget -qO- --post-data='query=<your selector>' http://localhost:9090/api/v1/query
+```
+
+Zero results for a metric that exists means the selector, not the cluster, is wrong.
+:::
 
 ## Resource Usage
 

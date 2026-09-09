@@ -103,7 +103,7 @@ Optimized for Raspberry Pi 5 cluster:
 `operator.resources` configures scan job defaults, NOT the operator pod. Use the top-level `resources:` key to set the operator container's own CPU/memory limits.
 :::
 
-- **Operator Pod**: 50m CPU request, 300m limit / 100Mi-300Mi memory (set via top-level `resources:` key)
+- **Operator Pod**: 100m CPU request, 500m limit / 256Mi-512Mi memory (set via top-level `resources:` key). **Raised 2026-09-09** from 300m/300Mi after 29 OOMKills in 2 days — see [Resourcing](#resourcing--the-operator-oomkills-quietly-2026-09-09).
 - **Trivy Server**: 50m-300m CPU / 64Mi-256Mi memory
 - **Scan Jobs**: 50m-500m CPU / 100Mi-500Mi memory per job
 - **Concurrent Scans**: Limited to 3 jobs at a time
@@ -334,6 +334,23 @@ For detailed vulnerability response procedures, see: [Trivy Vulnerability Remedi
 2. **Assessment**: Check CVE exploitability and impact
 3. **Remediation**: Update image, rebuild, or accept risk with mitigation
 4. **Verification**: Rescan and confirm vulnerability resolved
+
+## Resourcing — the operator OOMKills quietly (2026-09-09)
+
+trivy-operator was restarting **29 times in 2 days** (~14/day) and starved on both axes at once:
+
+| Resource | Old limit | Measured | Verdict |
+|---|---|---|---|
+| memory | 300Mi | `max_over_time([24h])` repeatedly **296–300 MiB** | living *at* the ceiling |
+| cpu | 300m | **301m** | pegged, permanently throttled |
+
+The memory figure is the telling one. It wasn't spiking past a sane ceiling — it sat at the ceiling continuously and died whenever a scan pushed it over. Roughly **1% headroom**.
+
+Raised to **512Mi / 500m** (requests **256Mi / 100m** — the old 100Mi request was so far below real usage the scheduler had no idea what this pod costs). Afterwards: **0 restarts**, settled at ~259 MiB, having been observed briefly at **303–305 MiB** — above the old limit, which is what proves the limit was the cause rather than a symptom.
+
+:::caution Scan data is unreliable while the operator is OOMKilling
+CVE counts during an OOM loop reflect whatever scans happened to complete, not the cluster. After fixing this, `CriticalVulnerabilitiesIncreased` fired on a genuine 179 → 190 rise — confirmed real because **scan coverage was identical (77 images) on both sides** of the comparison. Always check coverage before treating a CVE delta as new exposure.
+:::
 
 ## Operational Notes
 
