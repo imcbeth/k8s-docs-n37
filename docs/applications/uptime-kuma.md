@@ -233,6 +233,48 @@ The cheaper option is **drift detection** rather than reconciliation: export mon
 A monitor pointing at a batch job's Service reports `DOWN` for the entire time no job is running — which is most of the time, and is correct behaviour rather than a fault. `UptimeKumaMonitorDown` then fires forever and the whole monitor set gets ignored. Monitor **services**; use workflow/job alerting for batch work.
 :::
 
+## Monitor drift detection (2026-09-10)
+
+Since monitors cannot be managed declaratively, they are at least **watched**. A daily CronJob diffs the live monitor set against a baseline committed to git and fails when they diverge.
+
+```
+uptime-kuma-monitor-drift (CronJob, 06:40 daily)
+  → kubectl exec into the app pod, read the SQLite monitor table
+  → normalise to  name|type|target|active=N|interval=N
+  → diff against the uptime-kuma-monitor-baseline ConfigMap
+  → exit non-zero on divergence  →  UptimeKumaMonitorDrift alert
+```
+
+### It detects; it cannot repair
+
+There is no monitor API to reconcile against, so a human applies the change in the UI and then refreshes the baseline **via a PR**. That is deliberate: the PR diff is the audit trail these monitors otherwise do not have. Editing the ConfigMap in place defeats the point.
+
+### Design choices worth knowing
+
+**Five fields, not 120.** The `monitor` table has ~120 columns. The comparison uses `name`, `type`, target, `active` and `interval` — what a human would notice changing. Diffing every column would alert on things like retry counters.
+
+**An edited monitor appears in BOTH lists** — once as the old definition removed, once as the new one added. That is one change, not two faults, and the job output says so.
+
+**Zero-monitor guard.** Reading 0 monitors while 14 are declared almost certainly means the query or schema changed, not that everything was deleted. It reports that rather than 14 spurious deletions.
+
+**It execs**, because the PVC is RWO and already mounted by the app — a second pod cannot read the database. The Role is scoped to the one namespace and grants `pods/exec` create plus `pods` get/list, nothing that can write.
+
+### Two traps hit while building it
+
+:::warning ArgoCD selfHeal defeats in-cluster test perturbation
+The first negative test patched the baseline ConfigMap directly to inject drift. **ArgoCD reverted it before the job ran**, so the check reported OK — a false pass that looked exactly like a working detector.
+
+The same mechanism defeated a `kubectl scale --replicas=0` on LocalStack the day before. To test against a GitOps-managed object, use a throwaway object ArgoCD does not manage — here, a separate ConfigMap the one-off Job mounts instead.
+:::
+
+:::warning The namespace NetworkPolicy blocks the Kubernetes API
+`uptime-kuma`'s NetworkPolicy uses `podSelector: {}` — it covers every pod — and allows DNS plus the HTTP ports the app probes. It does **not** allow 6443, which is correct for Uptime Kuma itself; a monitoring app has no business talking to the API.
+
+A job that must exec does need it. Policies are additive, so the fix is a second policy scoped by `podSelector` to the drift pods, **not** widening the namespace-wide one.
+
+This first surfaced as `no Running uptime-kuma pod found` while the app had been up 20 hours, because the lookup was written `2>/dev/null || echo ""` — a 2.5-minute connection timeout and an empty result are indistinguishable when you discard stderr.
+:::
+
 ## The 1.x → 2.x migration (2026-09-07)
 
 Migrated `1.23.17-debian` → `2.5.3`. Completed in ~58 minutes with **zero restarts** and no data loss.
