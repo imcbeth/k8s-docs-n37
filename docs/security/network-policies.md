@@ -177,6 +177,59 @@ egress:
         port: 443
 ```
 
+## A scrape needs BOTH sides of the policy
+
+:::danger The most common way a new exporter silently never appears
+Adding a metrics endpoint requires **two** policy changes, in **two** namespaces:
+
+1. **Ingress** on the exporter's namespace — let Prometheus in on the port
+2. **Egress** on the `default` namespace — let Prometheus *out* to that port
+
+Both `synology-csi` and `default` run default-deny policies with explicit port allowlists. Changing one and not the other produces a target that is discovered, has an endpoint, passes its kubelet readiness probe, and never yields a single sample.
+
+Cost 38 minutes and a `TargetDown` page on 2026-09-10 when `pvc-writability-prober` shipped with 9310 added to the destination ingress only.
+:::
+
+### Why it is hard to spot
+
+Every individual check reports healthy:
+
+| Check | Result |
+|---|---|
+| ServiceMonitor discovered | target present in Prometheus |
+| Destination namespace ingress | port allowed, policy synced |
+| Service endpoints | pod IP present |
+| kubelet readinessProbe on the port | **passing** |
+| Scrape from a pod in the *same* namespace | **works** |
+| Scrape from Prometheus | `connection reset by peer` |
+
+The failure only appears when you compare against a **working** exporter and then read the *source* namespace's egress rules. Note that the symptom is a **reset**, not a timeout — an egress denial rejects rather than blackholes, which is easy to misread as an application fault.
+
+### The check that settles it
+
+```bash
+# Does Prometheus's own namespace permit egress to this port?
+kubectl -n default get networkpolicy -o json \
+  | grep -o '"port": *<PORT>' || echo "NOT ALLOWED — add it"
+
+# Control: prove the path works for an exporter that already scrapes
+kubectl -n default exec prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
+  timeout 10 wget -qO- http://<working-exporter-ip>:9300/metrics | head -2
+```
+
+Always run the control. A failing scrape with no known-good comparison is indistinguishable from a broken exporter.
+
+### Ports currently allowed for scraping
+
+The `default` namespace egress allowlist is long and grows with every new exporter. Recent additions:
+
+| Port | Exporter |
+|---|---|
+| 9300 | `pvc-mount-monitor` (synology-csi) |
+| 9310 | `pvc-writability-prober` (synology-csi) |
+
+This is the same class of failure as the argocd repo-server port drift (8082 → 8084 across an upgrade): **an allowlist that must be updated by hand, with no signal when it is not.**
+
 ## Istio Ambient Mesh Patterns
 
 Istio Ambient uses transparent proxy (TPROXY) which **preserves source IPs**. This has critical implications for NetworkPolicies:

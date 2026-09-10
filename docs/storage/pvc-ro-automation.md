@@ -307,6 +307,61 @@ This is the general principle, and it's worth applying elsewhere. An alert that 
 `remediator-deadman.yaml` is listed in `manifests/base/kube-prometheus-stack/kustomization.yaml`, **not** `synology-csi/`, even though it watches a synology-csi CronJob. The synology-csi kustomization sets `namespace: synology-csi`, which would rewrite the resources that must stay in `default` — the SMTP Secret lives there and Secrets are not cross-namespace. The kps kustomization sets no `namespace:`, so the explicit per-resource namespaces survive. The RBAC half (Role + RoleBinding) is correctly in `synology-csi`; the ServiceAccount, ConfigMap and CronJob are in `default`.
 :::
 
+## Writability probing — a stronger claim than mount flags (2026-09-10)
+
+Everything above reads mount **flags** from `/host/proc/1/mounts`. That catches btrfs remounting a volume read-only, which is the failure this cluster has actually hit repeatedly.
+
+It does not catch a mount that still advertises `rw` while the storage underneath refuses writes. In that case the flag lies and the application is the first to find out.
+
+`pvc-writability-prober` closes the gap by **actually writing**: `touch` + `rm` inside each workload's own pod, at its own mount, as its own uid. It exports `pvc_writable{namespace,claim,pod,mountpath}`.
+
+### Why it execs instead of mounting the volumes
+
+Most PVCs here are RWO and already mounted by their workload, so a prober pod cannot mount them a second time. That leaves two ways to reach the data, and the choice is a security posture decision rather than a technical detail:
+
+| Approach | What it needs | Verdict |
+|---|---|---|
+| Extend the `pvc-mount-monitor` DaemonSet | **root** + read-write hostPath on `/var/lib/kubelet`, on all 5 nodes | read/write access to *every* PVC in the cluster; reverses that component's deliberate hardening |
+| **Exec into each workload's pod** | ClusterRole with `pods/exec` create | no host access, no root; writes as the app's own uid |
+
+Exec was chosen. It is not free — that ServiceAccount can exec into any pod — but it buys the same signal without giving a five-node DaemonSet write access to all cluster data.
+
+### Distroless images cannot be probed at all
+
+:::warning 3 of 8 PVCs are uncoverable by this approach
+`grafana`, `loki` and `zot` run **distroless images with no shell**, so `kubectl exec ... -- sh -c` fails before it ever touches the volume:
+
+```
+OCI runtime exec failed: exec failed: unable to start container process:
+exec: "sh": executable file not found in $PATH
+```
+
+These are reported as `pvc_writability_unprobeable`, **not** as `pvc_writable 0`. An untestable volume is neither known-healthy nor known-broken, and reporting it as broken fires a critical on a working volume.
+
+Closing this gap would need ephemeral debug containers with volume mounts — a materially larger build. Until then the gap is visible via `PVCWritabilityUnprobeable` (info) rather than hidden.
+
+**This limit propagates.** Any backstop controller driven off `pvc_writable == 0` silently will not cover those three — which are exactly the third-party charts whose probe specs cannot easily be edited, i.e. the ones a backstop is most needed for.
+:::
+
+### Reading the two signals together
+
+| `pvc_mount_readonly` | `pvc_writable` | Meaning |
+|---|---|---|
+| 1 | 0 | the familiar btrfs ro-remount; `pvc-ro-remediator` should already be acting |
+| 0 | 0 | **the flag lies** — mount looks fine, storage is refusing writes. This is the case flags cannot see |
+| 0 | 1 | healthy |
+| 0 | *(absent)* | unprobeable — see above; not a fault |
+
+### Alerts
+
+| Alert | Severity | Fires on |
+|---|---|---|
+| `PVCNotWritable` | critical | a write test ran and failed |
+| `PVCWritabilityProberStale` | warning | no completed probe cycle in 30+ minutes |
+| `PVCWritabilityUnprobeable` | info | the write test could not run |
+
+`PVCWritabilityProberStale` matters as much as the first: **a stale prober and a healthy cluster produce the same empty alert list.** That is the failure this cluster keeps re-learning.
+
 ## Components reference
 
 | Object | Manifest | Purpose |
