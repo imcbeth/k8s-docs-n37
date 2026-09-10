@@ -61,7 +61,7 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 | Schedule | Time | Retention | Scope | Method |
 |----------|------|-----------|-------|--------|
 | `velero-daily-argocd` | 1:30 AM | 30 days | argocd namespace | Resources only |
-| `velero-daily-critical-pvcs` | 2:00 AM | 30 days | default, loki, trivy-system, falco | CSI snapshots |
+| `velero-daily-critical-pvcs` | 2:00 AM | 30 days | default, loki, trivy-system, uptime-kuma, zot | CSI snapshots |
 | `velero-weekly-cluster-resources` | 3:00 AM Sunday | 90 days | All namespaces | Resources only |
 
 ### Daily ArgoCD Configuration Backup (1:30 AM)
@@ -91,7 +91,7 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 
 ## Cluster PVCs
 
-All persistent volumes in the cluster. The daily critical PVC backup schedule covers the `default`, `loki`, `trivy-system`, and `falco` namespaces.
+All persistent volumes in the cluster. The daily critical PVC backup schedule covers `default`, `loki`, `trivy-system`, `uptime-kuma` and `zot`. See [backup coverage](#backup-coverage-is-not-backup-success-2026-09-07) for what is deliberately excluded and why.
 
 | Component | Namespace | Size | Storage Class | Data Type | Backed Up |
 |-----------|-----------|------|---------------|-----------|-----------|
@@ -99,7 +99,12 @@ All persistent volumes in the cluster. The daily critical PVC backup schedule co
 | **Loki** | loki | 20Gi | synology-iscsi-retain | Log chunks/TSDB (7-day retention) | Yes (daily) |
 | **Grafana** | default | 5Gi | synology-iscsi-retain | Dashboards, datasources, plugins | Yes (daily) |
 | **Trivy Server** | trivy-system | 5Gi | synology-iscsi-retain | Vulnerability database | Yes (daily) |
-| **Falco Redis** | falco | 1Gi | synology-iscsi-retain | Security event storage | Yes (daily) |
+| **Uptime Kuma** | uptime-kuma | 5Gi | synology-iscsi-delete | Monitors + heartbeat history | Yes (daily, since #907) |
+| **Zot** | zot | 50Gi | synology-iscsi-retain | OCI registry (cache + local pushes) | Yes (daily, since #910) |
+| **Tempo** | tempo | 10Gi | synology-iscsi-retain | Traces (short TTL) | No — regenerable |
+| **LocalStack** | localstack | 2Gi | synology-iscsi-delete | Test S3 emulator | No — disposable |
+
+**Falco Redis had a 1Gi PVC and no longer does.** Its Redis runs with `save ""` and AOF off, so the volume could never hold anything — verified empty on both the live volume and a restore of it. Removed 2026-09-09, and `falco` dropped from the backup schedule along with it.
 
 ## Incident: 16 days of silent backup failure (2026-07-31)
 
@@ -147,6 +152,35 @@ A rule in the wrong namespace or missing the `release` label is invisible — an
 ```
 
 During the incident this read ~382h while ArgoCD still showed the velero app `Synced + Healthy` — app health says nothing about whether backups succeed.
+
+## Restored PVCs inherit the source's reclaim policy
+
+:::warning A restore-then-delete cycle strands the LUN
+Found 2026-09-10, in the restore validator's own debris. A PVC created by a Velero restore inherits the **source** volume's `persistentVolumeReclaimPolicy`. Most volumes here use `synology-iscsi-`**`retain`**, so deleting the restored PVC leaves the PV in `Released` state — and its NAS LUN allocated.
+
+Three orphans had accumulated, 24Gi total, including a 20Gi loki volume stranded since February. Cleaning up the PVC is not enough.
+:::
+
+### Reclaiming an orphan needs `patch`, not `delete`
+
+Flip the reclaim policy and the PV controller does the rest, LUN included:
+
+```bash
+kubectl patch pv <pv> -p '{"spec":{"persistentVolumeReclaimPolicy":"Delete"}}'
+```
+
+Verified: an orphaned PV disappeared **20 seconds** after the patch, with no `delete` call at all.
+
+That distinction matters for automation. `persistentvolumes` is cluster-scoped, so anything reclaiming them needs a ClusterRole — and `get/list/patch` is enough. Granting cluster-wide `delete` on PVs would let a bug in a cleanup script destroy production volumes; `patch` cannot.
+
+### Finding them
+
+```bash
+kubectl get pv -o json | jq -r '.items[] | select(.status.phase=="Released")
+  | "\(.metadata.name)  \(.spec.capacity.storage)  was: \(.spec.claimRef.namespace)/\(.spec.claimRef.name)"'
+```
+
+The `cluster-healthcheck` CronWorkflow checks this daily and reports `pvs: released=...`.
 
 ## Backup coverage is not backup success (2026-09-07)
 

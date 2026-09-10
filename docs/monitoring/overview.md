@@ -353,6 +353,77 @@ The same audit found **66 alerts firing simultaneously** — a state functionall
 - Persistent volume filling up
 - Excessive pod evictions
 
+### Routing: the null-receiver trap
+
+:::danger 72% of this cluster's alert rules were silently discarded
+Found 2026-09-10. AlertManager's route tree had a **default receiver of `null`** and exactly one meaningful route:
+
+```yaml
+route:
+  receiver: 'null'          # <-- everything not matched below is DROPPED
+  routes:
+    - receiver: 'null'
+      matchers: [alertname = "Watchdog"]
+    - receiver: 'email-critical'
+      matchers: [severity = "critical"]
+```
+
+Every `severity="warning"` alert fell through to `null` — **174 of 260 rules**. They evaluated correctly, appeared in the Prometheus UI, showed `health: ok`, and reached nobody.
+
+This is nastier than a broken rule. A rule with a bad selector at least sits permanently `inactive`, which looks odd if you check. A correctly-firing rule routed to `null` looks **perfect** from every angle except the inbox.
+:::
+
+#### How to check yours
+
+Alert rules by severity, against what the route tree actually matches:
+
+```bash
+kubectl -n default exec prometheus-kube-prometheus-stack-prometheus-0 -c prometheus -- \
+  wget -qO- http://localhost:9090/api/v1/rules \
+  | jq -r '[.data.groups[].rules[] | select(.type=="alerting") | .labels.severity // "none"]
+           | group_by(.) | map({sev: .[0], n: length})'
+```
+
+Then read the live route tree — not the values file, the running config:
+
+```bash
+kubectl -n default exec alertmanager-kube-prometheus-stack-alertmanager-0 -c alertmanager -- \
+  wget -qO- http://localhost:9093/api/v2/status | jq -r '.config.original' | sed -n '/^route:/,/^receivers:/p'
+```
+
+And confirm delivery actually happens — the counter is per integration:
+
+```bash
+... wget -qO- http://localhost:9093/metrics | grep '^alertmanager_notifications_total'
+```
+
+A healthy delivery path with a routing gap looks exactly like this: **62 sent, 0 failed** — all of them criticals, with every warning discarded upstream.
+
+#### Which receiver will a given alert use?
+
+The decisive check. AlertManager reports the receiver assignment per alert:
+
+```bash
+... wget -qO- 'http://localhost:9093/api/v2/alerts?filter=severity%3D%22warning%22' \
+  | jq -r '.[] | "\(.labels.alertname) -> \([.receivers[].name] | join(","))"'
+```
+
+If that prints `null`, the alert is going nowhere.
+
+#### Current routing
+
+| Severity | Receiver | repeat_interval |
+|---|---|---|
+| `critical` | `email-critical` | 12h |
+| `warning` | `email-warning` | 24h |
+| `info`, none | `null` (dropped) | — |
+
+Warnings run at 24h so a persistent one nags daily rather than twice daily. Steady-state volume is roughly **2–4 emails a day**, because `group_by: [namespace, alertname]` collapses the 4× `ImageCriticalVulnerabilitiesHigh` into a single group.
+
+:::tip Routing warnings is only safe once the noise is gone
+Doing this while 66 alerts were firing would have been unusable, and is very likely why the null default was there in the first place. The [alert design principles](#alert-design-principles) came first for a reason — they took steady-state firing from 66 to about 8, which is what made warning delivery viable.
+:::
+
 ### AlertManager Configuration
 
 **Notification Channels:**

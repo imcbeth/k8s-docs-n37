@@ -230,6 +230,63 @@ cron workflow must have at least one schedule
 
 **Fix:** Update all CronWorkflow manifests to use `schedules:` (array).
 
+## templateDefaults merges by template TYPE
+
+:::danger `templateDefaults.container` does nothing for `script:` templates
+Cost two wrong diagnoses on 2026-09-10. `templateDefaults` merges into the **matching field only**. A workflow whose templates are all `script:` gets nothing from a `templateDefaults.container` block — it merges into nothing, silently, and every step falls back to the workflow-controller ConfigMap's `mainContainer` defaults (here 100m / 128Mi).
+
+`cluster-healthcheck` had exactly that shape. Its `check-pods` step was OOMKilled (exit 137) **every day**, so the daily health check had never once completed.
+
+```yaml
+# WRONG for a workflow of script: templates — merges into nothing
+templateDefaults:
+  container:
+    resources: {...}
+
+# RIGHT
+templateDefaults:
+  script:
+    resources: {...}
+```
+
+:::
+
+### It is not a precedence problem
+
+The tempting conclusion — that the controller's `mainContainer` overrides `templateDefaults` — is wrong, and I published it before checking. The disproof is in the same cluster:
+
+| Workflow | Templates | Defaults apply? | Measured on the pod |
+|---|---|---|---|
+| `backup-validation` | 9× `container:` | yes | **256Mi** |
+| `cluster-healthcheck` | 6× `script:` | no | **128Mi** |
+
+Same controller, same `mainContainer` config, different outcome. The variable is template type, not precedence.
+
+### Verify what a step actually got
+
+Don't infer the limit from the manifest — read it off a running pod:
+
+```bash
+kubectl -n argo-workflows get pod <step-pod> \
+  -o jsonpath='{.spec.containers[?(@.name=="main")].resources.limits.memory}'
+```
+
+### Sizing a step: measure the peak
+
+`check-pods` needed more than the others because it runs **two full-cluster queries back to back in one container**. Measured individually via `/sys/fs/cgroup/memory.peak` in a probe pod:
+
+| Command | Peak |
+|---|---|
+| `get pods -A --field-selector=... -o json \| jq` | 51 MiB |
+| `get pods -A -o jsonpath=...` (153 pods, ~2.9 MiB JSON) | 83 MiB |
+
+Both are under 128Mi individually — which is exactly why the OOMKill looked impossible. **Go does not return freed heap to the OS**, so cumulative RSS across the pair exceeds the limit. Set to 384Mi at template level, since this step legitimately needs more than the workflow default.
+
+```bash
+# The two-minute measurement that should have come first
+kubectl -n <ns> exec <probe-pod> -- cat /sys/fs/cgroup/memory.peak
+```
+
 ## Alerting — a label bug made four alerts inert
 
 Found 2026-09-09. Four of the eight Argo alerts selected `argo_workflows_gauge{status="..."}`, but the metric's label is **`phase`**, not `status`. That selector matches **zero series**, so these could never fire:
