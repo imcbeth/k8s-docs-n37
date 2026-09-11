@@ -351,6 +351,45 @@ The WebUI logs "Index does not exist → Create Index" on startup and resumes ac
 
 ---
 
+## Grouped Renovate PR went stale after a standalone one merged
+
+**Symptom:** a grouped PR (e.g. *"update argocd ecosystem (patch)"*) still applies cleanly and passes CI, but merging it **rolls a dependency backwards**.
+
+Seen 2026-09-11. Renovate opened both:
+
+| PR | Change |
+|---|---|
+| #955 | grouped ecosystem patch — argocd `10.8.1 → 10.8.4`, argo-workflows `2.0.4 → 2.0.6` |
+| #958 | standalone minor — argocd `10.8.1 → **10.9.0**` |
+
+Merging #958 first left #955 proposing **10.8.4 against a main already at 10.9.0** — a two-minor-version downgrade. The diff still applied, CI still passed, and nothing warned.
+
+**Check before merging any grouped PR:**
+
+```bash
+gh pr diff <PR> | grep -E "^[+-].*targetRevision"
+# then compare against what is actually on main
+```
+
+**If a hunk is stale:** take the good half yourself rather than waiting.
+
+```bash
+# apply only the still-valid bump, then close the grouped PR with a pointer
+gh pr close <PR> --comment "Superseded — the <dep> hunk is now a downgrade. <other dep> taken separately in #NNN."
+```
+
+Renovate does rebase grouped PRs, but only on its next run — which on the weekend schedule can be days away, leaving a legitimate bump waiting for no reason.
+
+:::tip Ordering rule
+Merge **standalone** version PRs before **grouped** ones from the same group, then re-read the group's diff. The reverse order is what creates the stale hunk.
+:::
+
+## Renovate and cluster timezones must agree
+
+`renovate.json` carried `America/Vancouver` while every CronJob used `America/Edmonton` — one hour apart, so the *"after 6am"* weekend window actually opened at 05:00 local. Aligned to `America/Edmonton` on 2026-09-11.
+
+Related and worth checking together: a Kubernetes CronJob **without `spec.timeZone` runs in UTC**, regardless of what the schedule reads like. `compliance-reporter` carried the comment `# Monday 8 AM` and ran at 02:00 local for months. All cluster CronJobs now set `America/Edmonton` except `remediator-deadman`, which is a 6-hour interval where it has no effect.
+
 ## Stuck Renovate PR / dependency dashboard
 
 **Symptoms.** Renovate's dependency dashboard issue is stale, or PRs are stuck in `awaiting-schedule` past the weekend.

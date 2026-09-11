@@ -293,17 +293,78 @@ See the [Ingress NGINX guide](../applications/ingress-nginx.md) for detailed con
 - **Zone:** cluster.local
 - **Upstream:** Host DNS (10.0.1.1 → Cloudflare)
 
-### External DNS (Planned)
+### External DNS (deployed)
 
-- **Provider 1:** Cloudflare DNS
-  - **Zone:** k8s.n37.ca
-  - **API:** Uses cert-manager API token
-  - **Purpose:** Public DNS records for external access
+This section previously read "Planned" and described the UniFi provider as pending RFC2136 TSIG configuration. Both are out of date — corrected 2026-09-11.
 
-- **Provider 2:** UniFi UDR7 (RFC2136)
-  - **Zone:** k8s.n37.ca (internal)
-  - **Purpose:** Split-horizon DNS for internal access
-  - **Status:** Pending RFC2136 TSIG key configuration
+Two external-dns instances run in the `external-dns` namespace, each with its **own** Cloudflare/UniFi credential. They do **not** share cert-manager's token, which is a separate secret.
+
+| Instance | Provider | Zones | Sources | Credential |
+|---|---|---|---|---|
+| `external-dns-cloudflare` | cloudflare | `n37.ca`, `lifeonabike.ca` | ingress, service | `cloudflare-api-token` |
+| `external-dns-unifi` | webhook → `external-dns-unifi-webhook` | `k8s.n37.ca`, `lifeonabike.ca` | ingress, service, **crd** | `unifi-*` |
+
+Both run `--policy=upsert-only` with a TXT registry, so neither deletes records it no longer manages.
+
+### Declaring records in git (DNSEndpoint)
+
+`external-dns-unifi` has `--source=crd` enabled, so arbitrary records can be declared as `DNSEndpoint` objects instead of being hand-kept in the UniFi UI:
+
+```yaml
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+spec:
+  endpoints:
+    - dnsName: nas.k8s.n37.ca
+      recordType: A
+      recordTTL: 300
+      targets: ["10.0.1.204"]
+```
+
+Currently declared: `nas`, `udr` and `unvr` under `k8s.n37.ca`.
+
+The motivation was concrete: the NAS and UDR were referenced by raw IP 17 and 16 times respectively across the manifests, and on 2026-09-08 the UNVR moved `10.0.20.130 → .131` with no signal beyond an Uptime Kuma monitor going red.
+
+:::tip Why `.k8s.n37.ca` and not `.n37.ca`
+`external-dns-unifi` already filters `k8s.n37.ca`, so records under it need **no domain-filter change** — only the record *source* changes, not which zones external-dns manages.
+:::
+
+:::danger Never add `--source=crd` to the Cloudflare instance
+It filters `n37.ca`, which would match these records and publish RFC1918 targets to **public** DNS. Its sources are deliberately `ingress` and `service` only.
+:::
+
+### RFC1918 addresses must not reach public DNS
+
+Until 2026-09-11 every `k8s.n37.ca` Ingress hostname resolved publicly to `10.0.10.10` — argocd, grafana, status, workflows, registry, oauth, falco, localstack, flink. Unroutable, so not an exploit path, but it disclosed the internal addressing scheme and the full service list to anyone who asked Cloudflare.
+
+Fixed with `--exclude-target-net=10.0.0.0/8` on the Cloudflare instance. This is a property of *what may be published*, so it keeps holding as new Ingresses appear — unlike narrowing the domain filter, which would need revisiting whenever the naming scheme changed.
+
+:::warning `upsert-only` means this does not remove existing records
+The flag stops **new** RFC1918 targets being published. Records already in Cloudflare must be deleted separately, via the dashboard or API.
+:::
+
+### Verifying what is actually published requires DNS-over-HTTPS
+
+:::danger `dig @1.1.1.1` does not leave this network
+The UDR intercepts outbound DNS. `dig @192.0.2.1` — an **unroutable TEST-NET address** — still returns answers, which proves it.
+
+A leak test using `dig` against public resolvers produced a **convincing false positive** on 2026-09-11: it showed newly created internal records resolving "publicly" when they were not published at all.
+
+Use DoH instead:
+
+```bash
+curl -s -H 'accept: application/dns-json' \
+  "https://cloudflare-dns.com/dns-query?name=nas.k8s.n37.ca&type=A" | jq .
+```
+
+And always include a control — a name you know *is* public — so a broken query is distinguishable from a genuine NXDOMAIN.
+:::
+
+### Certificates do not depend on these records
+
+Both ClusterIssuers use **DNS-01 with Cloudflare**, with no HTTP-01 solver. cert-manager creates its own `_acme-challenge` TXT records through its own API token; the A records are never consulted.
+
+This is also the only scheme that *could* work here: HTTP-01 needs Let's Encrypt to reach the host from the internet, which `10.0.10.10` cannot satisfy. So removing the public A records affects neither issuance nor renewal.
 
 ### DNS Flow
 
