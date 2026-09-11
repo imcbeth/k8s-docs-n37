@@ -20,6 +20,50 @@ Argo Events is the event-driven automation layer that bridges external events (G
 | **Sync Wave** | -8 |
 | **EventBus** | JetStream (NATS 2.10.10) |
 
+## Vulnerability status (reviewed 2026-09-11)
+
+`v1.9.11` carries **4 unique CRITICAL CVEs**, all in vendored Go dependencies:
+
+| CVE | Component | Fixed in |
+|---|---|---|
+| CVE-2025-68121 | Go `stdlib v1.25.6` | 1.25.7 |
+| CVE-2026-33186 | `grpc v1.72.2` | 1.79.3 |
+| CVE-2026-33815 | `pgx/v5 v5.7.5` | 5.9.0 |
+| CVE-2026-33816 | `pgx/v5 v5.7.5` | 5.9.0 |
+
+:::tip Trivy reports 16, not 4
+Four workloads run the identical image — `controller-manager`, `events-webhook`, the sensor and the eventsource — so each CVE is counted four times. **Fixing one image clears all sixteen.** The same per-workload multiplication is why `CriticalVulnerabilitiesDetected` was replaced with delta and outlier rules.
+:::
+
+**Two of the four are not reachable here.** `pgx` is a PostgreSQL driver, linked only for the Postgres persistence backend. This cluster's EventBus is **JetStream/NATS**, so those code paths are never exercised.
+
+### There is nothing to upgrade to
+
+`v1.9.11` is the latest release (2026-07-13) and **its image has never been rebuilt** — the registry digest still carries the original build date. All four CVEs need an upstream rebuild.
+
+### The `latest` tag does not help — measured
+
+A `latest` tag exists, rebuilt 2026-08-31 with a genuinely different digest, which looks tempting. Scanned with the same scanner, flags and server:
+
+| | v1.9.11 | latest |
+|---|---:|---:|
+| unique CRITICAL | **4** | **5** |
+| unique HIGH | 54 | 53 |
+
+**Fixed by `latest`: none.** The dependency versions are byte-identical; the rebuild bumped nothing.
+
+**Added by `latest`: CVE-2025-32445**, reported against a pseudo-version (`v0.0.0-20260831051828-…`) that trivy cannot compare to the 1.9.6 which fixed it — noise inherent to unpinned builds.
+
+:::warning Do not swap a pinned version for `latest` to chase CVEs
+It trades a known exposure for an unknown one, and here it demonstrably buys nothing. This repository has already lost 16 days of backups to an unpinned dependency moving underneath it.
+:::
+
+### Renovate surfaces this immediately
+
+`argo-events` has a dedicated rule with `schedule: ["at any time"]`, so a fixed release appears the day it ships rather than waiting for the weekend batch. The rule sits **after** the ArgoCD ecosystem grouping (so it is not held behind argo-cd) and **before** the major-update rule (so major bumps are still held for review).
+
+`vulnerabilityAlerts` does not cover this case — it keys off GitHub advisories for the *chart*, not CVEs vendored inside the container image.
+
 ## Architecture
 
 Argo Events has three main components:
