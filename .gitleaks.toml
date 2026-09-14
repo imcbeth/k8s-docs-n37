@@ -1,0 +1,42 @@
+# gitleaks configuration
+#
+# WHY AN ALLOWLIST EXISTS AT ALL
+#
+# docs/applications/kube-prometheus-stack.md documents a real trailing-newline
+# bug in base64 Secret values, and demonstrates it with a fake password the
+# document introduces itself:
+#
+#     echo -n "grafana123" | base64   # -> Z3JhZmFuYTEyMw==
+#
+# Entropy-based rules cannot tell that from a real credential, so the two
+# example values trip generic-api-key on every run. Left unallowlisted, this
+# workflow would fail permanently on day one and be switched off.
+#
+# WHY IT ALLOWLISTS VALUES AND NOT THE FILE
+#
+# Allowlisting the path would blind the scanner to a genuine credential pasted
+# into that same troubleshooting page later — the single most likely place for
+# one to appear, since it is where secret handling gets documented. Matching the
+# two known-fake values keeps everything else in that file in scope.
+#
+# A 2026-09-13 audit of this repo initially reported these two values as a real
+# "retired Grafana password". They never were. A placeholder detector keyed on
+# words like REPLACE/CHANGEME/YOUR_ did not recognise "grafana123", and the
+# proof was three lines above in the same file. Hence: match the exact values,
+# and say plainly why they are safe.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+Documentation placeholders in kube-prometheus-stack.md. Both decode to the
+literal string "grafana123", which the surrounding prose introduces as a worked
+example. Scoped to these exact values so any other secret in the same file is
+still reported.
+"""
+regexTarget = "match"
+regexes = [
+  '''Z3JhZmFuYTEyMw==''',   # base64 of "grafana123"
+  '''Z3JhZmFuYTEyMwo=''',   # base64 of "grafana123\n" — the buggy trailing-newline form
+]
