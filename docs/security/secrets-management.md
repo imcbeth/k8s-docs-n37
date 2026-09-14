@@ -535,6 +535,104 @@ kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets -f
 kubectl get sealedsecrets -A
 ```
 
+## Automated Secret Scanning
+
+Three layers, deployed across all three repositories in September 2026. They catch different
+things and none of them is redundant.
+
+| Layer | Catches | homelab | lifeonabike.ca | k8s-docs-n37 |
+|---|---|---|---|---|
+| GitHub push protection | Known provider formats, blocked before reaching GitHub | Yes | **Unavailable** | Yes |
+| GitHub secret scanning | Known provider formats, retroactive | Yes | **Unavailable** | Yes |
+| gitleaks in CI | Generic passwords and tokens the above miss | Yes | Yes | Yes (required check) |
+
+:::info GitHub's scanner only knows provider formats
+Push protection and secret scanning match **known credential shapes** — AWS keys, GitHub
+tokens, Stripe keys. They do not flag a generic password, a base64 Secret value, or a
+connection string pasted into a runbook. For a homelab, that is the most likely shape of a
+leak, which is why gitleaks is not redundant with them.
+
+Neither is available on **private** repositories without paid GitHub Advanced Security
+(the API returns `422 Secret scanning is not available for this repository`). On
+`lifeonabike.ca`, gitleaks is therefore the only layer, not a backstop.
+:::
+
+### Scanning a git-crypt repository
+
+This is the single most important thing on this page, because getting it wrong produces
+confident, completely wrong results.
+
+:::danger A scan of an unlocked checkout audits your keyring, not your repo
+`.gitattributes` sets `diff=git-crypt`. On a developer machine where git-crypt is
+**unlocked**, git transparently decrypts blobs when any tool reads them. A scanner run there
+reports plaintext that **does not exist in the repository**.
+
+A 2026-09-13 audit hit this directly: gitleaks reported **68 findings** locally — apparent
+Cloudflare tokens and an SSH private key — none of which had ever been committed. The same
+scan against a fresh keyless clone reported the true number.
+:::
+
+Scan the way an attacker sees the repository:
+
+```bash
+# Clone without your git-crypt key — this is what a stranger downloads
+GIT_CONFIG_GLOBAL=/dev/null git clone https://github.com/imcbeth/homelab.git /tmp/audit
+gitleaks detect --source /tmp/audit --config .gitleaks.toml --redact
+```
+
+To verify an individual file is genuinely encrypted in the repository, inspect the **blob**
+rather than trusting a diff. git-crypt blobs begin with the magic bytes `\0GITCRYPT`:
+
+```bash
+git cat-file blob "<commit>:<path>" | head -c 9 | xxd
+# 00000000: 0047 4954 4352 5950 54    .GITCRYPT
+```
+
+:::warning A deleted file's newest commit is its deletion
+For a file removed from the tree, the newest commit touching it is the commit that deleted
+it — where `git show <commit>:<path>` returns nothing. Empty output read as "plaintext"
+produces a second, different wrong answer. Enumerate every commit where the file actually
+exists.
+:::
+
+### Allowlisting, and how to do it safely
+
+SealedSecret ciphertext is high-entropy by construction and will trip entropy rules forever.
+In `homelab` that is 24 permanent false positives — enough to bury a real finding, so
+`.gitleaks.toml` allowlists `*-sealed.yaml`.
+
+git-crypt paths are deliberately **left in scope**: verified against a keyless clone they
+produce no findings, so keeping them scanned means that if git-crypt ever silently stops
+applying, the resulting plaintext is still caught.
+
+:::tip Allowlist values, not paths
+`k8s-docs-n37` documents a base64 trailing-newline bug using a fake password the prose
+introduces itself (`grafana123`). The allowlist matches **those two values**, not the file.
+
+Allowlisting the *path* would blind the scanner to a genuine credential pasted into that same
+troubleshooting page later — the most likely place for one to appear, since it is where
+secret handling gets documented. Verify any allowlist is narrow by planting a fabricated
+credential in the same file and confirming it still fails.
+:::
+
+### Proving a scanner actually works
+
+A passing scanner and a broken one look identical. Confirm it can fail:
+
+```bash
+# Fabricated, never-valid PAT shape
+tok="ghp_$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 36)"
+```
+
+:::warning Do not use a vendor's documented sample credential as a positive control
+Scanners deliberately allowlist them. AWS's published example access key produced a clean
+scan and "proved" a detector worked when it had tested nothing. Use a fabricated value of the
+right *shape* instead.
+:::
+
+Keep the pre-commit pin and the CI version in step. They drifted once (hook v8.18.1 vs CI
+v8.30.1) and disagreed on identical input, so a commit could pass CI and fail the hook.
+
 ## Best Practices
 
 ### Security

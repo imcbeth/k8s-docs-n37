@@ -770,6 +770,86 @@ kubectl logs -n external-dns deployment/external-dns-unifi -f | grep -i "create\
 kubectl logs -n external-dns deployment/external-dns-cloudflare | grep "All records are already up to date"
 ```
 
+## Gateway Outage Tolerance
+
+The UniFi instance depends on a webhook that talks to the UDR's controller API. When the
+gateway is sick, how external-dns reacts depends on **which kind of failure** it sees — and
+only one of the two is survivable.
+
+| Webhook behaviour | external-dns result |
+|---|---|
+| Answers with a non-2xx status | `SoftError` — counted, tolerated, retried next interval |
+| Does not answer within the read timeout | Hard error → `log.Fatal` → pod exits |
+
+There is no flag to make a hard error non-fatal (verified against `--help` on v0.21.0). The
+only lever is making sure the webhook's reply arrives **inside** the timeout window.
+
+### Why the default was too small
+
+During the 2026-09-12 UDR outage, `external-dns-unifi` restarted **54 times in about two
+hours** while `unpoller` — hitting the same dead API — simply retried and recovered.
+
+At the 5s default, the webhook was still waiting on the gateway when external-dns gave up,
+so the gateway's eventual `502` (which *would* have been tolerated as a soft error) never
+arrived. The pod exited instead.
+
+The soft path demonstrably works. From the same logs, on cycles where the 502 returned fast
+enough:
+
+```text
+level=error msg="Failed to do run once: soft error
+  failed to get records with code 500 (consecutive soft errors: 3)"
+level=info  msg="All records are already up to date"
+level=info  msg="Reconciliation succeeded after 3 consecutive soft errors"
+```
+
+### Current configuration
+
+```yaml
+- --webhook-provider-read-timeout=60s   # default 5s
+- --webhook-provider-write-timeout=60s  # default 10s
+```
+
+This is a reconciler on `--interval=1m`, so blocking a full minute on a sick gateway costs
+nothing. A gateway that hangs past 60s still exits — deliberately, since that is a real
+failure worth surfacing.
+
+:::warning The retry knobs are not available in this webhook version
+`UNIFI_RETRY_ATTEMPTS`, `UNIFI_RETRY_INITIAL_DELAY` and `UNIFI_RETRY_MAX_DELAY` appear in
+the webhook project's `main` branch documentation but **do not exist in v0.8.2**, which is
+what is deployed. Setting them would be silently inert. Verify against the deployed tag, not
+the project README.
+:::
+
+:::warning Two environment variables are being ignored
+`unifi-credentials` supplies `UNIFI_SITE_NAME` and `UNIFI_TLS_INSECURE`, but v0.8.2 reads
+`UNIFI_SITE` and `UNIFI_SKIP_TLS_VERIFY`. Both supplied values are ignored; the webhook
+falls back to defaults that happen to match the intent (`default`, and skip-TLS `true`), so
+it works **by coincidence**. Renaming a site to anything non-default would silently query the
+wrong one. Fixing it requires re-sealing the SealedSecret.
+:::
+
+## Public DNS Hygiene
+
+The Cloudflare instance previously published **RFC1918 addresses to public DNS** — every
+`k8s.n37.ca` Ingress hostname resolved publicly to `10.0.10.10`.
+
+Fixed with `--exclude-target-net=10.0.0.0/8` on the Cloudflare deployment, which stops new
+private targets being published. Because the policy is `upsert-only`, records already
+published had to be removed by hand; that cleanup completed 2026-09-12 and the zone now
+contains **no A records at all** (only CNAME, MX and TXT).
+
+:::tip Verify deletions against the zone API, not a resolver
+Immediately after deleting a record, DoH may still return the old answer — that is resolver
+cache at the record's TTL, not a failed deletion, and it reads exactly like one. Querying a
+name *just before* deleting it guarantees the stale answer by repopulating the cache. Confirm
+against the Cloudflare API; treat DoH as a propagation check afterwards.
+
+Note also that `dig @1.1.1.1` does not leave this network — the UDR intercepts outbound DNS,
+so an unroutable address like `dig @192.0.2.1` still answers. Use
+`https://cloudflare-dns.com/dns-query` with a known-public control.
+:::
+
 ## Performance Considerations
 
 ### Sync Efficiency

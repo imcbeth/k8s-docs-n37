@@ -63,6 +63,55 @@ The shared exclude regex used across hooks:
 (^secrets/|.*secret.*|.*\.key$|.*-sealed\.ya?ml$)
 ```
 
+### gitleaks: keep the hook and CI pinned together
+
+Secret scanning runs in two places, and they **must run the same version**:
+
+| Gate | Pin |
+|---|---|
+| `.pre-commit-config.yaml` | `rev: v8.30.1` |
+| `.github/workflows/gitleaks.yml` | `version=8.30.1` |
+
+These drifted once — hook on v8.18.1, CI on v8.30.1 — and disagreed on identical input:
+v8.18.1 flags AWS's documented sample access key, which v8.30.1 allowlists. A commit could
+pass CI and fail the hook, or the reverse. When bumping one, bump the other.
+
+:::warning The hook and CI see different bytes for git-crypt'd files
+This is why the `exclude:` list above matters for gitleaks specifically, not just for
+text-mutating hooks.
+
+In **CI** those paths are encrypted binary — the runner has no key, so the scan sees exactly
+what a stranger cloning the repo sees. On a **developer machine with git-crypt unlocked**,
+git decrypts them on read, so the hook would report plaintext that was never committed. The
+exclusion keeps the local hook honest.
+
+If you ever run gitleaks by hand against a full checkout, run `git-crypt lock` first or scan
+a fresh keyless clone. An unlocked scan audits your keyring, not your repo — it once produced
+68 phantom findings. See [Secrets Management](../security/secrets-management.md).
+:::
+
+The CI workflow asserts the checkout is locked before scanning, so that failure mode cannot
+recur there:
+
+```yaml
+- name: Confirm the checkout is git-crypt LOCKED
+  run: |
+    f=manifests/base/synology-csi/configs/client-info-secret.yml
+    if [ -f "$f" ] && ! head -c 9 "$f" | grep -q 'GITCRYPT'; then
+      echo "::error::$f is not git-crypt ciphertext in CI"
+      exit 1
+    fi
+```
+
+:::danger Never put "secret" in a workflow filename
+`.gitattributes` applies `*secret* filter=git-crypt`, matched on **basename**. A workflow
+named `secret-scan.yml` is committed as encrypted binary; GitHub cannot parse it and the run
+fails at startup in 0s with no jobs and no logs, listed by filename instead of its `name:`.
+
+This happened. The file is called `gitleaks.yml` for that reason. The same rule is why sealed
+secrets are named `*-sealed.yaml`.
+:::
+
 ## Kustomize build validation
 
 `scripts/validate-kustomizations.sh` is the most powerful hook — it catches errors the per-file `kubeconform` pass misses:
