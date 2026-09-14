@@ -1,0 +1,70 @@
+name: Gitleaks
+
+# Secret scanning for this repository.
+#
+# WHY THIS EXISTS
+#
+# This repo is public and GitHub secret scanning is already enabled on it, but
+# that only matches known PROVIDER formats — AWS keys, GitHub tokens, Stripe
+# keys. It does not flag a generic password, a base64 Secret value, or a
+# connection string pasted into a troubleshooting page. This is a documentation
+# repo about a Kubernetes cluster, so that is exactly the shape a leak here
+# would take: real output copied into a runbook to illustrate a real problem.
+#
+# gitleaks covers that class. It is the same control as imcbeth/homelab#972 and
+# imcbeth/lifeonabike.ca#20, adapted per repo rather than copied.
+#
+# Deliberately NO `paths:` filter, for the reason ci.yml already documents: if
+# this is ever set as a required status check, a path-filtered workflow never
+# reports on PRs that miss the filter, and those PRs block forever waiting for a
+# check that will not arrive.
+#
+# NOTE ON THE FILENAME: do not rename this to anything containing "secret". In
+# the homelab repo a workflow called secret-scan.yml matched a git-crypt
+# `*secret*` rule, was committed as encrypted binary, and failed at startup in
+# 0s with no logs. There is no git-crypt here, but the convention is kept.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Weekly sweep: catches gitleaks rules added after a commit already passed.
+    - cron: '41 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a PR makes the in-flight run irrelevant.
+concurrency:
+  group: gitleaks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gitleaks:
+    name: Scan for secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history. A credential deleted in a later commit is still
+          # published to anyone who clones this public repo.
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          version=8.30.1
+          curl -fsSL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Scan full history
+        # .gitleaks.toml allowlists two documentation placeholders by VALUE,
+        # not by path — see the rationale in that file.
+        run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose --no-banner
