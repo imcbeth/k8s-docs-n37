@@ -97,6 +97,43 @@ UniFi Poller exposes a wide range of metrics including:
 - Interference levels
 - Roaming events
 
+## Behaviour During a Gateway Outage
+
+unpoller talks to the UDR controller API at `https://10.0.1.1`. When that API is down it
+logs re-authentication failures and metric-fetch errors, but **retries and recovers on its
+own** — no manual intervention needed.
+
+During the 2026-09-12 UDR outage it logged:
+
+```text
+[ERROR] metric fetch failed: https://10.0.1.1: re-authenticating: (status: 502 Bad Gateway)
+[ERROR] ... context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+```
+
+then resumed exporting within minutes of the gateway returning:
+
+```text
+[INFO] UniFi Measurements Exported. Site: 1, Client: 26, UAP: 4, USG/UDM: 1, USW: 1
+```
+
+Expect `TargetDown{job="unpoller"}` to fire during such an outage. That alert means the
+gateway is unreachable, not that unpoller is broken.
+
+:::tip Check Prometheus, not the pod, to confirm recovery
+`kubectl exec ... wget localhost:9130/metrics` is an unreliable probe here — during the
+2026-09-12 incident it returned nothing from a perfectly healthy pod, suggesting zero
+metrics, while Prometheus held **1514 `unpoller_*` series**. Query Prometheus:
+
+```promql
+count({__name__=~"unpoller_.*"})
+```
+
+:::
+
+The same outage crashlooped `external-dns-unifi` 54 times because it treats a webhook
+timeout as fatal — see [External-DNS](./external-dns.md#gateway-outage-tolerance) for why
+the two behaved so differently against the same dead API.
+
 ## Deployment via ArgoCD
 
 UniFi Poller is deployed using GitOps through ArgoCD:
