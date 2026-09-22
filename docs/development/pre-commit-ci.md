@@ -112,6 +112,44 @@ This happened. The file is called `gitleaks.yml` for that reason. The same rule 
 secrets are named `*-sealed.yaml`.
 :::
 
+### Embedded YAML/JSON inside ConfigMaps
+
+`yamllint` and `kubeconform` validate the **outer** Kubernetes document. Inside it, a
+ConfigMap `data:` value is an opaque scalar string that neither tool ever parses — so
+structurally broken config passes every check here and fails only at runtime, in the
+consuming component.
+
+That happened on 2026-09-19. A comment inserted at the wrong indentation left the Loki
+alerting rules unparseable:
+
+```
+error parsing /rules/fake/log-alerts.yaml: yaml: line 58: did not find expected key
+```
+
+**Loki's ruler ran with zero rules loaded**, and the full pre-commit suite plus CI passed on
+that commit. Two load-bearing classes of config ship this way here — Loki alerting rules and
+every Grafana dashboard, 31 embedded blobs in total.
+
+`scripts/validate-configmap-embedded.py` parses each `data:` key by extension: `.yaml`/`.yml`
+as YAML, `.json` as JSON. Other extensions (`.sh`, `.py`, `.txt`, `.csv`, extensionless) are
+ignored — not structured data. It only asks *does this parse*; whether the content is a valid
+Loki rule or Grafana dashboard is the component's job.
+
+:::warning Do not add a skip for `{{ }}`
+The obvious instinct is to treat values containing `{{ }}` as templated and skip them. That
+would be wrong. Grafana legend formats (`{{pod}}`) and Loki annotations
+(`{{ $labels.namespace }}`) sit inside quoted strings and parse normally — skipping them
+would blind the check to **exactly the files it exists to protect**. All 31 current blobs
+parse with no skip logic.
+:::
+
+To verify an embedded blob by hand:
+
+```python
+outer = yaml.safe_load(open('manifests/base/loki/loki-alerting-rules.yaml'))
+yaml.safe_load(list(outer['data'].values())[0])   # the check that was missing
+```
+
 ## Kustomize build validation
 
 `scripts/validate-kustomizations.sh` is the most powerful hook — it catches errors the per-file `kubeconform` pass misses:

@@ -195,6 +195,83 @@ The following rules are disabled to reduce noise in a development/homelab enviro
 - `Terminal shell in container` - Common for debugging
 - `Attach/Exec Pod` - Common kubectl usage
 
+## Upgrading Falco
+
+Chart 9.2.0 (2026-09-22) moved the engine **0.44.1 → 0.45.0** and falcoctl 0.13.0 → 0.14.2.
+The chart version alone understates this — always compare `appVersion`:
+
+```bash
+helm search repo falcosecurity/falco --versions | head -5
+```
+
+A DaemonSet on every node makes falco the app where a bad upgrade is most visible, so it is
+applied **last** in any batch and watched through the roll. Expect ~4 minutes at 4/5 ready
+while pods cycle one at a time.
+
+### Three things that look like problems on this chart and are not
+
+**1. `priorityClassName` disappeared from the chart's values in 9.2.0.**
+We set it to `""`, which renders **zero occurrences in both 9.1.0 and 9.2.0**, and the live
+DaemonSet has none. It is a dead value we carry; its removal changes nothing. Verify this
+class of finding by rendering both versions and diffing, not by reading the values schema:
+
+```bash
+helm template falco falcosecurity/falco --version 9.2.0 \
+  -f manifests/base/falco/values.yaml --namespace falco | grep -c priorityClassName
+```
+
+**2. The wait-container image became a bare `curlimages/curl`** (was `appropriate/curl`).
+A bare name has no registry prefix, and `K8sAllowedRepos` matches prefixes like `docker.io`
+with `enforcementAction: deny` — and the `falco` namespace is **not** in its
+`excludedNamespaces`. It never reaches admission: that Pod is annotated
+`helm.sh/hook: test-success`, a Helm **test** hook ArgoCD does not apply. Confirmed absent
+from the cluster under both chart versions.
+
+**3. Custom-rule log lines carrying file positions look like rejections.**
+
+```
+In rules content: (/etc/falco/rules.d/homelab-rules.yaml:0:0)
+    rule 'Detect Cryptocurrency Mining': (/etc/falco/rules.d/homelab-rules.yaml:11:2)
+```
+
+These are `LOAD_DEPRECATED_ITEM` **warnings**, not load failures. Distinguish them by
+grepping for hard errors, which should return zero:
+
+```bash
+kubectl -n falco logs ds/falco -c falco --tail=500 \
+  | grep -icE "LOAD_ERR|cannot load|failed to load rules|invalid rule"
+```
+
+### Verify falco is WORKING, not merely Running
+
+A falco pod that started but loaded no rules looks identical in `kubectl get pods`. Confirm
+the engine is evaluating:
+
+```bash
+# hard rule errors — must be 0
+kubectl -n falco logs ds/falco -c falco --tail=500 | grep -icE "LOAD_ERR|invalid rule"
+
+# detections in the last 10 minutes — should be non-zero on an active cluster
+kubectl -n falco logs ds/falco -c falco --since=10m | grep -cE "Notice|Warning|Critical"
+
+# the probe actually opened
+kubectl -n falco logs ds/falco -c falco --tail=200 | grep -i "Opening 'syscall' source"
+```
+
+After the 0.45.0 upgrade: 0 hard errors, 18 detections in 10 minutes, modern BPF probe open,
+5/5 ready.
+
+:::warning Deprecations that become errors in Falco 1.0.0
+0.45.0 warns on two items used by this cluster's rules:
+
+- `%container.info` — *"deprecated and no more useful, will be dropped by Falco 1.0.0"*
+- `evt.dir` — *"due to the drop of enter events, `evt.dir = <` always evaluates to true"*
+
+Neither appears in `homelab-rules.yaml` directly. They are inherited from Falco's own bundled
+rules and the `spawned_process` macro our custom rules reference, so upstream will likely
+resolve them — but a 1.0.0 upgrade should not be applied without re-checking.
+:::
+
 ## Monitoring and Alerts
 
 ### Grafana Dashboard
