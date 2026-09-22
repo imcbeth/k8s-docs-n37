@@ -316,6 +316,53 @@ kubectl -n default exec prometheus-kube-prometheus-stack-prometheus-0 \
   | grep -c '<YourAlertName>'
 ```
 
+### OOM detection
+
+`KubeContainerOOMKilled` (added 2026-09-21) is the only metric-based OOM coverage on this
+cluster. Loki's `OOMKilledDetected` looked like coverage and was not — it greps log **text**,
+and a container that is OOM-killed does not log anything; the kernel kills it and the kubelet
+records the reason.
+
+```promql
+(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1)
+and on (namespace, pod, container)
+(increase(kube_pod_container_status_restarts_total[15m]) > 0)
+```
+
+:::danger The restart guard is load-bearing — `last_terminated_reason` LATCHES
+That metric stays at `1` for as long as it remains the container's last termination reason,
+which can be days. Measured on this cluster:
+
+| Query | Series |
+|---|---|
+| bare `== 1` over `reason=~"Error\|Unknown"` | **52** — terminations days old |
+| the same, guarded by recent restarts | **0** |
+
+Without the guard the alert fires once and never clears. That is exactly what made
+`CriticalClusterRoleRBACIssues` useless enough to demote to `info`.
+:::
+
+No `for:` clause: an OOM kill is a discrete event that already happened, so waiting to confirm
+it persists only delays the signal.
+
+**Prove a new alert can fire before trusting it.** For this one that meant creating a pod with
+a 32Mi limit allocating 200MB, confirming `OOMKilled` with `restarts=1`, and watching the
+expression match it in live Prometheus — then confirming it returned to zero once the pod was
+removed. A PromQL expression that parses is not an alert that works.
+
+### Prometheus is not the whole picture — check AlertManager
+
+`/api/v1/alerts` on Prometheus shows only **Prometheus-evaluated** rules. Loki's ruler
+dispatches straight to AlertManager, so Loki log-based alerts never appear there.
+
+On 2026-09-19 a health check reported "4 warnings" from Prometheus while AlertManager held
+**20 active alerts including three criticals**. For a true picture:
+
+```bash
+kubectl -n default exec sts/alertmanager-kube-prometheus-stack-alertmanager -c alertmanager -- \
+  wget -qO- 'http://localhost:9093/api/v2/alerts?active=true'
+```
+
 ### Alert design principles
 
 The same audit found **66 alerts firing simultaneously** — a state functionally identical to no alerting at all, because nobody reads a 66-item list. Working it down to **8** produced these rules of thumb, each learned from a specific false positive:

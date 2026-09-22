@@ -258,6 +258,96 @@ limits_config:
   retention_period: 120h  # 5 days (example)
 ```
 
+## Ingestion Limits — and the Mismatch That Dropped 0.5% of Logs
+
+`reject_old_samples_max_age` **must match `retention_period`**. Loki's default is 168h
+(7 days); this cluster retains for 720h (30 days). Until 2026-09-21 only the retention side
+was set, so log data well inside the retention window could not be written at all.
+
+```yaml
+limits_config:
+  retention_period: 720h
+  reject_old_samples_max_age: 720h   # keep these equal
+```
+
+### Why the cost is far higher than the stale lines
+
+**Loki rejects an entire batch with HTTP 400 when one entry is too old**, and alloy then
+drops the whole batch — so current log lines are lost alongside the stale one.
+
+The two counters disagree by a factor of forty, and reading the wrong one understates the
+damage badly:
+
+| Counter | 24h | What it means |
+|---|---|---|
+| `loki_discarded_samples_total` | 1,852 | entries Loki *examined* and rejected |
+| `loki_write_dropped_entries_total` | **72,008** | entries **alloy actually lost** |
+| `loki_distributor_lines_received_total` | 14,293,553 | successfully ingested |
+
+:::danger Use the alloy counter, not the Loki one
+An initial assessment called this "0.006%, no action needed" based on
+`loki_discarded_samples_total`. That counter only counts entries Loki got far enough to
+examine — not the batches it threw away whole. The real figure was **~0.5%**.
+:::
+
+### Why it never self-resolves
+
+Every stale entry dated to a single moment: `2026-09-13T06:40`, when `loki-0` restarted.
+Long-lived DaemonSet pods (`synology-csi-node`, `csi-node-driver`, `calico-typha`) still held
+those lines in their container log files, and alloy retried them indefinitely — **failing
+harder each day** as the 168h window slid forward and the entries aged further out of range.
+Raising the limit let the backlog drain; drops went to zero within minutes.
+
+Loki 3.6.11 accepts out-of-order writes, so late arrivals are safe.
+
+## The Ruler Alerts On Its Own Logs
+
+:::danger Any LogQL rule matching log TEXT must exclude `namespace="loki"`
+Loki's ruler **logs the full text of every query it evaluates**:
+
+```
+caller=metrics.go component=ruler ... query="(sum by (namespace,pod)
+  (rate({namespace=~\".+\"} |~ \"(?i)(attack|intrusion|exploit|malicious|suspicious)\"...
+```
+
+Alloy ships those lines straight back into Loki. The next evaluation matches **its own logged
+query string**, so the alert fires forever and can never clear.
+:::
+
+Confirmed 2026-09-19: `OOMKilledDetected`, `CrashLoopBackOffDetected` and `SuspiciousActivity`
+each matched **exactly one series — `loki/loki-0`** — and nothing else in the cluster. Three of
+them were `critical`. With `namespace!="loki"` added, all three return zero series.
+
+Every rule in `loki-alerting-rules.yaml` now carries the guard:
+
+```logql
+{namespace=~".+", namespace!="loki"} |~ "(?i)(oomkilled|out of memory)"
+```
+
+### These rules are coarse by nature
+
+They detect a pod that **logs** a phrase, not a pod the phrase is **about**. A container that
+gets OOM-killed does not log "oomkilled" — the kernel kills it and the kubelet records the
+reason. Treat them as a wide net; metric-based alerts are authoritative. See
+[`KubeContainerOOMKilled`](../monitoring/overview.md#oom-detection) for the metric-based
+equivalent added afterwards.
+
+:::warning The rules live inside a ConfigMap `data:` key
+`yamllint` and `kubeconform` validate the *outer* document and never parse that string. On
+2026-09-19 a comment at the wrong indentation left the rules unparseable and **the ruler ran
+with zero rules loaded** while every check passed. A pre-commit hook now parses embedded
+blobs — see [Pre-commit & CI](../development/pre-commit-ci.md).
+
+Verify what the ruler actually holds, rather than trusting a successful sync:
+
+```bash
+kubectl -n loki port-forward sts/loki 3100:3100
+curl -s localhost:3100/loki/api/v1/rules | head
+```
+
+A parse failure is reported there and nowhere else.
+:::
+
 ## Grafana Integration
 
 ### Datasource Configuration
