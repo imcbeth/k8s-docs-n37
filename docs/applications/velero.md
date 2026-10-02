@@ -234,6 +234,142 @@ Snapshots that **linger** are orphans from backups that failed before finalize. 
 
 Check `status.csiVolumeSnapshotsCompleted` on the backup, and prove restorability with a real restore — not by counting CRs.
 
+## Automated restore validation
+
+`velero-restore-validator` (CronJob, `velero` namespace, 1st of each month at 04:00
+America/Edmonton) is what separates **"backups completed"** from **"restores work"**. Each run:
+
+1. Picks the newest `Completed` backup from the `velero-daily-critical-pvcs` schedule.
+2. Restores one real namespace into the `velero-restore-test` scratch namespace.
+3. Waits for the restored PVC to reach `Bound`.
+4. Starts a verify pod that mounts the volume, finds a non-empty file, and **reads bytes off
+   it** with `dd` — existence alone is not proof; an empty volume mounts perfectly well.
+5. Deletes the verify pod, PVCs and Restore, reclaiming the PVs.
+
+The target rotates by month index over `uptime-kuma → trivy-system → loki`, so a different
+workload's data is exercised each month.
+
+:::info Two validators exist and they test different things
+`velero-backup-validation` (CronWorkflow, argo-workflows) is **synthetic** — it creates its
+own namespace and marker ConfigMap, backs that up, restores it, and checks the marker. It
+never touches a PVC and never reads real data. It is why 135 days of an unprotected volume
+went unnoticed. `velero-restore-validator` is the one that restores real data.
+:::
+
+## Restore validation is not validated until it fails (2026-10-01)
+
+The validator's **first unattended run failed**, and the failure was in the validator, not
+the backup. It produced three alerts from one cause: `VeleroRestoreValidationFailed`
+(critical), `KubeJobFailed`, and `ArgoCDAppDegraded` on velero.
+
+```text
+restore phase: Completed
+PVC bound: data-trivy-server-0
+VERIFY FAIL: volume mounted cleanly but holds no non-empty file.
+```
+
+**The restore worked.** 1.4 GiB was present — confirmed with
+`kubelet_volume_stats_used_bytes{namespace="trivy-system"}` — behind a `0770` directory owned
+by `nobody`.
+
+### Why the verify pod could not read it
+
+The verify pod runs `runAsUser: 0` with `capabilities.drop: ["ALL"]`. That drop removes
+**`CAP_DAC_OVERRIDE` and `CAP_DAC_READ_SEARCH`**, which are precisely the capabilities that
+let root ignore file modes.
+
+:::danger uid 0 with no capabilities is not privileged
+It is an ordinary unprivileged user that happens to be numbered 0. `find /data -type f` could
+not traverse a directory whose mode excluded "other", so it returned nothing and the check
+reported an empty volume. The comment above that `securityContext` claimed the opposite — that
+dropping all capabilities made the check measure data rather than file modes. It measured
+exactly the file modes.
+:::
+
+### It had only ever passed on the one target it could
+
+The 2026-09-08 proving run validated **uptime-kuma**, which stores world-readable files
+(`-rw-r--r-- root root`) at the mount root. The rotation is
+`uptime-kuma → trivy-system → loki`, so **month 2 was always going to fail**.
+
+**A validator that passes once, on the only input it is capable of passing on, is not
+validated.** Exercise every rotation target before trusting a rotating check — the three
+targets here have three different ownership regimes.
+
+### A capability is not the fix — PodSecurity rejects it
+
+Adding `DAC_READ_SEARCH` was tried and rejected at admission:
+
+```text
+pods "restore-verify" is forbidden: violates PodSecurity "baseline:latest":
+non-default capabilities (container "verify" must not include "DAC_READ_SEARCH"
+in securityContext.capabilities.add)
+```
+
+The scratch namespace enforces **PodSecurity baseline**, which forbids non-default
+capabilities.
+
+:::warning Test in the namespace the workload actually runs in
+That capability was first proven in `default`, where baseline is **not** enforced. The test
+validated the mechanism and not the deployment. A security-context change proven in a
+permissive namespace tells you nothing about a restricted one.
+:::
+
+### The fix: fsGroup, not a capability
+
+```yaml
+securityContext:
+  runAsUser: 0
+  fsGroup: 65534
+  fsGroupChangePolicy: Always
+```
+
+PSA-baseline safe, needs no capability, and **more general than the capability would have
+been**. `Always` re-groups the whole restored volume, which matters because the rotation
+targets differ:
+
+| Target | Volume ownership |
+|---|---|
+| `trivy-system` | `fsGroup: 65534` |
+| `loki` | `fsGroup: 10001` |
+| `uptime-kuma` | root, world-readable |
+
+A fixed `fsGroup` alone would have fixed trivy-system and still failed on loki. Mutating the
+restored copy is harmless — it is deleted at the end of every run.
+
+### Verifying a run actually proved something
+
+A `Succeeded` job is not enough; read the log for the `dd` output, which is the only evidence
+bytes were read off the volume:
+
+```bash
+kubectl -n velero create job --from=cronjob/velero-restore-validator rv-manual
+kubectl -n velero logs job/rv-manual
+```
+
+```text
+reading: /data/trivy/fanal/fanal.db
+262144 bytes (256.0KB) copied, 0.191843 seconds, 1.3MB/s
+VERIFY OK: restored volume is readable (/data/trivy/fanal/fanal.db)
+PASS — backup ... restored from trivy-system and its data is readable
+```
+
+Then confirm it cleaned up after itself — the scratch namespace empty and no `Released` PVs:
+
+```bash
+kubectl -n velero-restore-test get all,pvc
+kubectl get pv | grep -E 'velero-restore-test|Released'
+```
+
+:::warning Editing the script: the pod manifest is in an unquoted heredoc
+The verify pod is applied via `cat <<EOP | kubectl apply -f -`, unquoted so `$SCRATCH_NS` and
+`$VERIFY_IMAGE` interpolate. **Backticks anywhere inside that heredoc — including in comments
+— are command-substituted by the shell**, which produced
+`/scripts/validate.sh: line 173: drwxrws---: not found`. The script also lives in a ConfigMap
+`data:` key, so `yamllint` will not parse it; see
+[Pre-commit & CI](../development/pre-commit-ci.md).
+:::
+
 ## Storage Backends
 
 ### Backblaze B2 (Production - Active)
