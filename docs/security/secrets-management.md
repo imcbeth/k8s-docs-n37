@@ -28,6 +28,18 @@ Previously, secrets were encrypted with git-crypt in the repository. However:
 - Required manual `kubectl apply` before ArgoCD sync
 - Not truly GitOps-compliant
 
+### Also Evaluated: External Secrets Operator
+
+External Secrets Operator was deployed alongside Sealed Secrets in January 2026 for
+evaluation and removed shortly after, in favour of the simpler Sealed Secrets model. It
+needed a running operator, a `ClusterSecretStore` backed by another namespace, and a
+cluster-wide grant on Secrets — a lot of moving parts for a homelab whose secrets are static.
+
+Its removal left 27 objects behind in the cluster for nine months. See
+[Removing an Operator Leaves Its Grants Behind](#removing-an-operator-leaves-its-grants-behind)
+below — that section exists because of this cleanup, and the lesson applies to any operator,
+not just this one.
+
 ### Sealed Secrets Solution
 
 Sealed Secrets solves this by:
@@ -632,6 +644,212 @@ right *shape* instead.
 
 Keep the pre-commit pin and the CI version in step. They drifted once (hook v8.18.1 vs CI
 v8.30.1) and disagreed on identical input, so a commit could pass CI and fail the hook.
+
+## Removing an Operator Leaves Its Grants Behind
+
+Deleting an operator's ArgoCD Application removes the operator. It does not remove what the
+operator installed. CRDs, admission webhooks and cluster-scoped RBAC are all created outside
+the Helm release's lifecycle or deliberately retained, and they survive.
+
+This was found on **2026-10-07**, nine months after External Secrets Operator was removed
+(homelab PR #234). The cleanup is written up here because the shape generalises to any
+operator — Velero, Gatekeeper, Trivy and cert-manager all install the same categories of
+object.
+
+### How it surfaced
+
+A `HighErrorLogRate` alert on `kube-apiserver-control-plane`. Measured over a 60-second
+window:
+
+```
+total log lines:   123
+error (E) lines:   119   -> 1.98/s
+external-secrets:  118   -> 1.97/s
+```
+
+**99.2% of all apiserver errors were one dead object.** The API server was trying to
+list/watch a `ClusterSecretStore` whose conversion webhook pointed at a service deleted nine
+months earlier.
+
+:::warning The alert was not new — the ability to see it was
+
+This had been firing since January. It became visible only after the Loki ruler was fixed
+(homelab PRs #985/#986), which had been running with **zero rules loaded**. A monitoring gap
+and a cluster fault can hide each other indefinitely. Fixing the monitor is what exposed the
+nine-month-old fault.
+:::
+
+### What was left behind
+
+| Kind | Count | Why it survives |
+|---|---|---|
+| CRDs | 15 | Helm never deletes CRDs on uninstall |
+| `ClusterSecretStore` | 1 | A CR, not part of the chart |
+| ValidatingWebhookConfigurations | 2 | Cluster-scoped, outside the release namespace |
+| ClusterRoles | 6 | Cluster-scoped |
+| ClusterRoleBindings | 3 | Cluster-scoped |
+
+### The security problem: a dangling cluster-wide grant
+
+`external-secrets-controller` granted, cluster-wide:
+
+```
+resources=['secrets']                verbs=['get','list','watch','create','update','delete','patch']
+resources=['serviceaccounts/token']  verbs=['create']
+```
+
+bound to `ServiceAccount external-secrets/external-secrets` — **a ServiceAccount in a
+namespace that no longer exists.**
+
+:::danger A dangling ClusterRoleBinding is a grant waiting for a subject
+
+While the subject is missing the binding does nothing. It is still a privilege-escalation
+primitive: anyone able to **create a namespace** named `external-secrets` containing a
+ServiceAccount named `external-secrets` immediately inherits read/write on every Secret in
+the cluster, plus the ability to mint a token for any ServiceAccount.
+
+Creating a namespace is a far lower bar than being granted cluster-wide Secret access
+directly. Audit orphaned bindings as live findings, not as clutter.
+:::
+
+### Detection
+
+Check every category. Searching only for CRDs will miss the RBAC and the webhooks.
+
+```bash
+op=external-secrets   # the operator name fragment
+
+# CRDs
+kubectl get crd -o custom-columns=NAME:.metadata.name --no-headers | grep "$op"
+
+# Cluster-scoped RBAC
+kubectl get clusterrole,clusterrolebinding \
+  -o custom-columns=NAME:.metadata.name --no-headers | grep "$op"
+
+# Bindings whose subject namespace is gone
+kubectl get clusterrolebinding -o json | jq -r '
+  .items[] | select(.subjects != null) |
+  .metadata.name as $n | .subjects[] |
+  select(.kind == "ServiceAccount") |
+  "\($n)\t\(.namespace)/\(.name)"' | sort -u
+```
+
+:::warning Match webhooks on their contents, not their name
+
+The first survey of this cleanup reported *"no leftover webhook configs"* and was wrong. It
+matched on the **configuration's own name** — and the two configs are named
+`externalsecret-validate` and `secretstore-validate`. The operator's name appears only
+*inside* them, in `webhooks[].name` and `clientConfig.service`.
+
+Eleven of the 27 objects were missed this way. Always search the nested fields:
+:::
+
+```bash
+kubectl get validatingwebhookconfiguration,mutatingwebhookconfiguration -o json | jq -r '
+  .items[] |
+  .metadata.name as $cfg |
+  .webhooks[]? |
+  select((.name + (.clientConfig.service.namespace // "") +
+          (.clientConfig.service.name // "")) | test("external-secret")) |
+  "\($cfg)\t\(.name)\t-> \(.clientConfig.service.namespace)/\(.clientConfig.service.name)\tfailurePolicy=\(.failurePolicy)"'
+```
+
+Then confirm the target service really is gone:
+
+```bash
+kubectl get svc -A | grep external-secret   # expect no output
+```
+
+### The orphan can prevent its own removal
+
+The first deletion attempt failed:
+
+```
+Error from server (InternalError): Internal error occurred: failed calling webhook
+"validate.clustersecretstore.external-secrets.io": failed to call webhook:
+Post "https://external-secrets-webhook.external-secrets.svc:443/validate-...":
+service "external-secrets-webhook" not found
+```
+
+A webhook with `failurePolicy: Fail` whose backing service is gone **hard-blocks every
+CREATE, UPDATE and DELETE** on the resources it governs — including the DELETE that would
+clean it up. Remove the webhook configurations first.
+
+Before doing so, confirm their scope. These two were restricted to a single API group, so
+removing them could not affect anything else:
+
+```bash
+kubectl get validatingwebhookconfiguration <name> -o json |
+  jq '.webhooks[].rules[] | {apiGroups, resources, operations}'
+```
+
+### Cleanup order
+
+1. **ValidatingWebhookConfigurations / MutatingWebhookConfigurations** — they gate everything else
+2. **Custom resources** — in this case the single `ClusterSecretStore`; this alone stopped the error stream
+3. **CRDs**
+4. **ClusterRoleBindings**, then **ClusterRoles**
+
+Count live objects in every CRD kind *before* deleting the CRDs — deleting a CRD deletes
+every object inside it:
+
+```bash
+for crd in $(kubectl get crd --no-headers -o custom-columns=NAME:.metadata.name |
+             awk '/external-secrets\.io$/{print $1}'); do
+  printf "%-54s %s\n" "$crd" "$(kubectl get "$crd" -A --no-headers 2>/dev/null | awk 'NF' | wc -l)"
+done
+```
+
+All 27 objects were exported to YAML before deletion. The count came back as **one** live
+object across all 15 CRDs, so the blast radius was known rather than assumed.
+
+### Result
+
+| Measure | Before | After |
+|---|---|---|
+| apiserver error rate | 1.98/s | **0.00/s** |
+| apiserver log volume | 123 lines/60s | 2 lines/60s |
+| critical RBAC findings (Trivy) | 66 | **62** |
+| `HighErrorLogRate` | firing since 10-01 | **cleared** |
+
+Trivy garbage-collected the six corresponding `ClusterRbacAssessmentReports` on its own.
+
+:::tip Verify a change with a delta, not a single gauge read
+
+The post-cleanup RBAC gauge read `62`, which was initially mistaken for the before value. A
+single read of a gauge says nothing about what you changed. The authoritative check compares
+against the past:
+
+```promql
+sum(trivy_clusterrole_clusterrbacassessments{severity="Critical"})
+  - sum(trivy_clusterrole_clusterrbacassessments{severity="Critical"} offset 20m)
+```
+
+This returned exactly `-4`, matching the three roles that carried critical findings
+(cert-controller 2, controller 1, store-reader 1).
+:::
+
+### Verification sweep
+
+After cleanup, sweep every API kind rather than the ones you remember:
+
+```bash
+# Cluster-scoped
+for k in $(kubectl api-resources --verbs=list --namespaced=false -o name | sort -u); do
+  out=$(kubectl get "$k" --no-headers -o custom-columns=N:.metadata.name 2>/dev/null |
+        grep external-secret)
+  [ -n "$out" ] && echo "$k: $out"
+done
+
+# Namespaced
+for k in $(kubectl api-resources --verbs=list --namespaced=true -o name | sort -u); do
+  out=$(kubectl get "$k" -A --no-headers 2>/dev/null | grep external-secret)
+  [ -n "$out" ] && echo "$k: $out"
+done
+```
+
+Both returned clean. Cluster state afterwards: 38/38 ArgoCD applications Synced + Healthy,
+zero container restarts, API writes unaffected.
 
 ## Best Practices
 
