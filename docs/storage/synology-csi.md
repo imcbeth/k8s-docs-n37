@@ -155,17 +155,72 @@ Resource limits were added to all containers across the controller, node, and sn
 
 ## Version History
 
-### Current Versions (2026-01-12)
+### Current Versions (2026-10-08)
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| synology-csi | v1.2.1 | Requires iscsiadm-path configuration |
-| csi-attacher | v4.10.0 | Upgraded 2026-01-07 |
-| csi-node-driver-registrar | v2.15.0 | Upgraded 2026-01-07 |
-| csi-provisioner | v6.1.0 | Latest stable |
-| csi-resizer | v2.0.0 | Latest stable |
-| csi-snapshotter | v8.4.0 | Upgraded 2026-01-11 |
-| snapshot-controller | v8.2.1 | Upgraded 2026-01-11 |
+| synology-csi | **v1.3.1** | Upgraded 2026-10-08 — latest **published** release; see below |
+| csi-attacher | v4.13.0 | Renovate-managed |
+| csi-node-driver-registrar | v2.18.0 | Renovate-managed |
+| csi-provisioner | v6.3.0 | Renovate-managed |
+| csi-resizer | v2.2.1 | Renovate-managed |
+| csi-snapshotter | v8.6.0 | Renovate-managed |
+| snapshot-controller | v8.6.0 | Pinned via kustomize `?ref=v8.6.0` |
+
+The driver is deliberately excluded from Renovate (`ignoreDeps`); the sidecars are not. That
+asymmetry is intentional — see [Why the driver is pinned out of Renovate](#why-the-driver-is-pinned-out-of-renovate).
+
+#### v1.3.0 → v1.3.1 (2026-10-08)
+
+Upgraded in two stages — controller + snapshotter first, node plugin second — because the
+2026-01-07 regression was in the **node plugin** while the controller was fine, and the fix at
+the time was "v1.2.0 node plugin, sidecars upgraded". Controller-ahead-of-node is therefore a
+configuration this cluster has already run in production.
+
+A node-plugin fault breaks **new** mounts only; established mounts live in the host kernel and
+keep working. That bounded blast radius is what made the node half safe to attempt.
+
+What the upgrade actually bought, measured by scanning both images rather than read off the
+release notes:
+
+| Image | Alpine criticals | Go binary criticals | Total |
+|---|---|---|---|
+| v1.3.0 | 2 (`libwbclient 4.22.8-r0`) | 3 | **5** |
+| v1.3.1 | 0 | 3 | **3** |
+
+The three remaining are `grpc v1.56.3` and `stdlib v1.21.4` (×2), vendored into the driver
+binary. They need an upstream rebuild and cannot be fixed from this repo.
+
+v1.3.1's only functional change is *"HTTPS certificate verification enabled by default for
+DSM"*. This cluster's `client-info` uses `https: false` on port 5000, so there is no TLS and
+nothing to verify — the change does not apply here. **If you ever switch the DSM connection to
+HTTPS with a self-signed certificate, this becomes a breaking change.**
+
+#### v1.4.0 is not installable, and would break mounts if it were
+
+:::danger Two separate traps in one version
+**1. The image was never published.** The v1.4.0 GitHub release exists (2026-09-15, with "fixed
+data read errors" and XFS snapshot support), but `synology/synology-csi` tags on Docker Hub end
+at `v1.3.1`. A release note is not proof of an installable image — check the registry tag list
+before planning an upgrade.
+
+**2. It changes the runtime user.** v1.3.1 and earlier run as root (image config `User` is
+null). v1.4.0 declares `USER 1000`, and **`privileged: true` does not change the runtime user** —
+upstream had to add `runAsUser: 0` to their `node.yml` for exactly this reason. The vendored
+`node.yml` in this cluster carries only `privileged: true`, so bumping the tag alone would run
+the node plugin as uid 1000 and fail every mount and format.
+
+**Any future move to v1.4.0+ must add `runAsUser: 0` to the `csi-plugin` container in the same
+commit.**
+:::
+
+#### Why the driver is pinned out of Renovate
+
+`synology/synology-csi` sits in Renovate's `ignoreDeps`. The reasoning used to be general — the
+driver underpins every PVC, and a v1.2.1 node-plugin regression once forced a rollback — but
+v1.4.0 makes it concrete: **a Renovate PR is a bare tag bump**, and a bare tag bump to v1.4.0 is
+precisely the change that breaks mounts. The sidecars stay Renovate-managed because they are
+independently versioned and do not carry this coupling.
 
 ### Upgrade Notes
 

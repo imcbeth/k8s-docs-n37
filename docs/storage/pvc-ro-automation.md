@@ -326,22 +326,86 @@ Most PVCs here are RWO and already mounted by their workload, so a prober pod ca
 
 Exec was chosen. It is not free — that ServiceAccount can exec into any pod — but it buys the same signal without giving a five-node DaemonSet write access to all cluster data.
 
-### Distroless images cannot be probed at all
+### Distroless images: the gap, and how it was closed (2026-10-08)
 
-:::warning 3 of 8 PVCs are uncoverable by this approach
-`grafana`, `loki` and `zot` run **distroless images with no shell**, so `kubectl exec ... -- sh -c` fails before it ever touches the volume:
+`grafana`, `loki` and `zot` run **distroless images with no shell**, so the in-workload probe
+fails before it ever touches the volume:
 
 ```
 OCI runtime exec failed: exec failed: unable to start container process:
 exec: "sh": executable file not found in $PATH
 ```
 
-These are reported as `pvc_writability_unprobeable`, **not** as `pvc_writable 0`. An untestable volume is neither known-healthy nor known-broken, and reporting it as broken fires a critical on a working volume.
+:::warning The summary line read like full coverage
+For four weeks the prober logged, every cycle:
 
-Closing this gap would need ephemeral debug containers with volume mounts — a materially larger build. Until then the gap is visible via `PVCWritabilityUnprobeable` (info) rather than hidden.
+```
+probed 8 PVC(s); 0 not writable, 3 unprobeable
+```
 
-**This limit propagates.** Any backstop controller driven off `pvc_writable == 0` silently will not cover those three — which are exactly the third-party charts whose probe specs cannot easily be edited, i.e. the ones a backstop is most needed for.
+Three of eight volumes were never tested, and `0 not writable` invited reading that as healthy.
+The classification was always correct — an untestable volume is neither known-healthy nor
+known-broken, and `pvc_writability_unprobeable` existed precisely so it was not reported as
+`pvc_writable 0` — but **a gap you can technically see is still a gap.**
 :::
+
+**Fixed in homelab PR #1023 by a fallback, not by ephemeral containers.** The original note here
+proposed ephemeral debug containers with volume mounts; they were rejected on implementation
+because an ephemeral container **cannot be removed** once added, and this probe runs every five
+minutes. Probing through another container in the same pod was also ruled out: in all three pods
+only the distroless container mounts the volume (the `k8s-sidecar` containers mount config
+directories only).
+
+Instead, when the in-workload probe returns `unprobeable`, the prober retries through the
+`synology-csi-node` pod on the **same node**:
+
+```
+/var/lib/kubelet/pods/<pod-uid>/volumes/kubernetes.io~csi/<pv-name>/mount
+```
+
+That pod is Alpine (so it has a shell), is already privileged, and already mounts
+`/var/lib/kubelet` read-write — because mounting volumes is its job.
+
+**No new RBAC was granted.** The ServiceAccount already held `pods/exec` cluster-wide, which has
+always included the node plugin pods. The only addition is **read** on
+`persistentvolumeclaims`, to turn a claim name into the `<pv-name>` directory.
+
+The in-workload probe stays **primary**. It writes as the workload's own uid into the workload's
+own mount, which is a truer test; the fallback writes as root into the host mount path. The
+decision above — exec rather than giving a five-node DaemonSet write access to all cluster data —
+still stands, because the fallback *borrows* an existing privileged component rather than
+creating a second one.
+
+:::danger The mountpoint gate is not optional
+If a volume is detached but its directory still exists, `touch` there writes to the **node's root
+disk** — silently, as root. The fallback therefore requires the path to be a real mountpoint,
+comparing device numbers against the parent (busybox has no `mountpoint`):
+
+```sh
+[ "$(stat -c %d "$P")" != "$(stat -c %d "$P/..")" ] || { echo PROBE_NOT_A_MOUNT; exit 11; }
+```
+
+Failing either gate returns `unprobeable`, **never `failed`**. An untestable volume must not raise
+a false critical.
+:::
+
+Reporting now names the fallback instead of implying coverage:
+
+```
+probed 8 PVC(s); 0 not writable, 0 unprobeable, 3 via node-plugin fallback
+```
+
+and `pvc_writable` carries a `method` label, so indirect verification is visible rather than
+assumed:
+
+```
+pvc_writable{claim="storage-loki-0",...,method="node-plugin"} 1
+pvc_writable{claim="storage-tempo-0",...,method="workload"} 1
+```
+
+**The propagation concern is resolved too.** A backstop controller driven off
+`pvc_writable == 0` now covers all eight volumes, including the three third-party charts whose
+probe specs cannot easily be edited — which were exactly the ones a backstop is most needed for.
 
 ### Reading the two signals together
 
