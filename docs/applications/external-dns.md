@@ -787,7 +787,11 @@ only lever is making sure the webhook's reply arrives **inside** the timeout win
 ### Why the default was too small
 
 During the 2026-09-12 UDR outage, `external-dns-unifi` restarted **54 times in about two
-hours** while `unpoller` — hitting the same dead API — simply retried and recovered.
+hours** while `unpoller` — hitting the same dead API — retried and recovered without exiting.
+
+That asymmetry does not always hold. On 2026-10-13 both restarted: `external-dns-unifi` and
+`unipoller` together accounted for **55 restarts in a single day**, and zero on the days
+either side.
 
 At the 5s default, the webhook was still waiting on the gateway when external-dns gave up,
 so the gateway's eventual `502` (which *would* have been tolerated as a soft error) never
@@ -802,6 +806,33 @@ level=error msg="Failed to do run once: soft error
 level=info  msg="All records are already up to date"
 level=info  msg="Reconciliation succeeded after 3 consecutive soft errors"
 ```
+
+### Paired restarts are a gateway signal, not an app fault
+
+:::tip Operator knowledge, recorded 2026-10-16
+When **`external-dns-unifi` and `unipoller` restart in the same window**, the UniFi gateway
+has stopped answering API/polling requests — typically because it is under load.
+
+**Internet traffic keeps flowing throughout**, so the network looks healthy from a user's
+seat. What breaks is metrics collection and DNS record reconciliation. Read paired restarts
+as a gateway-health indicator rather than chasing two separate application bugs.
+:::
+
+The diagnostic question is whether the restarts are **clustered**:
+
+```bash
+# Clustered in one day = one gateway event, recovered.
+# Spread across every day = something else, worth investigating.
+python3 scripts/cluster-restarts.py --since 7d
+```
+
+2026-10-13 produced 55 restarts in one day and zero on the surrounding days — one event,
+correct self-healing. The restart itself is the retry: external-dns treats the webhook
+timeout as fatal and exits, and Kubernetes backs off and retries until the gateway answers.
+
+Note the restart **counter** is cumulative over pod lifetime, so a large number
+(`external-dns-unifi` sat at 253 on 2026-10-16) says nothing about current health. Only the
+per-day rate does.
 
 ### Current configuration
 
