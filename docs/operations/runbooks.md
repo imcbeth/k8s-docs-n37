@@ -384,6 +384,76 @@ Renovate does rebase grouped PRs, but only on its next run — which on the week
 Merge **standalone** version PRs before **grouped** ones from the same group, then re-read the group's diff. The reverse order is what creates the stale hunk.
 :::
 
+**Recurred 2026-10-11**, in the other order and with a sharper edge. PR #1033 took argocd to `10.10.2`; the grouped PR #1026 still proposed `10.9.7`. After #1033 merged, **GitHub still reported #1026 as `MERGEABLE`** — merging it would have rolled argocd back a minor version with a green tick.
+
+Renovate had in fact already rebased #1026 and dropped the argocd hunk, so the merge would have been harmless *that time*. The lesson stands regardless: `MERGEABLE` is a statement about **textual conflict**, not about whether the resulting version is the one you want. Re-read the diff rather than trusting the label.
+
+## Renovate silently stops seeing an image behind the pull-through registry
+
+**Symptom:** a dependency simply never gets a PR. No error, no failing check — it just goes quiet while the version drifts.
+
+Found 2026-10-16. `external-dns` had been invisible to Renovate since the `registryAliases` entries were added, leaving **v0.21.0 deployed against v0.23.0 released a month earlier**, and the unifi webhook on v0.8.2 against v0.9.0.
+
+The evidence was on the Dependency Dashboard the entire time:
+
+```text
+Renovate failed to look up the following dependencies:
+  Failed to look up docker package registry.k8s.n37.ca/external-dns/external-dns: no-result
+  Failed to look up docker package registry.k8s.n37.ca/kashalls/external-dns-unifi-webhook: no-result
+```
+
+Images pulled through the Zot proxy carry a `registry.k8s.n37.ca/...` name that Renovate tries to resolve **against our private registry**, which it cannot reach. `registryAliases` was meant to rewrite those to upstream and did not.
+
+**Check this first**, on every dashboard review — it is the only place a silent blind spot surfaces:
+
+```bash
+gh issue list --repo <owner>/<repo> --search "Dependency Dashboard" --state open
+# then read the "failed to look up" and "Repository Problems" blocks
+```
+
+**Fix:** a dedicated `customManager` with an explicit `depNameTemplate` pointing at the real upstream name, rather than relying on alias rewriting.
+
+```json
+{
+  "customType": "regex",
+  "managerFilePatterns": ["/^manifests/base/external-dns/.*\\.ya?ml$/"],
+  "matchStrings": ["image:\\s*registry\\.k8s\\.n37\\.ca/external-dns/external-dns:(?<currentValue>[^@\\s\"']+)"],
+  "depNameTemplate": "registry.k8s.io/external-dns/external-dns",
+  "datasourceTemplate": "docker"
+}
+```
+
+The generic image manager still extracts the same line under its pull-through name, so disable that name explicitly with a `packageRule` (`"enabled": false`) rather than trying to exclude the directory.
+
+:::danger Renovate uses RE2 — no lookahead
+The first attempt excluded the directory with `/^manifests/base/(?!external-dns/).*\.ya?ml$/`. `renovate-config-validator` rejected it: RE2 supports neither lookahead nor lookbehind. **Validate the config before merging.**
+:::
+
+:::warning Pin the validator, or it will lie to you
+`npx --package renovate renovate-config-validator` resolved to **37.440.7**, which predates `managerFilePatterns` replacing `fileMatch`. It reported every `customManager` in a working config as invalid. Use `renovate@latest`:
+
+```bash
+npx --yes --package renovate@latest renovate-config-validator renovate.json
+```
+
+An old validator disagreeing with a config that demonstrably works is the validator being wrong.
+:::
+
+**Verify the upstream name before committing**, by asking the registry rather than assuming:
+
+```bash
+# tags list -- but note it paginates
+curl -sL "https://registry.k8s.io/v2/external-dns/external-dns/tags/list" | jq '.tags | length'
+
+# a direct manifest GET is definitive
+curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $TOKEN" \
+  "https://ghcr.io/v2/kashalls/external-dns-unifi-webhook/manifests/v0.8.2"
+```
+
+:::tip A truncated list is not an absence
+GHCR returned 100 tags ending at `v0.4.2` with no `v0.8.2`, which looked like proof the upstream name was wrong. The response carried a `Link rel="next"` header — the list was paginated. The direct manifest GET returned `200`.
+:::
+
 ## Renovate and cluster timezones must agree
 
 `renovate.json` carried `America/Vancouver` while every CronJob used `America/Edmonton` — one hour apart, so the *"after 6am"* weekend window actually opened at 05:00 local. Aligned to `America/Edmonton` on 2026-09-11.

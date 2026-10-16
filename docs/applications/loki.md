@@ -332,6 +332,39 @@ reason. Treat them as a wide net; metric-based alerts are authoritative. See
 [`KubeContainerOOMKilled`](../monitoring/overview.md#oom-detection) for the metric-based
 equivalent added afterwards.
 
+:::danger A bare word is not a severity
+
+On 2026-10-16 `CriticalErrorLogs` fired at 02:02 claiming *"critical/fatal errors at
+263.3m/s"* against `snapshot-controller`. There were none. Every matching line was **INFO**:
+
+```text
+I1016 02:02:40 ... setAnnVolumeSnapshotBeingDeleted: volume snapshot content
+  &{... Labels:map[velero.io/backup-name:velero-daily-critical-pvcs-20261016020049] ...}
+```
+
+The pattern was `|~ "(?i)(critical|fatal|panic|emergency)"`. The word **critical** came from
+the nightly backup schedule name `velero-daily-critical-pvcs`, embedded in a label on the
+VolumeSnapshotContent object the controller dumps in full at info level. The alert had been
+firing **every night at ~02:00** for as long as that schedule has existed.
+
+**Word boundaries do not fix this.** `\bcritical\b` still matches inside
+`velero-daily-critical-pvcs`, because a hyphen *is* a word boundary. Severity has to be
+matched structurally, in the forms the cluster actually emits:
+
+```text
+^F[0-9]{4}                        klog fatal
+level=(fatal|critical|emerg)      logfmt
+"level":"(fatal|critical|emerg)"  json
+[FATAL] / [CRITICAL]              bracketed
+panic:                            go runtime
+```
+
+When changing one of these patterns, test it **in both directions against real log lines
+pulled from Loki** — true positives that must still match, and the false positives you are
+removing. Then test it again *after* the YAML round-trip, by reading the regex back out of
+the parsed ConfigMap: escaping through YAML is exactly where a pattern silently changes.
+:::
+
 :::warning The rules live inside a ConfigMap `data:` key
 `yamllint` and `kubeconform` validate the *outer* document and never parse that string. On
 2026-09-19 a comment at the wrong indentation left the rules unparseable and **the ruler ran
