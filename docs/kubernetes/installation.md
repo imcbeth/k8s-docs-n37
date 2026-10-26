@@ -246,7 +246,7 @@ kubectl taint nodes --all node-role.kubernetes.io/control-plane
 kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
 ```
 
-# End of Node (Master Only)
+## End of Node (Master Only)
 
 ___
 
