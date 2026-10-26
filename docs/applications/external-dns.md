@@ -159,6 +159,54 @@ spec:
 
 This prevents accidental deletion of manually-created records.
 
+:::warning `upsert-only` also hides failures
+The same property that makes this mode safe makes a misconfiguration silent. If external-dns
+stops recognising a source — a changed annotation prefix, a bad `--domain-filter` — it
+computes an empty desired set and, because it never deletes, simply does nothing. DNS keeps
+resolving from the records already published, so the symptom is not an outage but a hostname
+that silently never gets created, discovered weeks later.
+
+A healthy run logs `All records are already up to date`. So does a run that can no longer see
+any of your resources. The two are indistinguishable from the log line alone — check that the
+source count is non-zero, not just that the reconcile succeeded.
+:::
+
+### The annotation prefix is pinned on purpose
+
+Both deployments carry an explicit flag:
+
+```yaml
+- --annotation-prefix=external-dns.alpha.kubernetes.io/
+```
+
+**Do not remove this.** external-dns **v0.22.0 changed the default prefix** from
+`external-dns.alpha.kubernetes.io/` to `external-dns.kubernetes.io/` **with no fallback**.
+Every external-dns annotation in this cluster still uses the `alpha` form — 18 of them across
+9 Ingresses as of 2026-10-24 — so taking the new default makes external-dns blind to all of
+them.
+
+Combined with `upsert-only` (above), that failure is completely silent: nothing is deleted,
+every existing record keeps resolving, both deployments stay `Healthy`, ArgoCD stays `Synced`,
+and no alert fires. The automation has simply stopped.
+
+This was caught during the v0.21.0 → v0.24.0 upgrade, before merging, by auditing which
+prefix was actually in use:
+
+```bash
+kubectl get ingress,service -A -o json | python3 -c "
+import json,sys
+old=new=0
+for o in json.load(sys.stdin)['items']:
+    for k in (o['metadata'].get('annotations') or {}):
+        if k.startswith('external-dns.alpha.kubernetes.io/'): old+=1
+        elif k.startswith('external-dns.kubernetes.io/'):      new+=1
+print('alpha prefix:', old, ' new prefix:', new)"
+```
+
+Migrating the annotations to the new prefix is worth doing eventually, but it has to be **one
+deliberate cutover** — annotations and the flag changed together — rather than a side effect
+of a version bump.
+
 ### Domain Filtering
 
 **Domain:** `k8s.n37.ca`
@@ -880,6 +928,19 @@ Note also that `dig @1.1.1.1` does not leave this network — the UDR intercepts
 so an unroutable address like `dig @192.0.2.1` still answers. Use
 `https://cloudflare-dns.com/dns-query` with a known-public control.
 :::
+
+## Upgrade Notes (v0.22 – v0.24)
+
+Items checked against this cluster's configuration when moving v0.21.0 → v0.24.0:
+
+| Upstream change | Applies here? |
+|---|---|
+| Default annotation prefix changed, no fallback (v0.22.0) | **Yes** — mitigated by pinning the flag (above) |
+| `--policy` no longer has a default (v0.22.0) | No — already set explicitly on both deployments |
+| CRD registry stores records independently of source namespace (v0.23.0) | No — we use `--registry=txt`, not `crd` |
+| In-tree Akamai / Plural / Transip providers removed (v0.22.0) | No — not used |
+| Gateway API `TLSRoute`/`TCPRoute` moved to v1 | No — sources are `ingress`, `service`, `crd` |
+| `DNSEndpoint` / `DNSRecord` CRDs gain admission validation (v0.24.0) | **Partly** — one `DNSEndpoint` exists (`external-dns/internal-infrastructure`); re-apply the CRD and re-verify that object |
 
 ## Performance Considerations
 

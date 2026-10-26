@@ -265,6 +265,60 @@ kubectl get deploy -n default kube-prometheus-stack-operator \
   -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
 ```
 
+## The certgen image pin must stay >= 1.11.0
+
+`manifests/base/kube-prometheus-stack/values.yaml` pins the admission-webhook certgen image:
+
+```yaml
+prometheusOperator:
+  admissionWebhooks:
+    patch:
+      image:
+        registry: ghcr.io
+        repository: jkroepke/kube-webhook-certgen
+        tag: 1.11.0
+```
+
+Chart **92.13.1** added a new value, `secretType: kubernetes.io/tls`, which makes the certgen
+Job pass `--secret-type`. That flag exists only in `kube-webhook-certgen` **1.11.0 or newer**
+— the chart's own comment says so.
+
+Our values previously pinned `registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.6.9`, a
+stale copy of a long-superseded chart default. The chart has defaulted to the `jkroepke` repo
+since at least 92.10.1, so the pin was wrong by **both repo and version** — it simply stayed
+silent until something passed the new flag.
+
+The 92.10.1 → 92.13.1 bump on 2026-10-24 then failed as:
+
+```
+Error: unknown flag: --secret-type
+```
+
+The PreSync hook CrashLooped five times and held **all 92 kube-prometheus-stack resources
+`OutOfSync`** behind it.
+
+:::warning The application still reported `Healthy` throughout
+Prometheus, Grafana, Alertmanager and the operator were all running fine, so health stayed
+green while the chart upgrade was entirely stalled. Neither `sync` nor `health` surfaced the
+cause — it came from `status.operationState.message` and the hook pod's logs.
+:::
+
+Once the image was corrected, certgen performed the secret migration itself:
+
+```
+msg="migrating secret to type kubernetes.io/tls" secret="kube-prometheus-stack-admission"
+msg="successfully migrated secret"
+```
+
+The resulting Secret is `kubernetes.io/tls` carrying both the new `ca.crt` / `tls.crt` /
+`tls.key` **and** the legacy `ca` / `cert` / `key` entries, exactly as the chart documents.
+Secret *type* is immutable in Kubernetes, so the migration is a delete-and-recreate — which is
+why it needs the `delete` verb on that specific secret name in the Role, and why pre-creating
+the Secret yourself is not a workaround.
+
+Setting `secretType: ""` keeps the previous Opaque secret and avoids the flag entirely, which
+is the documented escape hatch if an older certgen image ever has to be used.
+
 ## Deployment via ArgoCD
 
 The stack is deployed using GitOps through ArgoCD with a multi-source configuration:
