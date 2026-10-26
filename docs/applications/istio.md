@@ -247,6 +247,71 @@ ingress:
         port: <app-port>
 ```
 
+### ztunnel without XDS blackholes its whole node
+
+After a **full cluster power cycle**, ztunnel on a node can start before `istiod` is
+reachable and never recover on its own:
+
+```
+warn  xds::client  XDS client connection error: gRPC connection error connecting to
+      https://istiod.istio-system.svc:15012: ... tcp connect error, retrying in 15s
+```
+
+With no XDS config it holds no workload or endpoint data, so it **resets** every inbound
+connection to every ambient-enrolled pod on that node.
+
+:::danger Nothing reports a problem
+The affected pods are `Running 1/1`. Their ArgoCD applications are `Synced + Healthy`.
+ztunnel itself is `1/1 Running`. `kubectl get pods` is clean. No alert fires.
+
+On 2026-10-24 the only visible symptom was **2 of 98 Prometheus targets down** for about 12
+minutes. This is why the target count is worth checking explicitly on every startup, not just
+application health.
+:::
+
+The error shape misleads as well. Clients see `Connection reset by peer`, **not** a timeout —
+which reads as the destination refusing the connection rather than a mesh fault, and sends you
+looking at the CNI.
+
+**Routing will look perfectly healthy.** Confirm that quickly, then stop looking at L3:
+
+```bash
+# BGP peers established, and the client node has a route to the destination block
+kubectl exec -n calico-system <calico-node-pod> -c calico-node -- calico-node -bird-ready
+ssh <client-node> "ip route show | grep 192.168."
+
+# The actual tell:
+kubectl logs -n istio-system <ztunnel-on-the-DESTINATION-node> --tail=40 | grep -i xds
+```
+
+**The fix is two steps, and the first alone does nothing:**
+
+```bash
+# 1. ztunnel, so it establishes XDS.
+#    Wait for "Stream established" and "marking server ready".
+kubectl delete pod -n istio-system <ztunnel-on-that-node>
+
+# 2. The DESTINATION pods, so istio-cni re-enrolls them against a working ztunnel.
+#    Skipping this leaves connections resetting even though ztunnel is now healthy.
+kubectl delete pod -n <namespace> <pod>
+```
+
+Only pods in ambient-labelled namespaces and **not** on `hostNetwork` are affected, which
+keeps the blast radius on a control-plane node small. Enumerate it with:
+
+```bash
+kubectl get ns -o json | python3 -c "
+import json,sys
+print([n['metadata']['name'] for n in json.load(sys.stdin)['items']
+       if (n['metadata'].get('labels') or {}).get('istio.io/dataplane-mode')=='ambient'])"
+```
+
+:::tip Rolling reboots do not trigger this
+Confirmed 2026-10-26: five sequential drain / reboot / uncordon cycles produced **zero** target
+loss, because `istiod` stays reachable throughout. The failure needs a simultaneous cold boot
+of the whole cluster. Prefer rolling over cold whenever the choice exists.
+:::
+
 ### ArgoCD shows OutOfSync
 
 :::info Resolved (2026-02-05)

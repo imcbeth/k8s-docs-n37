@@ -230,6 +230,97 @@ kubectl edit pvc loki-chunks-loki-0 -n loki
 # Synology CSI supports online expansion
 ```
 
+## The Chart Default That Deletes the PVC
+
+`manifests/base/loki/values.yaml` sets:
+
+```yaml
+singleBinary:
+  persistence:
+    enableStatefulSetAutoDeletePVC: false
+```
+
+**This is load-bearing.** The chart defaults it to `true` for `singleBinary` — and *only*
+for `singleBinary`; `write`, `ingester`, `compactor`, `indexGateway` and both bloom
+components all default to `false`. With it true, the StatefulSet renders:
+
+```yaml
+persistentVolumeClaimRetentionPolicy:
+  whenDeleted: Delete
+  whenScaled: Delete
+```
+
+Which means `kubectl scale statefulset loki --replicas=0` **deletes `storage-loki-0`**. That
+is step 2 of our own documented [graceful shutdown](../kubernetes/cluster-maintenance.md), so
+every planned shutdown was destroying Loki's claim.
+
+### Why it is dangerous rather than merely annoying
+
+The failure is silent and self-concealing. On restart the StatefulSet recreates
+`storage-loki-0` from its `volumeClaimTemplate`, dynamically provisions a **brand new empty
+20Gi LUN**, binds successfully, and Loki comes up **`Healthy` with no log history**. The old
+LUN is orphaned on the NAS. Nothing alerts and ArgoCD reports `Synced`.
+
+What an operator sees is a green cluster with empty logs — which reads as a retention setting,
+not data loss.
+
+Discovered 2026-10-24 during a shutdown for NAS patching, caught only because the cluster-wide
+PVC count dropped from 8 to 7 mid-procedure. Nothing was lost, but **only** because
+`synology-iscsi-retain` carries `reclaimPolicy: Retain`: the PV went `Released` instead of
+being deleted, the LUN stayed on the NAS, and the claim could be re-bound by hand. On a
+`-delete` StorageClass, 30 days of logs would have been gone.
+
+### Auditing for it
+
+Re-run this after **any** chart bump — a new chart version or a newly deployed stateful app
+can reintroduce it:
+
+```bash
+kubectl get sts -A -o json | python3 -c "
+import json,sys
+for s in json.load(sys.stdin)['items']:
+    pol = s['spec'].get('persistentVolumeClaimRetentionPolicy') or {}
+    if pol.get('whenScaled') == 'Delete':
+        print('HAZARD:', s['metadata']['namespace'] + '/' + s['metadata']['name'], pol)"
+```
+
+Verified still correct under chart 7.5.0 (2026-10-26). The other four PVC-owning StatefulSets
+— Prometheus, Tempo, Zot, trivy-server — were already `Retain`/`Retain`.
+
+### Recovering a deleted claim
+
+Only possible while the PV is still `Released`, which requires a `*-retain` StorageClass:
+
+```bash
+PV=$(kubectl get pv --no-headers | awk '$5=="Released" {print $1}')
+kubectl patch pv $PV --type=json -p '[{"op":"remove","path":"/spec/claimRef"}]'   # -> Available
+```
+
+Then recreate the PVC with an explicit `volumeName: $PV`, matching the
+`volumeClaimTemplate`'s size, `storageClassName` and `accessModes` exactly. It binds to the
+existing volume instead of provisioning a new one.
+
+Confirm the data actually survived by querying how far back Loki can serve, rather than
+trusting that the pod started:
+
+```bash
+kubectl port-forward -n loki svc/loki 3100:3100 &
+START=$(python3 -c "import time; print(int((time.time()-30*86400)*1e9))")
+curl -s -G http://127.0.0.1:3100/loki/api/v1/query_range \
+  --data-urlencode 'query={namespace="kube-system"}' \
+  --data-urlencode "start=$START" --data-urlencode 'limit=1' \
+  --data-urlencode 'direction=forward'
+```
+
+An oldest entry near the retention window means the volume is intact; only today's logs means
+it came back empty.
+
+:::note Loki's image tag lags the chart appVersion
+Chart 7.5.0 declares `appVersion: 3.6.16` but renders `grafana/loki:3.6.11`. That is the
+chart's own default, not drift — compare `helm template` output against the running image
+before concluding a bump did not apply.
+:::
+
 ## Retention Configuration
 
 Loki is configured with automatic log retention:
