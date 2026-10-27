@@ -56,7 +56,7 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
 └─────────────┘                 └─────────────┘                 └─────────────┘
 
 ┌─────────────┐     logs        ┌─────────────┐     alerts      ┌─────────────┐
-│  PROMTAIL   │────────────────▶│    LOKI     │────────────────▶│ALERTMANAGER │
+│    ALLOY    │────────────────▶│    LOKI     │────────────────▶│ALERTMANAGER │
 │   (loki)    │     :3100       │   (loki)    │     :9093       │  (default)  │
 └─────────────┘                 └─────────────┘                 └─────────────┘
 

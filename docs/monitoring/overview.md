@@ -677,7 +677,7 @@ All monitoring components are managed via ArgoCD:
 
 ### Recently Completed (March 2026)
 
-- ✅ **Log Collector Migration:** Migrated from Promtail (EOL March 2026) to Grafana Alloy v1.13.0
+- ✅ **Log Collector Migration:** Migrated from Promtail (EOL March 2026) to Grafana Alloy, deployed at v1.13.0 and now on **v1.21.2** (chart 1.14.3)
 - ✅ **Ingress NGINX Monitoring:** 7 PrometheusRule alerts + dedicated Grafana dashboard (PR #498)
 - ✅ **Trivy Compliance Reporting:** Weekly CronJob posting compliance summaries to AlertManager (PR #494)
 - ✅ **Loki Log-Based Alerting:** 9 LogQL alert rules via embedded ruler (PR #489)

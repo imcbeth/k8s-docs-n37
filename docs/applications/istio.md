@@ -91,7 +91,7 @@ kubectl label namespace <namespace> istio.io/dataplane-mode=ambient
 ### Currently Meshed Namespaces
 
 - `default` - Prometheus, Grafana, AlertManager
-- `loki` - Loki, Promtail, loki-canary
+- `loki` - Loki, Alloy, loki-canary
 - `localstack` - LocalStack S3 emulator
 - `argo-workflows` - Argo Workflows server and controller
 - `unipoller` - UniFi metrics exporter

@@ -1,11 +1,11 @@
 ---
-title: "Loki + Promtail"
-description: "Centralized log aggregation with Grafana Loki and Promtail"
+title: "Loki + Alloy"
+description: "Centralized log aggregation with Grafana Loki and Grafana Alloy"
 ---
 
-# Loki + Promtail
+# Loki + Alloy
 
-Grafana Loki with Promtail provides centralized log aggregation and querying for all Kubernetes pods across the 5-node Raspberry Pi cluster.
+Grafana Loki with Grafana Alloy provides centralized log aggregation and querying for all Kubernetes pods across the 5-node Raspberry Pi cluster. Alloy also carries the OpenTelemetry trace pipeline into Tempo.
 
 ## Overview
 
@@ -13,7 +13,7 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 
 - **Namespace:** `loki`
 - **Helm Chart:** `grafana/loki`
-- **Chart Version:** `7.3.0` (as of 2026-09-07, via Renovate PR #881). appVersion: loki 3.6.11.
+- **Chart Version:** `7.5.0` (as of 2026-10-24, via Renovate PR #1069). Chart appVersion declares 3.6.16 but the chart renders image `grafana/loki:3.6.11` — compare `helm template` against the running image rather than assuming appVersion.
 - **Deployment Mode:** SingleBinary (monolithic, explicit — Loki v7 default is SimpleScalable)
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-12` (after kube-prometheus-stack -15, before cert-manager -10)
@@ -22,8 +22,8 @@ Grafana Loki with Promtail provides centralized log aggregation and querying for
 
 - **Namespace:** `loki`
 - **Helm Chart:** `grafana/alloy`
-- **Chart Version:** `1.12.1` (Alloy, as of 2026-09-07 via Renovate PR #881; appVersion v1.19.2)
-- **Deployment:** DaemonSet (one pod per node) + OTLP → Tempo forwarding
+- **Chart Version:** `1.14.3` (as of 2026-10-24 via Renovate PR #1058); running image `grafana/alloy:v1.21.2`
+- **Deployment:** DaemonSet, 5/5 (one pod per node, control-plane included) + OTLP → Tempo forwarding
 - **Sync Wave:** `-11` (after Loki -12)
 
 Promtail reached end-of-life in March 2026 and was replaced by Grafana Alloy. Alloy uses `loki.source.kubernetes` for pod log collection and a selective `labelmap` stage to stay within Loki's 15-label limit. It also forwards OpenTelemetry traces to Grafana Tempo via `otelcol.receiver.otlp` + `otelcol.exporter.otlp`.
@@ -36,10 +36,11 @@ Promtail chart 6.17.1 (app v3.5.1) was deployed until 2026-03-01. Replaced due t
 
 ```
 ┌─────────────────────────────────────────┐
-│  Promtail DaemonSet (5 pods)            │
+│  Alloy DaemonSet (5 pods)               │
 │  - One pod per Pi node                  │
-│  - Collects logs from /var/log/pods/    │
-│  - 50m/100m CPU, 64Mi/128Mi memory each │
+│  - discovery.kubernetes -> loki.source  │
+│  - 50m/200m CPU, 128Mi/512Mi each       │
+│  - also OTLP :4317/:4318 -> Tempo       │
 └────────────────┬────────────────────────┘
                  ↓
 ┌─────────────────────────────────────────┐
@@ -95,28 +96,50 @@ The k8s-sidecar container (loki-sc-rules) watches ConfigMaps across many namespa
 - **Retention:** Automatically deletes logs older than 7 days
 - **Filesystem Storage:** Uses PVC (no object storage required)
 
-### Promtail DaemonSet
+### Alloy DaemonSet
 
-**Purpose:** Log collection agent running on all nodes
+**Purpose:** log collection agent on every node, plus the OTLP trace receiver.
 
-- **Replicas:** 5 (one DaemonSet pod per node, including control-plane)
-- **Host Access:** `hostPID: true`, `hostNetwork: false`
-- **Log Sources:** `/var/log/pods/`, `/var/log/containers/`
-- **Tolerations:** Configured to run on control-plane node
-- **Resources per pod:**
-  - Requests: 50m CPU, 64Mi memory
-  - Limits: 100m CPU, 128Mi memory
-- **Metrics:** ServiceMonitor enabled for Prometheus scraping
+- **Pods:** 5/5 (one per node, control-plane included via toleration)
+- **Image:** `grafana/alloy:v1.21.2`
+- **Config:** `/etc/alloy/config.alloy`, served by a `config-reloader` sidecar that POSTs
+  `http://localhost:12345/-/reload` when the ConfigMap changes
+- **Ports:** `12345` (http-metrics / UI), `4317` (otlp-grpc), `4318` (otlp-http)
+- **Containers per pod:**
 
-**Total Resource Impact:**
+| Container | CPU req/limit | Memory req/limit |
+|---|---|---|
+| `alloy` | 50m / 200m | 128Mi / 512Mi |
+| `config-reloader` | 10m / 50m | 50Mi / 64Mi |
 
-- CPU Requests: 450m total (Loki 200m + 5 × Promtail 50m)
-- Memory Requests: 704Mi total (Loki 384Mi + 5 × Promtail 64Mi)
-- CPU Limits: 1000m total (Loki 500m + 5 × Promtail 100m)
-- Memory Limits: 1.6Gi total (Loki 768Mi + 5 × Promtail 128Mi)
+**Pipeline components** (Alloy is component-based, not a `scrape_configs` list):
+
+```
+discovery.kubernetes "pods"   ->  discovery.relabel "pods"
+                              ->  loki.source.kubernetes "pods"
+                              ->  loki.process "pods"
+                              ->  loki.write "default"   (http://loki.loki.svc.cluster.local:3100)
+
+otelcol.receiver.otlp "default" -> otelcol.exporter.otlp "tempo"
+```
+
+:::info Alloy reads the Kubernetes API, not host log files
+`loki.source.kubernetes` streams logs through the API server rather than tailing
+`/var/log/pods`. There is no `hostPID` and no host log mount — a meaningful difference from
+Promtail when reasoning about NetworkPolicy and node access.
+:::
+
+**Total Resource Impact** (recomputed from the live cluster, 2026-10-26):
+
+| | CPU requests | Memory requests | CPU limits | Memory limits |
+|---|---|---|---|---|
+| Loki StatefulSet ×1 (`loki` + `loki-sc-rules`) | 210m | 640Mi | 600m | 1024Mi |
+| Alloy DaemonSet ×5 (`alloy` + `config-reloader`) | 300m | 890Mi | 1250m | 2880Mi |
+| loki-canary DaemonSet ×4 (workers only) | 40m | 128Mi | 200m | 256Mi |
+| **Total** | **550m** | **1658Mi (1.62Gi)** | **2050m** | **4160Mi (4.06Gi)** |
 
 **Log Labeling:**
-Promtail automatically adds these labels to all logs:
+Alloy's `discovery.relabel "pods"` stage adds these labels to all logs:
 
 - `namespace` - Kubernetes namespace
 - `pod` - Pod name
@@ -147,23 +170,48 @@ Don't use `labeldrop` after `labelmap` - it doesn't work because `relabel_config
 
 Instead, use a selective `labelmap` regex to only capture essential labels:
 
-```yaml
-# In promtail values.yaml scrapeConfigs
-relabel_configs:
-  # Fixed labels (always included)
-  - source_labels: [__meta_kubernetes_namespace]
-    target_label: namespace
-  - source_labels: [__meta_kubernetes_pod_name]
-    target_label: pod
-  - source_labels: [__meta_kubernetes_pod_container_name]
-    target_label: container
-  - source_labels: [__meta_kubernetes_pod_node_name]
-    target_label: node
+Alloy expresses this in its own configuration language, inside
+`discovery.relabel "pods"` (`manifests/base/alloy/values.yaml`):
 
-  # Selective labelmap - only capture useful labels
-  - action: labelmap
-    regex: __meta_kubernetes_pod_label_(app|app_kubernetes_io_name|app_kubernetes_io_instance|app_kubernetes_io_component|app_kubernetes_io_part_of|k8s_app|service_name)
+```river
+discovery.relabel "pods" {
+  targets = discovery.kubernetes.pods.targets
+
+  // Only scrape running pods
+  rule {
+    source_labels = ["__meta_kubernetes_pod_phase"]
+    regex         = "Running"
+    action        = "keep"
+  }
+
+  // Fixed labels
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label  = "namespace"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label  = "pod"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_name"]
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_node_name"]
+    target_label  = "node"
+  }
+
+  // Selective labelmap — stay under Loki's 15-label limit
+  rule {
+    action = "labelmap"
+    regex  = "__meta_kubernetes_pod_label_(app|app_kubernetes_io_name|app_kubernetes_io_instance|app_kubernetes_io_component|app_kubernetes_io_part_of|k8s_app|service_name)"
+  }
+}
 ```
+
+The rule semantics are identical to Prometheus relabelling — only the syntax differs, so the
+`labeldrop`-after-`labelmap` caveat above still applies.
 
 **Label count after fix:**
 
@@ -177,7 +225,7 @@ This fix was implemented after adding Istio Ambient mesh, which added many label
 :::
 
 **Control-Plane Scheduling:**
-Promtail includes a toleration to run on the control-plane node:
+Alloy carries a toleration so it runs on the control-plane node too:
 
 ```yaml
 tolerations:
@@ -196,8 +244,10 @@ This enables log collection from critical control plane components:
 
 **Important Notes:**
 
-- Uses `hostNetwork: false` to avoid Calico CNI routing issues
-- Learned from control plane monitoring troubleshooting
+- `hostNetwork: false`, which avoids the Calico CNI routing issues that affected the
+  host-network approach
+- Because `loki.source.kubernetes` reads through the API server, control-plane component logs
+  arrive without any host path mount
 - Runs on ALL 5 nodes (4 workers + 1 control-plane)
 
 ## Storage
@@ -650,19 +700,30 @@ Create a custom dashboard to monitor errors across namespaces:
 
 ### No Logs Appearing
 
-**Check Promtail pods are running:**
+**Check Alloy pods are running:**
 
 ```bash
-kubectl get pods -n loki -l app.kubernetes.io/name=promtail
-# Expect: 5 pods (one per node)
+kubectl get pods -n loki -l app.kubernetes.io/name=alloy
+# Expect: 5 pods (one per node, control-plane included)
 ```
 
-**Check Promtail logs:**
+**Check Alloy logs:**
 
 ```bash
-kubectl logs -n loki -l app.kubernetes.io/name=promtail --tail=50
-# Look for connection errors or scrape failures
+kubectl logs -n loki -l app.kubernetes.io/name=alloy -c alloy --tail=50
+# Look for component errors, or loki.write push failures
 ```
+
+:::tip Inspect the live pipeline instead of guessing
+Alloy serves a UI on port 12345 that shows every component's health and its current
+evaluation — far faster than reading logs when a stage is misconfigured:
+
+```bash
+kubectl port-forward -n loki ds/alloy 12345:12345
+# then open http://localhost:12345
+```
+
+:::
 
 **Verify Loki service:**
 
@@ -733,7 +794,7 @@ limits_config:
 
 ## Monitoring Loki
 
-ServiceMonitors are **enabled** for both Loki and Promtail, allowing Prometheus to scrape metrics automatically.
+ServiceMonitors are **enabled** for both Loki and Alloy, allowing Prometheus to scrape metrics automatically.
 
 ### Prometheus Integration
 
@@ -747,7 +808,7 @@ monitoring:
     labels:
       release: kube-prometheus-stack
 
-# Promtail
+# Alloy
 serviceMonitor:
   enabled: true
   labels:
@@ -758,7 +819,7 @@ serviceMonitor:
 
 ```bash
 kubectl get servicemonitor -n loki
-# Expected: loki and promtail ServiceMonitors
+# Expected: loki and alloy ServiceMonitors
 ```
 
 **Check Prometheus Targets:**
@@ -768,12 +829,12 @@ kubectl get servicemonitor -n loki
 kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
 
 # Navigate to: http://localhost:9090/targets
-# Look for: serviceMonitor/loki/loki and serviceMonitor/loki/promtail
+# Look for: serviceMonitor/loki/loki and serviceMonitor/loki/alloy
 ```
 
 ### Key Metrics to Watch
 
-Loki and Promtail metrics are available in Prometheus:
+Loki and Alloy metrics are available in Prometheus:
 
 **Loki Metrics:**
 
@@ -794,20 +855,34 @@ loki_store_chunk_entries
 loki_compactor_compaction_interval_seconds
 ```
 
-**Promtail Metrics (per pod × 5):**
+**Alloy Metrics (per pod × 5):**
+
+:::warning `promtail_*` metrics no longer exist
+Alloy exports under `alloy_*` and, for the Loki pipeline components, `loki_write_*`. Verified
+2026-10-26: `promtail_sent_entries_total` returns **0 series**, so any dashboard or alert still
+referencing the old names is silently broken rather than erroring.
+:::
 
 ```promql
-# Logs sent to Loki (rate)
-rate(promtail_sent_entries_total[5m])
+# Entries successfully pushed to Loki (rate)
+sum(rate(loki_write_sent_entries_total[5m]))
 
-# Bytes read from log files
-rate(promtail_read_bytes_total[5m])
+# Entries DROPPED — the one to alert on. A sustained non-zero rate means
+# Loki is rejecting writes (see the reject_old_samples section above).
+sum(rate(loki_write_dropped_entries_total[5m])) by (reason)
 
-# Active scrape targets (should show ~250 pods)
-promtail_targets_active_total
+# Bytes dropped
+sum(rate(loki_write_dropped_bytes_total[5m]))
 
-# Files being watched
-promtail_files_active_total
+# Push retries — climbing means Loki is backpressuring
+sum(rate(loki_write_batch_retries_total[5m]))
+
+# End-to-end push latency
+histogram_quantile(0.99, sum(rate(loki_write_entry_propagation_latency_seconds_bucket[5m])) by (le))
+
+# Alloy health: components running vs failing to evaluate
+alloy_component_controller_running_components
+alloy_build_info
 ```
 
 ### Health Checks
@@ -1132,9 +1207,9 @@ Potential improvements for log-based alerting:
 - Sync Wave: `-12`
 - Destination: `loki` namespace
 
-**Promtail:**
+**Alloy:**
 
-- Path: `manifests/applications/promtail.yaml`
+- Path: `manifests/applications/alloy.yaml`
 - Sync Wave: `-11`
 - Destination: `loki` namespace
 
@@ -1145,10 +1220,11 @@ Potential improvements for log-based alerting:
 - Path: `manifests/base/loki/values.yaml`
 - Key settings: deployment mode, storage, retention
 
-**Promtail Configuration:**
+**Alloy Configuration:**
 
-- Path: `manifests/base/promtail/values.yaml`
-- Key settings: resources, scrape config, labels
+- Path: `manifests/base/alloy/values.yaml`
+- Key settings: resources, the `config.alloy` pipeline (discovery, relabel, source, process,
+  write), the selective `labelmap`, the `stage.drop` age guard, and the OTLP → Tempo exporter
 
 **Grafana Datasource:**
 
@@ -1169,8 +1245,10 @@ Potential improvements for log-based alerting:
 
 1. **Reduce scrape frequency** (less CPU on nodes):
 
-   ```yaml
-   # In promtail values.yaml, not currently set (uses default)
+   ```river
+   // In manifests/base/alloy/values.yaml, inside loki.source.kubernetes.
+   // Not currently tuned — Alloy streams from the API server rather than
+   // polling files, so there is no scrape-interval knob to reduce.
    ```
 
 2. **Reduce query parallelism** (less memory in Loki):
@@ -1210,7 +1288,7 @@ Consider adding NetworkPolicy to restrict access:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: loki-allow-promtail
+  name: loki-allow-alloy
   namespace: loki
 spec:
   podSelector:
@@ -1220,7 +1298,7 @@ spec:
     - from:
       - podSelector:
           matchLabels:
-            app.kubernetes.io/name: promtail
+            app.kubernetes.io/name: alloy
       ports:
         - port: 3100
 ```
@@ -1240,16 +1318,23 @@ git push
 
 **Important:** Check Loki [release notes](https://github.com/grafana/loki/releases) for breaking changes.
 
-### Promtail Chart Upgrades
+### Alloy Chart Upgrades
 
 ```bash
-# Update chart version in manifests/applications/promtail.yaml
-targetRevision: 6.17.0  # Example new version
+# Update chart version in manifests/applications/alloy.yaml
+targetRevision: 1.14.3  # current
 
 # Commit and push
-git commit -am "chore: Upgrade Promtail to 6.17.0"
+git commit -am "chore: Upgrade Alloy to 1.14.3"
 git push
 ```
+
+:::warning Re-verify the `stage.drop` age guard after an Alloy bump
+`manifests/base/alloy/values.yaml` carries a `stage.drop { older_than = "696h" }` that keeps
+stale entries from poisoning whole batches against Loki's reject window. It survived the
+1.14.3 bump, but confirm it still renders after any chart change — losing it silently
+reintroduces whole-batch rejection.
+:::
 
 ## Related Documentation
 
@@ -1262,5 +1347,6 @@ git push
 
 - [Grafana Loki Documentation](https://grafana.com/docs/loki/latest/)
 - [LogQL Query Language](https://grafana.com/docs/loki/latest/logql/)
-- [Promtail Configuration](https://grafana.com/docs/loki/latest/clients/promtail/configuration/)
+- [Grafana Alloy Documentation](https://grafana.com/docs/alloy/latest/)
+- [`loki.source.kubernetes` reference](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.kubernetes/)
 - [Loki Helm Chart](https://github.com/grafana/loki/tree/main/production/helm/loki)

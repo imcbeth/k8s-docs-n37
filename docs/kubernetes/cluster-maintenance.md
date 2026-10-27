@@ -412,8 +412,10 @@ kubectl get ds -A -o custom-columns='NS:.metadata.namespace,NAME:.metadata.name,
 
 | DaemonSet | Expected Count |
 |-----------|---------------|
-| calico-node, csi-node-driver, node-exporter, falco, istio-cni-node, ztunnel, kube-proxy, promtail, metallb-speaker | 5 |
+| calico-node, csi-node-driver, chaos-daemon, node-exporter, falco, istio-cni-node, ztunnel, kube-proxy, alloy, metallb-speaker, pvc-mount-monitor | 5 |
 | loki-canary, synology-csi-node | 4 (worker-only) |
+
+**13 DaemonSets total** — 11 across all nodes, 2 worker-only. Verified 2026-10-26.
 
 ### Step 8: Metrics API
 

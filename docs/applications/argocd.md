@@ -339,7 +339,7 @@ ArgoCD organizes applications into projects for access control and resource mana
 - tigera-operator
 - sealed-secrets
 - external-dns
-- loki, promtail
+- loki, alloy
 - argo-workflows
 - velero
 - falco
@@ -382,7 +382,7 @@ ArgoCD uses sync waves to control deployment order. Applications are deployed in
  -20: unipoller (metrics collection)
  -15: kube-prometheus-stack (monitoring)
  -12: loki (log aggregation)
- -11: promtail (log collection)
+ -11: alloy (log collection + OTLP forwarding, replaced Promtail 2026-03-01)
  -10: cert-manager, external-dns, metrics-server
   -8: argo-workflows (CI/CD automation)
   -7: localstack (S3 mock for Velero)
