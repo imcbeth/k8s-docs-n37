@@ -76,7 +76,7 @@ graph TB
 ### Observability
 
 - Comprehensive metrics collection
-- Centralized logging with Loki + Promtail
+- Centralized logging with Loki + Grafana Alloy
 - Network performance monitoring
 - Infrastructure health monitoring
 
