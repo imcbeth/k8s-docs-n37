@@ -31,10 +31,34 @@ repos:
         # MD013: Line length (disabled in .markdownlint.json - docs can be long)
         # MD033: Inline HTML (disabled in .markdownlint.json - Docusaurus uses HTML)
         # MD041: First line heading (disabled in .markdownlint.json - frontmatter comes first)
+        # MD018: no-missing-space-atx (disabled in .markdownlint.json) - LOAD-BEARING.
+        #   With --fix, MD018 rewrites a line-initial "#955 text" into "# 955 text",
+        #   silently turning a wrapped PR reference into an H1. The hook edits the
+        #   file and still passes, so nothing surfaces it. The markdown-heading-guard
+        #   hook below asserts this stays disabled - do not "tidy" it away.
 
-  # Docusaurus build check (catches broken links)
+  # Local checks
   - repo: local
     hooks:
+      # Catches the prose that MD018 would silently promote to a heading, and
+      # asserts MD018 itself is still disabled. Ported from the homelab repo,
+      # where this pattern bit three times before the cause was understood.
+      - id: markdown-heading-guard
+        name: Markdown heading hazards
+        entry: scripts/validate-markdown-headings.py
+        language: system
+        files: '(\.mdx?$|^\.pre-commit-config\.yaml$|^\.markdownlint\.json$)'
+        description: 'Flag line-initial # without a space, and keep MD018 disabled'
+
+      - id: markdown-heading-guard-self-test
+        name: markdown heading guard self-test
+        entry: scripts/validate-markdown-headings.py --self-test
+        language: system
+        files: '^scripts/validate-markdown-headings\.py$'
+        pass_filenames: false
+        description: 'Prove the guard can still fail, not just pass'
+
+      # Docusaurus build check (catches broken links)
       - id: docusaurus-build
         name: Docusaurus build check
         entry: bash -c 'npm run build'
