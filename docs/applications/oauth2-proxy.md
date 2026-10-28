@@ -12,7 +12,7 @@ oauth2-proxy is a reverse proxy that enforces GitHub OAuth authentication before
 | Property | Value |
 |----------|-------|
 | **Namespace** | `oauth2-proxy` |
-| **Chart** | `oauth2-proxy/oauth2-proxy` v10.7.0 (as of 2026-07-16, via Renovate PR #765) |
+| **Chart** | `oauth2-proxy/oauth2-proxy` v10.7.1 (appVersion 7.15.5) |
 | **App Version** | `v7.15.2` |
 | **ArgoCD App** | `oauth2-proxy` (project: `infrastructure`, wave: `0`) |
 | **Auth Endpoint** | `https://oauth.k8s.n37.ca` |
@@ -211,7 +211,7 @@ Check for image pull errors caused by double registry prefix:
 
 ```bash
 kubectl describe pod -n oauth2-proxy -l app.kubernetes.io/name=oauth2-proxy | grep "image"
-# Should show: quay.io/oauth2-proxy/oauth2-proxy:v7.15.2
+# Should show: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
 # NOT: quay.io/quay.io/oauth2-proxy/...
 ```
 

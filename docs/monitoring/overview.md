@@ -484,6 +484,36 @@ Doing this while 66 alerts were firing would have been unusable, and is very lik
 **Configuration:**
 Edit AlertManager config in `values.yaml` and apply via ArgoCD.
 
+### Alerts that bypass Prometheus
+
+Two checks post directly to the AlertManager v2 API instead of going through a PrometheusRule,
+because the metric they would need either does not exist or is not specific enough.
+
+| Check | Where | Cadence | Alert |
+|---|---|---|---|
+| `publish-divergence-check` | CronJob, `argo-workflows` | every 30 min | `PublishPipelineStale` |
+| `remediator-deadman` | CronJob, `default` | every 6 h | emails directly via SMTP |
+
+**`publish-divergence-check`** (added 2026-10-27) asks GitHub for `main`'s HEAD of the
+lifeonabike repo, then asks the registry whether an image exists for that short SHA. Missing,
+and older than a 20-minute grace window, means the pipeline has not delivered.
+
+It exists because `ArgoWorkflowFailed` structurally cannot catch two cases — a pipeline that
+is **broken but idle** (nothing merges, so nothing builds, so nothing fails), and a **dead
+webhook or sensor** (the merge happens but no workflow is created). In both, there is no
+failed workflow to alert on. Divergence covers them and ordinary build failures alike.
+
+It posts rather than exporting a metric because `argo_workflows_gauge` carries only a `phase`
+label and no per-workflow identity: a PromQL rule could not distinguish a stale pipeline from
+an ordinary build failure, and a long-lived stale condition would hold `ArgoWorkflowFailed`
+permanently firing, masking the next genuine failure.
+
+:::note `severity: info` is dropped here
+AlertManager routes `info` to the **null receiver**. Only `warning` and `critical` reach
+email. `PublishPipelineStale` is `warning` deliberately — the site still serves, it is just
+stale.
+:::
+
 ## Key Metrics for Raspberry Pi Cluster
 
 ### Critical Metrics to Monitor

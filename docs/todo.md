@@ -248,8 +248,8 @@ description: "Planned improvements and ongoing projects for the homelab infrastr
 - [x] Proof-of-concept deployment in test namespace
 - [x] Performance impact analysis on Pi 5 cluster (~38m CPU, ~145Mi memory)
 - [x] Document decision and implementation plan
-- **Status:** Istio Ambient Mesh deployed with mTLS on 29 pods across 6 namespaces
-- **Note:** All 25 ArgoCD apps Synced and Healthy (OutOfSync resolved 2026-02-05, PRs #379-381)
+- **Status:** Istio Ambient Mesh deployed with mTLS. At deployment: 29 pods across 6 namespaces; **as of 2026-10-28: 38 pods across 11 namespaces**
+- **Note:** All ArgoCD apps Synced and Healthy (OutOfSync resolved 2026-02-05, PRs #379-381). There were 25 apps then; **38 as of 2026-10-28**
 
 ### 11. **Ingress Enhancements** ✅ Complete
 

@@ -174,7 +174,7 @@ graph TB
 | node04 | 10.0.10.220 | - | Worker | - |
 
 :::info
-All nodes are Raspberry Pi 5 (16GB) running Ubuntu 24.04.3 LTS with Kubernetes v1.35.0.
+All nodes are Raspberry Pi 5 (16GB) running Ubuntu 24.04.5 LTS with Kubernetes v1.36.3.
 MAC addresses and PoE port mappings will be documented once collected.
 :::
 
@@ -247,7 +247,7 @@ See the [MetalLB guide](../applications/metallb.md) for detailed configuration.
 
 ### Ingress Configuration
 
-- **Controller:** ingress-nginx v1.14.3 (Helm chart v4.14.3, ArgoCD-managed)
+- **Controller:** ingress-nginx v1.14.3 (Helm chart v4.15.1, ArgoCD-managed)
 - **External IP:** 10.0.10.10 (via MetalLB)
 - **TLS:** Let's Encrypt via cert-manager (Cloudflare DNS-01 challenge)
 - **Security Headers:** X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
@@ -423,7 +423,7 @@ See the [cert-manager guide](../applications/cert-manager.md) for detailed confi
 - Allow Prometheus scraping from monitoring namespace
 - Allow istio-system control plane communication
 
-**Namespace-specific Policies (13 namespaces):**
+**Namespace-specific Policies.** 29 namespaces carry their own policy as of 2026-10-28; representative examples:
 
 - `ingress-nginx` - Allow external traffic, backend routing, Prometheus scraping
 - `istio-system` - Allow HBONE tunnel, istiod xDS, Prometheus scraping
@@ -465,9 +465,9 @@ See [Network Policies](../security/network-policies.md) for detailed configurati
 
 **ArgoCD Applications:**
 
-- `istio-base` (sync-wave: -46) - CRDs and base resources
+- `istio-base` (sync-wave: -45) - CRDs and base resources
 - `istiod` (sync-wave: -44) - Control plane
-- `istio-cni` (sync-wave: -45) - CNI plugin
+- `istio-cni` (sync-wave: -42) - CNI plugin
 - `istio-ztunnel` (sync-wave: -42) - ztunnel DaemonSet
 
 :::tip Ambient Mode Benefits

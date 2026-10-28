@@ -12,8 +12,8 @@ Zot is a CNCF incubating, OCI-native container registry. It serves as the cluste
 | Property | Value |
 |----------|-------|
 | **Namespace** | `zot` |
-| **Chart** | `zot/zot` v0.1.124 (as of 2026-09-06, via Renovate PR #869; image v2.1.21) |
-| **Image** | `ghcr.io/project-zot/zot:v2.1.21` (linux/arm64/v8) |
+| **Chart** | `zot/zot` v0.1.128 (as of 2026-10-11, via Renovate PR #1031; image v2.1.22) |
+| **Image** | `ghcr.io/project-zot/zot:v2.1.22` (linux/arm64/v8) |
 | **ArgoCD App** | `zot` (project: `infrastructure`, wave: `-2`) |
 | **UI / API URL** | `https://registry.k8s.n37.ca` |
 | **Storage** | 50Gi iSCSI PVC (`synology-iscsi-delete`) |
@@ -146,12 +146,28 @@ As of PR #595 (2026-04-25), the following directly-managed workloads pull images
 | `cluster-healthcheck` CronWorkflow | `docker.io/bitnami/kubectl:latest` | `registry.k8s.n37.ca/bitnami/kubectl:latest` |
 | `velero-backup-validation` CronWorkflow | `docker.io/bitnami/kubectl:latest` | `registry.k8s.n37.ca/bitnami/kubectl:latest` |
 | `compliance-reporter` CronJob (trivy) | `docker.io/bitnami/kubectl:latest` | `registry.k8s.n37.ca/bitnami/kubectl:latest` |
-| `external-dns-cloudflare` Deployment | `registry.k8s.io/external-dns/external-dns:v0.21.0` | `registry.k8s.n37.ca/external-dns/external-dns:v0.21.0` |
-| `external-dns-unifi` Deployment | `registry.k8s.io/external-dns/external-dns:v0.21.0` | `registry.k8s.n37.ca/external-dns/external-dns:v0.21.0` |
-| `external-dns-unifi-webhook` Deployment | `ghcr.io/kashalls/external-dns-unifi-webhook:v0.8.2` | `registry.k8s.n37.ca/kashalls/external-dns-unifi-webhook:v0.8.2` |
+| `external-dns-cloudflare` Deployment | `registry.k8s.io/external-dns/external-dns:v0.24.0` | `registry.k8s.n37.ca/external-dns/external-dns:v0.24.0` |
+| `external-dns-unifi` Deployment | `registry.k8s.io/external-dns/external-dns:v0.24.0` | `registry.k8s.n37.ca/external-dns/external-dns:v0.24.0` |
+| `external-dns-unifi-webhook` Deployment | `ghcr.io/kashalls/external-dns-unifi-webhook:v0.9.0` | `registry.k8s.n37.ca/kashalls/external-dns-unifi-webhook:v0.9.0` |
 
 :::note Image path format
-Zot's on-demand sync uses a flat path — drop the upstream registry hostname. Zot checks all configured upstreams (Docker Hub, GHCR, quay.io, registry.k8s.io) in order when the image isn't cached locally. In practice, each path is unique to one upstream so there is no ambiguity.
+Zot's on-demand sync uses a flat path — drop the upstream registry hostname.
+
+**Each upstream is scoped to specific prefixes** (since 2026-10-27, homelab PR #1079). Zot
+does *not* ask every upstream about every repository. A path whose top-level namespace is not
+listed for any upstream is treated as **local-only**, which is what makes this registry usable
+as a push target as well as a cache:
+
+| Upstream | Synced prefixes |
+|---|---|
+| Docker Hub | `library/**`, `alpine/**`, `bitnami/**` |
+| GHCR | `kashalls/**` |
+| Quay.io | `prometheus/**`, `prometheus-operator/**`, `argoproj/**` |
+| registry.k8s.io | `external-dns/**`, `sig-storage/**`, `ingress-nginx/**` |
+
+Adding a new pull-through image means adding its prefix. A missing prefix surfaces as a clean
+404 on pull. The previous blanket `"prefix": "**"` failed far more confusingly — see the
+warning in the config section below.
 
 Helm chart-managed images (argocd, loki, grafana, etc.) pull directly from their upstreams. Routing Helm chart images through Zot requires per-chart registry override values — a separate effort.
 :::
@@ -208,14 +224,35 @@ The full Zot `config.json` is embedded in `values.yaml` under `configFiles`. Key
         {
           "urls": ["https://registry-1.docker.io"],
           "onDemand": true,
-          "content": [{"prefix": "**"}]
+          "content": [
+            {"prefix": "library/**"},
+            {"prefix": "alpine/**"},
+            {"prefix": "bitnami/**"}
+          ]
         }
       ]
     }
   }
-  // Note: "platforms" key is NOT supported in v2.1.16 and causes startup failure.
+  // Note: "platforms" key is NOT supported and causes startup failure.
 }
 ```
+
+:::danger Never use `"prefix": "**"` here
+This registry is both a pull-through cache **and** the push target for in-cluster builds
+(`lifeonabike/`, `flink-demo/`). With a blanket `**`, a lookup for one of *our own* repos
+fans out to every upstream. On a push the client HEADs the manifest first; Zot misses
+locally, attempts on-demand sync, every upstream fails (`unauthorized` / `repository does
+not exist`), and Zot answers **503 rather than 404** — which kaniko treats as fatal:
+
+```text
+error pushing image: ... HEAD .../manifests/<sha>:
+unexpected status code 503 Service Unavailable
+```
+
+That silently broke the lifeonabike publish pipeline from 2026-10-11 until 2026-10-27, and
+only surfaced when something finally merged. Fixed in homelab PR #1079 by scoping each
+upstream to the namespaces actually mirrored.
+:::
 
 ## Resource Usage
 

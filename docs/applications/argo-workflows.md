@@ -115,7 +115,7 @@ sequenceDiagram
 |------|-------|--------|
 | `clone` | `alpine/git:v2.52.0` | Shallow-clones the app repo, captures git SHA |
 | `build` | `gcr.io/kaniko-project/executor:v1.24.0` | Builds the Docker image, pushes `<sha>` + `latest` tags to Zot |
-| `deploy` | `alpine/k8s:1.31.0` | Runs `kubectl rollout restart deployment/web -n lifeonabike` |
+| `deploy` | `alpine/k8s:1.37.1` | Runs `kubectl rollout restart deployment/web -n lifeonabike` |
 
 ### Key Configuration
 

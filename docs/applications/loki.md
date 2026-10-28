@@ -953,9 +953,9 @@ metadata:
 
 ### Implemented Alert Rules
 
-The following 11 alert rules are deployed across 4 categories:
+The following 9 alert rules are deployed across 4 groups:
 
-#### 1. Log Errors (Group: loki.log_errors)
+#### 1. Log Errors (Group: `log_errors`)
 
 **HighErrorLogRate:**
 
@@ -971,7 +971,7 @@ The following 11 alert rules are deployed across 4 categories:
 - **Pattern:** Matches "critical", "fatal", "panic", "emergency" (case-insensitive)
 - **Purpose:** Immediate notification for severe errors
 
-#### 2. Pod Failures (Group: loki.pod_failures)
+#### 2. Pod Failures (Group: `pod_failures`)
 
 **CrashLoopBackOffDetected:**
 
@@ -994,7 +994,7 @@ The following 11 alert rules are deployed across 4 categories:
 - **Pattern:** Matches "restarting container", "restart count"
 - **Purpose:** Detect unstable pods with frequent restarts
 
-#### 3. Application Errors (Group: loki.application_errors)
+#### 3. Application Errors (Group: `application_errors`)
 
 **HighHTTP5xxErrorRate:**
 
@@ -1010,7 +1010,7 @@ The following 11 alert rules are deployed across 4 categories:
 - **Pattern:** Matches "connection.*refused", "connection.*timeout", "database.*error", "sql.*error"
 - **Purpose:** Detect database connectivity issues
 
-#### 4. Security Events (Group: loki.security_events)
+#### 4. Security Events (Group: `security_events`)
 
 **AuthenticationFailures:**
 
@@ -1028,11 +1028,12 @@ The following 11 alert rules are deployed across 4 categories:
 
 ### Verifying Alerting Setup
 
-**Check Ruler Pod:**
+**Check the ruler is running.** There is no separate ruler pod — `ruler.enabled` is
+`false` and the ruler runs *embedded in the singleBinary pod*, reading rules from `/rules`:
 
 ```bash
-kubectl get pods -n loki -l app.kubernetes.io/component=ruler
-# Expected: 1 running pod
+kubectl logs -n loki loki-0 -c loki --tail=50 | grep -i ruler
+# Look for the ruler starting and evaluating groups
 ```
 
 **Check Ruler Logs:**
@@ -1042,11 +1043,12 @@ kubectl logs -n loki -l app.kubernetes.io/component=ruler --tail=50
 # Look for "ruler started" and "evaluating rules"
 ```
 
-**Verify PrometheusRule Created:**
+**Verify the rules are mounted.** These are **LogQL** rules served by Loki's own ruler, so
+they live in a ConfigMap — not a PrometheusRule:
 
 ```bash
-kubectl get prometheusrule -n loki loki-log-based-alerts
-# Should show the alert rules resource
+kubectl get cm -n loki loki-alerting-rules
+kubectl get cm -n loki loki-alerting-rules -o jsonpath='{.data}' | head -c 400
 ```
 
 **Check Alert Rules in Prometheus:**
@@ -1056,7 +1058,7 @@ kubectl get prometheusrule -n loki loki-log-based-alerts
 kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
 
 # Navigate to: http://localhost:9090/alerts
-# Look for alerts with prefix "loki" or check "loki.log_errors" group
+# Look for alerts with prefix "loki" or check the "log_errors" group
 ```
 
 **Verify AlertManager Integration:**

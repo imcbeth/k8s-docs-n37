@@ -12,7 +12,7 @@ Chaos Mesh is a CNCF incubating chaos engineering platform that enables controll
 | Property | Value |
 |----------|-------|
 | **Namespace** | `chaos-mesh` |
-| **Chart** | `chaos-mesh/chaos-mesh` v2.8.4 (as of 2026-09-06, via Renovate PR #866) |
+| **Chart** | `chaos-mesh/chaos-mesh` v2.8.6 (as of 2026-10-24, via Renovate PR #1063; appVersion 2.8.6) |
 | **ArgoCD App** | `chaos-mesh` (project: `infrastructure`, wave: `0`) |
 | **Architecture** | ARM64 (`ghcr.io/chaos-mesh/*` images) |
 | **Dashboard** | Port-forward only (no external ingress) |

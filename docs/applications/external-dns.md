@@ -10,7 +10,7 @@ External-DNS automatically synchronizes Kubernetes Ingress and Service resources
 ## Overview
 
 - **Namespace:** `external-dns`
-- **Image:** `registry.k8s.n37.ca/external-dns/external-dns:v0.21.0` (via Zot proxy)
+- **Image:** `registry.k8s.n37.ca/external-dns/external-dns:v0.24.0` (via Zot proxy)
 - **Deployment:** Managed by ArgoCD (dual deployments)
 - **Sync Wave:** `-10` (deploys with cert-manager)
 
@@ -54,7 +54,7 @@ cloudflare-proxied: false  # Direct to MetalLB IPs
 - **Target:** UniFi UDR7 controller at 10.0.1.1
 - **Protocol:** UniFi API via webhook provider
 - **Authentication:** UniFi API key
-- **Webhook:** `kashalls/external-dns-unifi-webhook` v0.8.2 (via Zot proxy)
+- **Webhook:** `kashalls/external-dns-unifi-webhook` v0.9.0 (via Zot proxy)
 - **Deployment:** `external-dns-unifi`
 - **ServiceAccount:** `external-dns-unifi`
 

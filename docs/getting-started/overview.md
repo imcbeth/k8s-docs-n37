@@ -54,7 +54,7 @@ graph TB
 
 - **Control Plane**: Single master node with HA storage
 - **Worker Nodes**: 4x worker nodes for application workloads
-- **CNI**: Calico v3.31.3 via Tigera Operator for network policy and connectivity
+- **CNI**: Calico v3.31.4 via Tigera Operator for network policy and connectivity
 - **Storage**: Synology CSI for persistent volumes
 
 ### Application Layer

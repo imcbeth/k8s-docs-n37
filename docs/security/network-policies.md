@@ -9,7 +9,7 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
 
 ## Overview
 
-- **CNI:** Calico v3.31.3 (native NetworkPolicy support)
+- **CNI:** Calico v3.31.4 (native NetworkPolicy support)
 - **Service Mesh:** Istio Ambient (mTLS via HBONE tunneling)
 - **Deployment:** Managed by ArgoCD at sync-wave `-40`
 - **Approach:** Zero-trust (default-deny with explicit allow rules)
