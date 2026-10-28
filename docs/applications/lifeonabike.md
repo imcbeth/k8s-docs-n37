@@ -99,7 +99,7 @@ Uses `--insecure` because Kaniko pushes to the **in-cluster Zot ClusterIP** over
 
 #### Step 3: rollout-restart
 
-Uses `alpine/k8s:1.31.0` to run:
+Uses `alpine/k8s:1.37.1` to run:
 
 ```bash
 kubectl rollout restart deployment/web -n lifeonabike

@@ -18,8 +18,8 @@ description: "Current cluster component versions, upgrade history, and post-inst
 | containerd | 2.2.1 | Unchanged through k8s minor bumps |
 | CNI: Calico (via Tigera Operator) | v3.31.4 | Independent of k8s upgrades |
 | Ambient mesh: Istio | 1.30.3 | Independent |
-| OS (all nodes) | Ubuntu 24.04.3 LTS | ARM64 |
-| Kernel (all nodes) | 6.8.0-1057-raspi | 6.8.0-1060 available; not yet applied |
+| OS (all nodes) | Ubuntu 24.04.5 LTS | ARM64 |
+| Kernel (all nodes) | 6.8.0-1065-raspi | Applied 2026-10-24; reboot-required clear on all 5 |
 
 See [Hardware](../getting-started/hardware.md) for the per-node breakdown.
 

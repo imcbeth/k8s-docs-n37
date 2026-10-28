@@ -43,7 +43,7 @@ graph LR
 |----------|-------|
 | **Tunnel name** | `homelab-k8s` |
 | **Tunnel UUID** | `c8c74986-4238-4558-9387-905cd91b409b` |
-| **Image** | `cloudflare/cloudflared:2024.10.0` |
+| **Image** | `cloudflare/cloudflared:2026.10.3` |
 | **Replicas** | 2 (active-active, both connect to Cloudflare edge) |
 | **Namespace** | `lifeonabike` |
 | **Credentials** | SealedSecret `tunnel-credentials` → `credentials.json` |

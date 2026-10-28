@@ -35,7 +35,7 @@ graph LR
 
 | Property | Value |
 |----------|-------|
-| **Image** | `registry.k8s.io/coredns/coredns:v1.13.1` |
+| **Image** | `registry.k8s.io/coredns/coredns:v1.14.2` |
 | **Namespace** | `kube-system` |
 | **Replicas** | 2 (rolling update) |
 | **Service** | `kube-dns` ClusterIP `10.96.0.10` (well-known) |

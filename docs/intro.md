@@ -227,7 +227,7 @@ If you're new to this setup, start here:
 
 ### Ingress Hardening (February 2026)
 
-- **Helm Migration**: ingress-nginx migrated from manual kubectl to ArgoCD-managed Helm chart (v4.14.4)
+- **Helm Migration**: ingress-nginx migrated from manual kubectl to ArgoCD-managed Helm chart (now v4.15.1)
 - **Security Headers**: X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
 - **TLS Hardening**: TLSv1.2+ only, HSTS, server-preferred ciphers
 - **ServiceMonitor**: Prometheus metrics collection enabled
@@ -235,15 +235,15 @@ If you're new to this setup, start here:
 
 ### Admission Control (February 2026)
 
-- **OPA Gatekeeper**: Kubernetes admission control policy engine (v3.21.1)
+- **OPA Gatekeeper**: Kubernetes admission control policy engine (v3.23.1)
 - **5 Policies in Deny Mode**: Resource limits, allowed repos, required labels, block NodePort, container limits
 - **Exclusion Audit**: Reduced excluded namespaces from 10 to 2 (kube-system, tigera-operator)
-- **0 Violations**: All violations resolved across 25 ArgoCD applications
+- **0 Violations**: All violations resolved across 38 ArgoCD applications
 - **Monitoring**: PodMonitor + Grafana dashboard for constraint violations
 
 ### Network Policies Implementation (January-February 2026)
 
-- **Namespace Isolation**: 18 namespaces protected with Kubernetes NetworkPolicies + Calico NetworkPolicies
+- **Namespace Isolation**: 29 namespaces protected with Kubernetes NetworkPolicies + Calico NetworkPolicies
 - **Allow-List Approach**: Default-deny ingress with explicit allow rules
 - **Namespaces Protected**: ingress-nginx, istio-system, gatekeeper-system, localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco, default, argocd, synology-csi, kube-system, tigera-operator
 - **Monitoring Preserved**: Prometheus metrics scraping allowed across all policies
@@ -251,11 +251,11 @@ If you're new to this setup, start here:
 
 ### Monitoring Stack Enhancements
 
-- **Prometheus Stack v82.4.3**: Fully GitOps-managed via ArgoCD
+- **Prometheus Stack v92.13.1**: Fully GitOps-managed via ArgoCD
 - **Grafana Dashboards**: 46 dashboards (4 custom, 13 community, 26 from prometheus-stack, 3 Gatekeeper)
 - **Alert Management**: PrometheusRule CRDs for infrastructure health alerts
 - **Multi-Source Deployment**: Helm chart + custom values managed in git
-- **25 ArgoCD Applications**: All Synced & Healthy
+- **38 ArgoCD Applications**: All Synced & Healthy
 
 ## 🛠️ Key Features
 

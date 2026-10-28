@@ -29,8 +29,15 @@ These workloads have PersistentVolumeClaims backed by the Synology NAS via iSCSI
 | Prometheus | default | StatefulSet | 50Gi |
 | Grafana | default | Deployment | 5Gi |
 | Loki | loki | StatefulSet | 20Gi |
+| Tempo | tempo | StatefulSet | 10Gi |
 | Trivy Server | trivy-system | StatefulSet | 5Gi |
-| Falco Redis | falco | StatefulSet | 2Gi |
+| Zot | zot | StatefulSet | 50Gi |
+| uptime-kuma | uptime-kuma | Deployment | 5Gi |
+| LocalStack | localstack | Deployment | 2Gi |
+
+**8 PVCs total** (verified 2026-10-28). `Falco Redis` used to appear here with a 2Gi PVC and
+**no longer has one** — its Redis runs with `save ""` and AOF off, so the volume was removed.
+It is therefore not volume-relevant during a shutdown; the drain handles it.
 
 ## After any kubeadm upgrade: re-check static pod customizations
 
@@ -482,9 +489,9 @@ Expect **98 total, 0 down** (count as of 2026-10-26). A target down with
 
 - [ ] 5/5 nodes Ready and uncordoned
 - [ ] ArgoCD auto-sync re-enabled
-- [ ] 24+ apps Synced + Healthy
-- [ ] 5/5 PVCs Bound with VolumeAttachments
-- [ ] All NAS workloads running (Prometheus, Grafana, Loki, Trivy, Falco Redis)
+- [ ] 38/38 apps Synced + Healthy
+- [ ] 8/8 PVCs Bound with VolumeAttachments
+- [ ] All NAS workloads running (Prometheus, Grafana, Loki, Trivy, Tempo, Zot, uptime-kuma, localstack)
 - [ ] DaemonSets at expected counts
 - [ ] Metrics API responsive (`kubectl top nodes`)
 - [ ] No stuck pods

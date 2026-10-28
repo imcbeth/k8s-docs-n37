@@ -188,14 +188,18 @@ kubectl get applications -n argocd | grep istio
 kubectl top pods -n istio-system
 ```
 
-**Current measurements (6 namespaces, 29 pods in mesh):**
+**Current measurements (11 meshed namespaces, 38 pods in mesh), re-measured 2026-10-28:**
 
 | Component | Instances | CPU | Memory |
 |-----------|-----------|-----|--------|
-| istiod | 1 | ~3m | ~39Mi |
-| istio-cni-node | 5 | ~5m | ~68Mi |
-| ztunnel | 5 | ~30m | ~38Mi |
-| **Total** | - | **~38m** | **~145Mi** |
+| istiod | 1 | ~2m | ~64Mi |
+| istio-cni-node | 5 | ~5m | ~239Mi |
+| ztunnel | 5 | ~70m | ~137Mi |
+| **Total** | - | **~77m** | **~440Mi** |
+
+The earlier figures on this page (~38m / ~145Mi) were taken at 6 namespaces and 29 pods.
+Memory roughly tripled as the mesh grew — worth knowing before sizing anything from the
+old numbers.
 
 Note: ztunnel CPU varies with traffic volume.
 

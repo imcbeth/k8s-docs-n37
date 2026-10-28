@@ -31,7 +31,7 @@ Trivy Operator continuously scans workloads for:
 
 ### Configuration
 
-**Helm Chart:** `aquasecurity/trivy-operator` v0.31.0
+**Helm Chart:** `aquasecurity/trivy-operator` v0.37.0 (appVersion 0.35.0)
 
 ```yaml
 # Key configuration from values.yaml
@@ -100,7 +100,7 @@ Falco monitors system calls in real-time to detect:
 
 ### Configuration
 
-**Helm Chart:** `falcosecurity/falco` v8.0.0
+**Helm Chart:** `falcosecurity/falco` v9.2.1 (Falco engine 0.45.1, falcoctl 0.14.2)
 
 ```yaml
 # Key configuration from values.yaml
@@ -188,7 +188,7 @@ OPA Gatekeeper operates as a ValidatingAdmissionWebhook to enforce policies on r
 
 ### Configuration
 
-**Helm Chart:** `open-policy-agent/gatekeeper` v3.21.1
+**Helm Chart:** `open-policy-agent/gatekeeper` v3.23.1
 
 ```yaml
 # Key configuration from values.yaml
