@@ -182,6 +182,21 @@ These targets carry the `slo_target="0.995"` label and feed into the [SLO record
 
 See the [SLO guide](../monitoring/slos.md#adding-a-new-slo-target) for how to add new targets, NetworkPolicy considerations, and probe module choice.
 
+:::danger These targets are invisible to a CRD search
+This is a `static_configs` list, **not** a ServiceMonitor/PodMonitor/Probe CRD. Anyone checking "does anything probe this namespace?" with `kubectl get servicemonitor,podmonitor,probe` will find nothing and conclude wrongly.
+
+That happened on 2026-10-29: a new NetworkPolicy on `lifeonabike` omitted blackbox-exporter and took `probe_success` to 0 for two and a half days, firing `EndpointDown` at severity critical. See [the incident writeup](../monitoring/slos.md#the-lifeonabike-outage-2026-10-29) and [Network Policies → Adding New Policies, Step 0](../security/network-policies.md#adding-new-policies).
+
+Each of these three namespaces needs an ingress rule admitting `app.kubernetes.io/name: blackbox-exporter` from `default` on the application port:
+
+| Target namespace | Port | Admitted by |
+|---|---|---|
+| `argo-workflows` | 2746 | ambient HBONE (both sides meshed) |
+| `zot` | 5000 | explicit rule (zot is not meshed) |
+| `lifeonabike` | 8080 | explicit rule in `lifeonabike-web` (PR #1105) |
+
+:::
+
 #### DNS Servers
 
 - `10.0.1.1:53` - Gateway DNS

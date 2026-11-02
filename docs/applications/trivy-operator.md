@@ -93,7 +93,17 @@ Trivy Operator is deployed via ArgoCD using the official Aqua Security Helm char
 
 **Configuration:** `manifests/base/trivy-operator/values.yaml`
 
-**Version:** Helm chart 0.32.1 (App version 0.29.0)
+**Version:** Helm chart 0.38.1 (app version 0.36.1, as of 2026-11-02 via Renovate PR #1109)
+
+:::note Read the app version from the cluster, not from prose
+This line read "chart 0.32.1 (App version 0.29.0)" while the running image was 0.36.1 — Renovate updates the version it manages and leaves surrounding prose alone, so any transcribed app version drifts. The homelab Application manifest had the same rot and now points at the command instead (homelab PR #1110):
+
+```bash
+kubectl get deploy -n trivy-system trivy-operator \\
+  -o jsonpath='{.spec.template.spec.containers[0].image}'
+```
+
+:::
 
 ### Resource Configuration
 

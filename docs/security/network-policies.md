@@ -73,26 +73,89 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
 
 ## Protected Namespaces
 
+**30 namespaces carry NetworkPolicies — 35 policies in total** (verified
+2026-11-02). Ports listed are the application-specific ones; DNS (53), HTTPS
+(443), the API server (6443) and the Istio ports (15008/15012/15017) are
+covered by the [universal patterns](#universal-patterns) below and omitted here.
+
 | Namespace | Purpose | Mesh Status | Key Ports |
 |-----------|---------|-------------|-----------|
-| ingress-nginx | HTTP/HTTPS ingress controller | No | 80, 443, 10254 |
-| istio-system | Service mesh control plane | N/A | 15008, 15010, 15012, 15014, 15017 |
-| gatekeeper-system | Admission control | No | 8443, 8888 |
-| localstack | S3 emulator for Velero | Ambient | 4566 |
-| unipoller | UniFi metrics | Ambient | 9130 |
-| loki | Log aggregation | Ambient | 3100, 9095, 7946 |
-| trivy-system | Vulnerability scanning | Ambient | 4954, 8080 |
-| velero | Backup/restore | No | 8085 |
-| argo-workflows | CI/CD pipelines | Ambient | 2746, 9090 |
-| cert-manager | TLS certificates | No | 9402, 10250 |
+| argo-events | Webhook event sources, NATS JetStream | Ambient | 4222, 6222, 7777, 8222, 12000 |
+| argo-workflows | CI/CD pipelines | Ambient | 2746, 4566, 5000, 9090 |
+| argocd | GitOps controller | No | 8080, 8443, 6379, 5556/5557 (Dex) |
+| calico-system | CNI | No | 5443 |
+| cert-manager | TLS certificates | No | 9402 |
+| chaos-mesh | Chaos engineering | No | 2333, 10080, 31766, 31767 |
+| default | Monitoring stack, blackbox-exporter | Ambient | 3000, 9090, 9093, 9115, 9100 |
 | external-dns | DNS management | No | 7979, 8080, 8888 |
+| falco | Runtime security | No | 2801, 2802, 5060, 6379, 8765 |
+| flink-demo | Flink streaming jobs | Ambient | 6123, 6124, 8081, 9092 |
+| flink-operator | Flink operator | Ambient | 8081, 9443 |
+| gatekeeper-system | Admission control | No | 8443, 8888, 9090 |
+| ingress-nginx | HTTP/HTTPS ingress controller | No | 80, 10254 |
+| istio-system | Service mesh control plane | No | 15010, 15014, 15020 |
+| kafka | Kafka brokers | Ambient | 9090–9092, 9404 |
+| kube-system | CoreDNS, metrics-server, sealed-secrets | No | 9153, 10255, 10256 |
+| **lifeonabike** | **Public blog + Cloudflare tunnel** | **No** | **7844, 8080, 12000** |
+| localstack | S3 emulator for Argo artifacts | Ambient | 4566 |
+| loki | Log aggregation | Ambient | 3100, 7946, 9095, 12345 |
 | metallb-system | Load balancer | No | 7472, 7473, 7946 |
-| falco | Runtime security | No | 8765, 2801, 5060 |
-| default | Monitoring stack, blackbox-exporter | Ambient | 9090, 9093, 9115, 3000 |
-| argocd | GitOps controller | No | 8080, 8443 |
-| synology-csi | Storage driver | No | 3260 (iSCSI) |
-| kube-system | CoreDNS, metrics-server, sealed-secrets | No | 53, 10250, 8080 |
-| tigera-operator | Calico management | No | 6443 (API egress only) |
+| oauth2-proxy | GitHub SSO forward-auth | No | 4180 |
+| strimzi-system | Kafka operator | Ambient | 9090–9092, 9404, 9443 |
+| synology-csi | Storage driver | No | 3260 (iSCSI), 9808 |
+| tempo | Distributed tracing | No | 3200, 4317, 4318 |
+| tigera-operator | Calico management | No | 5443 |
+| trivy-system | Vulnerability scanning | Ambient | 4954, 8080 |
+| unipoller | UniFi metrics | Ambient | 8443, 9130 |
+| uptime-kuma | Status page + monitor probes | No | 3001, and the ports it monitors |
+| velero | Backup/restore | No | 4566, 8085 |
+| zot | OCI registry | No | 5000 |
+
+Namespaces with **no** NetworkPolicy: `kube-public`, `kube-node-lease`,
+`secrets-source`, `velero-test`, `velero-restore-test`. All five hold zero pods.
+`velero-restore-test` is created transiently by the monthly restore validator,
+so pods do appear in it during that run.
+
+Regenerate this list rather than hand-editing it:
+
+```bash
+kubectl get netpol -A -o json | python3 -c "
+import json,sys,collections
+pol=collections.Counter()
+for n in json.load(sys.stdin)['items']:
+    pol[n['metadata']['namespace']] += 1
+print(f'{len(pol)} namespaces, {sum(pol.values())} policies')
+for ns in sorted(pol): print(f'  {ns:<20} {pol[ns]}')"
+```
+
+### lifeonabike — the public one, and the last to get a policy
+
+Added 2026-10-29 in PR #1087. It was the **only namespace with a genuinely
+public ingress and no NetworkPolicy at all**, while every other workload
+namespace already default-denied both directions.
+
+Three policies rather than one, because a single namespace-wide policy would
+have to grant the union of both workloads' needs — handing the public-facing
+nginx pod the internet egress that only cloudflared requires:
+
+| Policy | Selects | Allows |
+|---|---|---|
+| `lifeonabike-default-deny` | all pods | DNS egress only |
+| `lifeonabike-web` | `app.kubernetes.io/name: lifeonabike-web` | ingress :8080 from ingress-nginx, cloudflared, uptime-kuma, blackbox-exporter |
+| `lifeonabike-cloudflared` | `app.kubernetes.io/name: cloudflared` | egress to the Cloudflare edge (7844 UDP/TCP, 443, RFC1918 excluded), `web`:8080, `argo-events`:12000 |
+
+Two requirements that are easy to miss:
+
+- **cloudflared proxies a hostname that leaves the namespace.** Its config maps
+  `build-webhook.n37.ca` to the GitHub EventSource in `argo-events` on **12000**.
+  Drop that rule and the site keeps serving perfectly while silently never
+  rebuilding on merge again.
+- **Ports are the pod's 8080, not the Service's 80.** NetworkPolicy is evaluated
+  after kube-proxy DNAT.
+
+`lifeonabike` is **not** ambient-meshed, which is why these carry none of the
+HBONE `:15008` or ztunnel link-local rules the meshed namespaces have. Enrolling
+the namespace without adding them first breaks all traffic.
 
 ## Universal Patterns
 
@@ -602,6 +665,47 @@ manifests/base/network-policies/
 ```
 
 ## Adding New Policies
+
+:::danger Step 0 — is this namespace already something's probe target?
+Before writing a single rule, check whether anything **outside** the namespace
+already reaches into it. A default-deny policy silently breaks every such caller,
+and the obvious tests will not catch it.
+
+```bash
+NS=<namespace>
+
+# 1. SLO / blackbox probe targets — a static_configs list, NOT a CRD
+grep -n "$NS" ../homelab/manifests/base/kube-prometheus-stack/values.yaml
+
+# 2. Uptime Kuma monitors — several target the ClusterIP, not the public URL
+grep -n "$NS" ../homelab/manifests/base/uptime-kuma/monitor-baseline-configmap.yaml
+
+# 3. The CRD-shaped probers
+kubectl get servicemonitor,podmonitor,probe -A -o json \
+  | jq -r --arg ns "$NS" '.items[] | select(tostring | contains($ns)) | "\(.kind) \(.metadata.namespace)/\(.metadata.name)"'
+```
+
+**Searching only (3) is not enough, and that mistake has been made here.** On
+2026-10-29 the new `lifeonabike` policy (PR #1087) was verified by searching
+ServiceMonitor / PodMonitor / Probe CRDs, which returned nothing, and the
+conclusion recorded was "nothing in-cluster probes lifeonabike". blackbox's
+targets are a `static_configs` list inside kube-prometheus-stack's `values.yaml`
+— a CRD search **structurally cannot see them**.
+
+The result: `EndpointDown` at severity **critical** for two and a half days, plus
+both SLO burn-rate alerts and finally `SLOErrorBudgetExhausted` at 90.13%
+30-day availability. Fixed in PR #1105.
+
+Live-traffic testing could not catch it either — every public path and all 12
+sitemap URLs returned 200 the whole time, because **only the internal probe was
+blocked**. The thing whose entire job is to notice this was the thing that got
+cut off.
+
+The reciprocal guidance already existed in
+[Adding a new SLO target](../monitoring/slos.md#adding-a-new-slo-target) step 4,
+which says to check that the destination namespace admits
+`app=blackbox-exporter`. It just wasn't reachable from this direction. Now it is.
+:::
 
 ### Step 1: Create Policy File
 

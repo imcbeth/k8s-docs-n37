@@ -125,6 +125,54 @@ Three alert tiers, all at `warning` severity for now (promote to `critical` afte
   for: 30m
 ```
 
+## The lifeonabike outage, 2026-10-29
+
+The first time the error budget was genuinely spent, and it is worth recording
+because nothing was wrong with the service.
+
+A NetworkPolicy added to the `lifeonabike` namespace (PR #1087) admitted
+ingress-nginx, cloudflared and uptime-kuma to `web:8080` — and omitted
+**blackbox-exporter**, which runs the `blackbox-availability-internal` probe
+against `http://web.lifeonabike:80/` from the `default` namespace.
+
+```
+2026-10-29T14:22:20Z  the three NetworkPolicies created
+2026-10-29T14:23:46Z  EndpointDownWarning                      (+86 seconds)
+2026-10-29T14:27:46Z  EndpointDown — severity CRITICAL
+2026-10-29T14:28:59Z  SLOFastBurnRate — 14.4x sustainable
+2026-10-29T14:48:29Z  SLOSlowBurnRate — 6x
+2026-10-29T18:28:29Z  SLOErrorBudgetExhausted — 90.13% over 30d
+```
+
+Fixed 2026-11-01 in PR #1105 — two and a half days later.
+
+**The site was fine throughout.** Every public path and all 12 sitemap URLs
+returned 200 for the entire window. Only the internal probe was blocked, so the
+SLI read 0% while the service read 100%.
+
+Three things this is worth remembering for:
+
+1. **The SLI measured the probe path, not the service.** That is not a flaw —
+   a blocked backend probe is exactly the kind of regression this job exists to
+   catch — but a 90.13% figure in the 30-day window does **not** mean the blog
+   was down for three days, and the distinction should be made whenever that
+   number is quoted.
+2. **`SLOErrorBudgetExhausted` cannot clear on a fix.** It is a 30-day rolling
+   window, so it persists until the outage ages out — into late November here.
+   `EndpointDown`, `EndpointDownWarning` and both burn-rate alerts cleared
+   within minutes of the policy fix; the budget alert did not and should not.
+3. **The alert was not read for 2.5 days.** A security review on the 29th
+   checked 38/38 applications Synced+Healthy and confirmed the public site
+   served correctly, and never re-read the firing alert list after applying the
+   policy. Application health and end-user reachability are both blind to a
+   blocked internal prober.
+
+The guidance that would have prevented it was already on this page, at
+[Adding a new SLO target](#adding-a-new-slo-target) step 4. What was missing was
+the reverse lookup — a warning on the *NetworkPolicy* side that the namespace is
+already a probe target. That now exists at
+[Network Policies → Adding New Policies, Step 0](../security/network-policies.md#adding-new-policies).
+
 ## Operational queries
 
 ```promql
@@ -188,6 +236,10 @@ probe_success{slo_path="ingress"}
 The probe never got a response. Almost always one of:
 
 - **Connection timeout (5s default)**. Check NetworkPolicy on both source AND destination. Run `wget --timeout=8 -qO- <url>` from inside the blackbox-exporter pod to compare.
+  **The most likely cause is a NetworkPolicy that was added to the target
+  namespace for unrelated reasons** — see
+  [the incident below](#the-lifeonabike-outage-2026-10-29). The probe is usually
+  not what changed.
 - **Redirect chain hits the MetalLB VIP hairpin**. The probe followed a 302 to an internal hostname that resolves to `10.0.10.10`, which is unreachable from non-mesh-meshed pods. Switch to a direct ClusterIP probe target.
 
 ### Probe reports `probe_success=0` with a real status code

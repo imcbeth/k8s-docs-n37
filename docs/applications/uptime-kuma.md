@@ -13,7 +13,7 @@ Uptime Kuma is a self-hosted uptime monitoring tool that provides a real-time st
 |----------|-------|
 | **Namespace** | `uptime-kuma` |
 | **Chart** | `helm-charts/uptime-kuma` v4.2.0 |
-| **App Version** | **`2.5.3`** — migrated from `1.23.17-debian` on 2026-09-07 (PR #908). See [The 1.x → 2.x migration](#the-1x--2x-migration-2026-09-07). |
+| **App Version** | **`2.5.9`** (2026-11-02, Renovate PR #1097) — migrated from `1.23.17-debian` on 2026-09-07 (PR #908). See [The 1.x → 2.x migration](#the-1x--2x-migration-2026-09-07). |
 | **ArgoCD App** | `uptime-kuma` (project: `infrastructure`, wave: `0`) |
 | **Status Page URL** | `https://status.k8s.n37.ca` |
 | **Storage** | 5Gi iSCSI PVC (`synology-iscsi-delete`) |

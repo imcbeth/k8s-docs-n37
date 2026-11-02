@@ -11,7 +11,7 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 
 - **Namespace:** `velero`
 - **Helm Chart:** `vmware-tanzu/velero`
-- **Chart Version:** `12.2.1` (running image `velero/velero:v1.18.4`)
+- **Chart Version:** `12.2.2` (as of 2026-11-02, via Renovate PR #1101; running image `velero/velero:v1.18.4`)
 - **App Version:** `v1.18.1`
 - **Deployment:** Managed by ArgoCD
 - **Backup Storage:** Backblaze B2 (production)

@@ -30,7 +30,7 @@ The `lifeonabike` namespace hosts the web application at `lifeonabike.ca`, a Clo
 | `cloudflared` | Deployment | Cloudflare Tunnel (2 replicas) |
 | `cloudflared-config` | ConfigMap | Tunnel routing rules |
 | `tunnel-credentials` | SealedSecret | Tunnel auth credentials |
-| `lifeonabike-registry-creds` | SealedSecret | Zot pull credentials for web Deployment |
+| `zot-puller-creds` | SealedSecret | Zot **read-only** pull credentials for the web Deployment (PR #1092 — replaced `lifeonabike-registry-creds`, which was the registry `admin` account) |
 | `lifeonabike-ca-tls` | Certificate | Let's Encrypt cert (apex + www SAN) |
 
 ## Cloudflare Tunnel
@@ -181,11 +181,38 @@ Git-crypt is configured to encrypt any file matching `*secret*`. SealedSecret fi
 
 ## Networking
 
-The `lifeonabike` namespace has no dedicated NetworkPolicy — the Cloudflare Tunnel pods only need:
+The namespace default-denies both directions as of 2026-10-29 (PR #1087). It was
+the **last workload namespace without a policy**, and the only one with a
+genuinely public ingress.
 
-- **Outbound HTTPS (443)** to Cloudflare's edge network
-- **Outbound HTTP to argo-events:12000** (for the build webhook routing)
-- **Outbound HTTP to web Service:80** (served locally within the namespace via the ClusterIP Service)
+Three policies rather than one — a single namespace-wide policy would have to
+grant the union of both workloads' needs, handing the public-facing nginx pod
+the internet egress that only cloudflared requires:
+
+| Policy | Selects | Allows |
+|---|---|---|
+| `lifeonabike-default-deny` | all pods | DNS egress only |
+| `lifeonabike-web` | `app.kubernetes.io/name: lifeonabike-web` | ingress **:8080** from ingress-nginx, cloudflared, uptime-kuma, blackbox-exporter |
+| `lifeonabike-cloudflared` | `app.kubernetes.io/name: cloudflared` | egress to the Cloudflare edge (**7844** UDP/TCP, 443, RFC1918 excluded), `web`:8080, `argo-events`:**12000** |
+
+:::danger Four callers reach `web`, and two are easy to miss
+
+- **ingress-nginx** — the `lifeonabike.ca` / `www` Ingress.
+- **cloudflared** — same namespace, proxies to the Service.
+- **uptime-kuma** — its `lifeonabike.ca` and `www.lifeonabike.ca` monitors hit
+  `http://web.lifeonabike:80` **internally**, not the public URL. See
+  `manifests/base/uptime-kuma/monitor-baseline-configmap.yaml`.
+- **blackbox-exporter** — the `blackbox-availability-internal` SLO probe, a
+  `static_configs` entry in kube-prometheus-stack's `values.yaml`.
+
+Omitting blackbox cost two and a half days of `EndpointDown` at severity
+critical while the site served perfectly — see
+[the incident writeup](../monitoring/slos.md#the-lifeonabike-outage-2026-10-29).
+:::
+
+`lifeonabike` is **not** ambient-meshed, which is why these policies carry none
+of the HBONE `:15008` or ztunnel link-local rules the meshed namespaces have.
+Enrolling the namespace without adding them first breaks all traffic.
 
 :::note Port mapping
 The `web` container runs nginx as a non-root user and binds to **port 8080** (non-privileged). The `web` Service maps **port 80 → targetPort 8080**. The Cloudflare Tunnel connects to the Service at port 80 (`web.lifeonabike.svc.cluster.local:80`), which kube-proxy translates to pod port 8080. The ingress-nginx NetworkPolicy egress rule allows port **8080** because ingress-nginx resolves backend Services to their pod endpoints (bypassing the Service ClusterIP) and connects directly to the pod on port 8080.
