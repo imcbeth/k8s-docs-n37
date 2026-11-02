@@ -65,7 +65,33 @@ set the LOCALSTACK_AUTH_TOKEN variable to a valid auth token.
 
 `localstack/localstack` is in `renovate.json` `ignoreDeps` for this reason — `versioning: "loose"` would cheerfully propose CalVer bumps that cannot work without a licence.
 
-**Trade-off, accepted deliberately:** this image cannot be updated without a LocalStack licence, so its CVEs are frozen at whatever `4.14.0` ships (6 fixable CRITICALs as of 2026-09-09). Tolerable only because it is a disposable test emulator on a private network with no untrusted input. If those CVEs ever matter, the options are a licence or replacing it with something else — MinIO would cover the S3 use Argo actually needs.
+**It was removed from `ignoreDeps` on 2026-10-29 and the bump broke the service again on 2026-11-01.** The removal (homelab PR #1089) reasoned that the entry existed because the 4.x → CalVer transition was *noisy*, and that once pinned to a CalVer tag it would track as ordinary semver. That reasoning was wrong, and the reason it was wrong is written above: the newer tags are a different distribution and need a token. The pod went straight into CrashLoopBackOff on `2026.10.4`; reverted in PR #1091.
+
+Ruled out our own config before reverting, since `PERSISTENCE=1` was the obvious suspect:
+
+| Attempt | Result |
+|---|---|
+| `2026.10.4` as shipped | exit 55 |
+| `2026.10.4` with `PERSISTENCE` removed | exit 55 |
+| `2026.10.4` with `SERVICES=s3` only | exit 55 |
+| `4.14.0` restored | Running, Ready |
+
+:::warning ArgoCD selfHeal makes live hypothesis tests lie
+The first of those attempts came back looking like a *disproved* hypothesis, because selfHeal reverted the `kubectl set env` within seconds and the pod that returned still had `PERSISTENCE=1`. Any experiment on a workload ArgoCD owns must first suspend auto-sync:
+
+```bash
+kubectl patch application localstack -n argocd --type=merge \
+  -p '{"spec":{"syncPolicy":{"automated":null}}}'
+# ... test ...
+kubectl patch application localstack -n argocd --type=merge \
+  -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
+```
+
+:::
+
+**Do not remove the `ignoreDeps` entry again.** It is a correctness guard, not noise suppression. The `packageRule` alongside it now carries that reasoning inline so the next reader doesn't have to find this page first.
+
+**Trade-off, accepted deliberately:** this image cannot be updated without a LocalStack licence, so its CVEs are frozen at whatever `4.14.0` ships (**25 CRITICAL and 179 HIGH as of 2026-11-01**, up from 6 fixable CRITICALs when this was first written on 2026-09-09 — the count grows as the pinned base image ages, which is the real cost of the pin). Tolerable only because it is a disposable test emulator on a private network with no untrusted input. If those CVEs ever matter, the options are a licence or replacing it with something else — MinIO would cover the S3 use Argo actually needs.
 :::
 
 ## Purpose

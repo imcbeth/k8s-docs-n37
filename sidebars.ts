@@ -130,6 +130,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'security/secrets-management',
         'security/network-policies',
+        'security/pod-security-admission',
         'security/resource-quotas',
         'security/runtime-security',
         'applications/falco',

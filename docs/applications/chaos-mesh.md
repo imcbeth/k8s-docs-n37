@@ -12,7 +12,7 @@ Chaos Mesh is a CNCF incubating chaos engineering platform that enables controll
 | Property | Value |
 |----------|-------|
 | **Namespace** | `chaos-mesh` |
-| **Chart** | `chaos-mesh/chaos-mesh` v2.8.6 (as of 2026-10-24, via Renovate PR #1063; appVersion 2.8.6) |
+| **Chart** | `chaos-mesh/chaos-mesh` v2.8.7 (as of 2026-11-02, via Renovate PR #1099; appVersion 2.8.7) |
 | **ArgoCD App** | `chaos-mesh` (project: `infrastructure`, wave: `0`) |
 | **Architecture** | ARM64 (`ghcr.io/chaos-mesh/*` images) |
 | **Dashboard** | Port-forward only (no external ingress) |
@@ -189,6 +189,49 @@ kubectl port-forward svc/chaos-dashboard -n chaos-mesh 2333:2333
 # Open http://localhost:2333
 ```
 
+## Active schedules — and keeping them off the health-check window
+
+| Schedule | Cron (UTC) | Local | Type | Duration |
+|---|---|---|---|---|
+| `pod-kill-prometheus` | `0 9 * * 3` | Wed 02:00/03:00 MT | PodChaos `pod-kill` | — |
+| `network-delay-loki` | `0 10 * * 3` | Wed 03:00/04:00 MT | NetworkChaos | 5m |
+| `cpu-stress-unipoller` | `0 11 * * 3` | Wed 04:00/05:00 MT | StressChaos | 3m |
+| `pod-failure-node04` | `0 20 1 * *` | 1st, ~14:00 MT | PodChaos `pod-failure` | 5m |
+
+:::danger `pod-failure-node04` must stay off 12:00Z **and** 13:00Z
+It ran at `0 12 1 * *` until 2026-11-01. That is the **same minute** as two
+scheduled validators:
+
+```
+cluster-healthcheck       CronWorkflow  0 6 * * *    America/Edmonton
+velero-backup-validation  CronWorkflow  1st @ 06:00  America/Edmonton
+```
+
+The health check fired, saw the deliberately-failed pods, and reported
+real-looking failure — **every month it ran**: 2026-09-01, 2026-10-01 and
+2026-11-01, all at `12:00:00Z`. Each produced a false `ClusterHealthDegraded`
+and a lingering `ArgoWorkflowFailed`.
+
+The noise was not the worst of it. **`velero-backup-validation` runs in
+`argo-workflows`, which is inside this experiment's namespace allowlist.** A
+chaos-killed verify step and a genuine backup failure are indistinguishable in
+the result, so the collision quietly undermined the one monthly DR check the
+cluster has.
+
+Moved to `0 20 1 * *` (~14:00 MT) in homelab PR #1106 — clear of the 04:00
+restore validator and the whole 06:00 batch, and in waking hours.
+
+**Chaos Mesh `Schedule` has no timezone field; the cron is UTC.** "06:00
+America/Edmonton" is `12:00Z` in summer and `13:00Z` in winter, so a schedule
+that looks safe in November silently collides again in March. Avoid both.
+:::
+
+**Residual, accepted:** `publish-divergence-check` is a CronJob on a 30-minute
+cadence in `argo-workflows`, so a 5-minute experiment still has roughly a 1-in-6
+chance of catching one and raising `KubeJobFailed`. Narrowing the namespace
+allowlist would fix that but would also stop testing the CI/CD path, which is
+deliberate coverage.
+
 ## Resource Usage
 
 | Component | CPU Request | CPU Limit | Memory Request | Memory Limit |
@@ -264,6 +307,50 @@ The four cert Secrets are populated on first startup. If a webhook call arrives 
 kubectl get secret -n chaos-mesh | grep certs
 kubectl wait pod -n chaos-mesh -l app.kubernetes.io/component=controller-manager --for=condition=Ready
 ```
+
+### Targets CrashLooping with `exec /pause: exec format error`
+
+**This is a `pod-failure` experiment working as designed, not a fault.** Diagnose
+it as chaos before diagnosing it as anything else.
+
+`pod-failure` works by swapping the target container's image for a pause image,
+and the one Chaos Mesh uses — `gcr.io/google-containers/pause:latest` — is
+**`linux/amd64` only**. On this ARM64 cluster the targets therefore do not pause
+cleanly; they CrashLoopBackOff with:
+
+```
+exec /pause: exec format error
+```
+
+exiting 255 with `startedAt == finishedAt`. The effect on the workload is the
+same (it is down, which is the point), but the *appearance* is a crash rather
+than a pause.
+
+The signature to recognise:
+
+- several **unrelated** workloads failing at once
+- all on **one node**
+- instant exit, identical message
+- **self-recovering** after the experiment's `duration`
+
+```bash
+# Confirm before chasing anything else — this names the exact pods
+kubectl get podchaos -n chaos-mesh
+kubectl get podchaos -n chaos-mesh <name> \
+  -o jsonpath='{.status.experiment.containerRecords[*].id}{"\n"}'
+```
+
+:::note Pods with an explicit `command` fail differently
+A target whose spec sets `command: [/bin/sh, ...]` fails with
+`runc create failed: ... exec: "/bin/sh": stat /bin/sh: no such file or directory`
+instead, because the pause image has no shell. Same injection, different
+message — on 2026-11-01 this made one CronJob look like a separate problem for a
+while.
+:::
+
+On 2026-11-01 this cost an hour of chasing containerd (never restarted), disk
+and inode exhaustion (53% and 10% — both fine) before the pods' own logs
+settled it. Check `podchaos` first.
 
 ### chaos-mesh pods running `pause:latest` (self-lockup)
 

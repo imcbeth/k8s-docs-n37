@@ -190,10 +190,99 @@ Custom rules tuned for the homelab environment:
 
 ### Disabled Rules (Noise Reduction)
 
-The following rules are disabled to reduce noise in a development/homelab environment:
+Exactly **one** rule is disabled:
 
-- `Terminal shell in container` - Common for debugging
-- `Attach/Exec Pod` - Common kubectl usage
+- `Terminal shell in container` — common for debugging
+
+```bash
+# Confirm, against the running engine rather than the values file:
+POD=$(kubectl get pod -n falco -l app.kubernetes.io/name=falco \
+  -o jsonpath='{.items[0].metadata.name}')
+kubectl exec -n falco "$POD" -c falco -- \
+  falco -r /etc/falco/falco_rules.yaml -r /etc/falco/rules.d/homelab-rules.yaml \
+        -l 'Terminal shell in container' | jq '.rules[0].info.enabled'
+```
+
+:::note `Attach/Exec Pod` was listed here and never existed
+This page previously claimed `Attach/Exec Pod` was also disabled. It is not —
+and it **cannot** be, because no such rule is in the loaded ruleset. Querying it
+with `falco -l 'Attach/Exec Pod'` returns nothing. It is a `k8saudit` plugin
+rule, and this install loads only the `container` plugin (`load_plugins: [container]`).
+
+Corrected 2026-11-02. Worth the note because "we disabled that noisy rule" is a
+claim that quietly becomes a belief about coverage.
+:::
+
+### One rule was 99.8% of all detections
+
+`Contact K8S API Server From Container` logged **178,428 of 178,701 matches over
+seven days** (measured 2026-10-29). What it buried:
+
+| Matches (7d) | Share | Rule |
+|---:|---:|---|
+| 178,428 | 99.8% | Contact K8S API Server From Container |
+| 230 | 0.1% | Read sensitive file untrusted |
+| 28 | 0.0% | Drop and execute new binary in container |
+| 15 | 0.0% | Clear Log Activities |
+
+This was not cosmetic. `falcosidekick-ui` keeps 7 days in Redis under
+`maxmemory-policy allkeys-lru`, so roughly 25k events/day of this one rule were
+actively **evicting** the 0.2% worth reading. The signal was being deleted by
+the noise.
+
+Every source was identified from the event stream in Loki — a 24h window,
+24,551 events, 20 distinct sources — and all 20 were cluster components doing
+the job they were deployed to do: the synology-csi PVC prober and remediator,
+the Grafana and Loki config sidecars, the Flink and Strimzi operators, Calico,
+Prometheus service discovery, Velero, the ArgoCD application controller, and our
+own kubectl CronJobs.
+
+Fixed in PR #1088 at the **upstream extension point**, not by disabling the rule.
+`user_known_contact_k8s_api_server_activities` ships as `(never_true)` precisely
+so operators can fill it in:
+
+```yaml
+- macro: user_known_contact_k8s_api_server_activities
+  override:
+    condition: replace
+  condition: >
+    (
+      (k8s.ns.name in (synology-csi, uptime-kuma, default) and
+       container.image.repository = "docker.io/alpine/k8s") or
+      ...
+    )
+```
+
+The rule **stays enabled**, so an unexpected container talking to the API server
+still fires. Exemptions are **(namespace AND image) pairs, never image alone** —
+a compromised pod running `alpine/k8s` anywhere other than the three namespaces
+that legitimately do still alerts, and that pairing is most of the value of
+keeping the rule on at all.
+
+Result after rollout: **zero matches in 8 minutes**, down from ~25k/day.
+
+:::tip Verify an override by compiling it, not by reading it
+`falco --validate` only proves the file parses. To prove an override actually
+landed in the rule, compile it and inspect `condition_compiled`:
+
+```bash
+falco -r /etc/falco/falco_rules.yaml -r /etc/falco/rules.d/homelab-rules.yaml \
+      -l 'Contact K8S API Server From Container' \
+  | jq -r '.rules[0] | "enabled=\(.info.enabled)", .details.condition_compiled'
+```
+
+Expect the trailing `and not ((k8s.ns.name in (synology-csi, …)) or …)` clause
+and `enabled=true`. This check also confirmed the override survived the
+9.2.1 → 9.2.2 chart bump on 2026-11-01.
+:::
+
+:::caution Two upstream allowlist entries do not match our images
+`velero/velero` and `prom/prometheus` are already in upstream's
+`k8s_containers` allowlist, but spelled **unqualified**. Our images carry the
+registry prefix (`docker.io/velero/velero`, `quay.io/prometheus/prometheus`), so
+they never matched and had to be listed explicitly. Expect the same wherever
+upstream rules allowlist images by bare name.
+:::
 
 ## Upgrading Falco
 

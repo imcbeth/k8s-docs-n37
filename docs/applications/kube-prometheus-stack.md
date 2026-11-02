@@ -11,7 +11,7 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 
 - **Namespace:** `default`
 - **Helm Chart:** `prometheus-community/kube-prometheus-stack`
-- **Chart Version:** `92.13.1` (as of 2026-10-24, via Renovate PR #1069; appVersion v0.94.1). Three chart-major bumps in quick succession: 87→89 (PR #854) and 89→90 (PR #873), both on 2026-09-06/07. Notable images: prometheus-operator `v0.93.1`, prometheus `v3.14.0`, alertmanager `v0.34.0`, thanos `v0.42.4`. Chart v87 upgrade path requires the `crds.upgradeJob` — see Deployment Notes below for the Gatekeeper-compatible values.
+- **Chart Version:** `92.17.0` (as of 2026-11-02, via Renovate PR #1104; appVersion v0.94.2). Three chart-major bumps in quick succession: 87→89 (PR #854) and 89→90 (PR #873), both on 2026-09-06/07. Notable running images: prometheus-operator `v0.94.2`, prometheus `v3.15.1`, alertmanager `v0.34.2` (PR #1102), thanos `v0.42.5` (PR #1103, **not deployed** — see below). Chart v87 upgrade path requires the `crds.upgradeJob` — see Deployment Notes below for the Gatekeeper-compatible values.
 - **App Version:** `v0.91.0` (prometheus-operator)
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-15` (deploys after UniFi Poller, before cert-manager)
@@ -278,6 +278,22 @@ prometheusOperator:
         repository: jkroepke/kube-webhook-certgen
         tag: 1.11.0
 ```
+
+### Thanos is pinned but not deployed
+
+`values.yaml` carries a thanos tag in two places — `prometheusOperator.thanosImage`
+and `thanosRuler.thanosRulerSpec.image` — and Renovate keeps both current
+(`v0.42.5` as of PR #1103). **Neither has anywhere to land:**
+
+```bash
+kubectl get prometheus -n default -o jsonpath='{.items[0].spec.thanos}'   # empty
+kubectl get pod -A -o json | jq '[.items[].spec.containers[] | select(.image | test("thanos"))] | length'   # 0
+```
+
+Thanos sidecar and Thanos Ruler are both disabled, so those bumps are no-ops
+that keep an unused value from going stale. Harmless, but worth knowing before
+spending time verifying that a "thanos upgrade" took effect — there is nothing to
+verify.
 
 Chart **92.13.1** added a new value, `secretType: kubernetes.io/tls`, which makes the certgen
 Job pass `--secret-type`. That flag exists only in `kube-webhook-certgen` **1.11.0 or newer**

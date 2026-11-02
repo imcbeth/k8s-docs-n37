@@ -17,7 +17,7 @@ Zot is a CNCF incubating, OCI-native container registry. It serves as the cluste
 | **ArgoCD App** | `zot` (project: `infrastructure`, wave: `-2`) |
 | **UI / API URL** | `https://registry.k8s.n37.ca` |
 | **Storage** | 50Gi iSCSI PVC (`synology-iscsi-delete`) |
-| **Auth** | htpasswd via SealedSecret (`zot-htpasswd`) — anonymous reads enabled (PR #595) |
+| **Auth** | htpasswd via SealedSecret (`zot-htpasswd`) — two users, `admin` and `puller`; anonymous reads enabled (PR #595) |
 
 ## Purpose
 
@@ -117,6 +117,82 @@ spec:
 ```
 
 `imagePullSecrets` are only needed when pulling from a registry that requires authentication — for example, if anonymous reads were disabled or when pulling from private repositories. Gatekeeper's `allowed-repos` constraint already includes `registry.k8s.n37.ca`.
+:::
+
+### Two accounts: `admin` and `puller`
+
+Until 2026-10-29 there was exactly **one** account — `admin`, with
+`read/create/update/delete` on every repository. And
+`lifeonabike-registry-creds`, mounted into the **public-facing blog pod**, *was*
+that account.
+
+A compromise of the most exposed pod in the cluster therefore yielded the
+ability to replace or delete any image other workloads pull. That is a
+supply-chain foothold, not a registry-hygiene nit.
+
+PR #1092 added a read-only user and moved the web pod onto it:
+
+```json
+"accessControl": {
+  "repositories": { "**": { "defaultPolicy": ["read"], "anonymousPolicy": ["read"] } },
+  "adminPolicy":  { "users": ["admin"], "actions": ["read","create","update","delete"] }
+}
+```
+
+| Account | Rights | Used by |
+|---|---|---|
+| `admin` | read, create, update, delete | the Argo build pipeline (it genuinely needs to push) |
+| `puller` | read only, via `defaultPolicy` | `lifeonabike` web pod (`zot-puller-creds`) |
+| *anonymous* | read | every pod pulling through the cache without credentials |
+
+`defaultPolicy` is zot's *"authenticated but matching no user-specific policy"*
+tier, which is exactly what a pull-only consumer needs. The admin SealedSecret is
+no longer applied to the `lifeonabike` namespace at all.
+
+Verified behaviourally after rollout:
+
+| Check | Result |
+|---|---|
+| anonymous read `/v2/_catalog` | 200 |
+| `puller` read a private manifest | 200 |
+| `puller` with a wrong password | 401 |
+| `puller` POST `blobs/uploads/` | **403** |
+| `puller` DELETE a real manifest | **403** |
+| `admin` read / push | 200 / 202 |
+
+:::danger Repository pattern matching: the LONGEST match wins
+When several `repositories` patterns match a path, zot applies the **most
+specific** one — it does not merge them. So adding `lifeonabike/**` would
+*override* the `**` entry and silently drop whatever `anonymousPolicy` the broad
+pattern was providing.
+
+That is why there is deliberately **no** per-repository pattern here, even
+though scoping the private repos tighter looks appealing. The `**`
+`anonymousPolicy: ["read"]` is the safety net that makes this change incapable of
+breaking a pull.
+:::
+
+:::note Closing anonymous read is blocked on flink-demo
+`anonymousPolicy: ["read"]` is deliberately unchanged. Every pod in the cluster
+pulls through `registry.k8s.n37.ca` without credentials, so closing it is an
+`imagePullSecret` rollout across every consumer, not a config edit.
+
+The specific blocker: the `flink-demo` FlinkDeployments have **no
+`imagePullSecrets` in their podTemplates**, so they would `ImagePullBackOff` the
+moment the registry is closed.
+:::
+
+:::tip The htpasswd file had no trailing newline
+Appending a user with `htpasswd -bB` concatenated the new entry onto the `admin`
+line and produced a corrupt three-field record — which `awk -F:` still displayed
+as a single valid-looking user. Normalise first, then verify:
+
+```bash
+{ cat htpasswd.orig; echo; } > htpasswd.new
+htpasswd -bB htpasswd.new puller "$PW"
+awk -F: '{print NF}' htpasswd.new    # every line must print 2
+```
+
 :::
 
 ### Use as a Pull-Through Cache in Kubernetes Deployments

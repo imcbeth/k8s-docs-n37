@@ -499,6 +499,50 @@ spec:
     namespace: kube-system
 ```
 
+### Verifying after a controller upgrade
+
+The sealing keys live as Secrets in `kube-system` labelled
+`sealedsecrets.bitnami.com/sealed-secrets-key`, entirely independent of the
+chart — so a controller upgrade reads the existing keys and nothing needs
+re-sealing. That is the theory; check it anyway, because this is the one
+component whose silent failure makes every `*-sealed.yaml` in the repo
+undecryptable.
+
+```bash
+# Every SealedSecret should report Synced=True
+kubectl get sealedsecret -A -o json | jq -r '
+  .items[]
+  | select([.status.conditions[]? | select(.type=="Synced" and .status=="True")] | length == 0)
+  | "NOT SYNCED: \(.metadata.namespace)/\(.metadata.name)"'
+
+# And the keys should all still be there
+kubectl get secret -n kube-system \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key --no-headers | wc -l
+```
+
+Chart `2.20.0` → `2.22.0` on 2026-11-02 (Renovate PR #1109) moved the controller
+`0.40.0` → `0.41.2`. Verified after: **19 SealedSecrets all Synced, 10 sealing
+keys intact.**
+
+:::tip A key missing from `helm show values` is not proof the chart dropped it
+Pre-flighting 2.22.0 made `securityContext`, `controller` and
+`podDisruptionBudget` look like they had been removed from the chart. They had
+not — `helm show values` prints only keys that carry **defaults**, and 2.20.0
+(then running happily) omitted all three as well.
+
+Always diff the new version against the **currently deployed** one before
+concluding a regression, and confirm with a render:
+
+```bash
+helm show values <repo>/<chart> --version <old> > /tmp/old.yaml
+helm show values <repo>/<chart> --version <new> > /tmp/new.yaml
+diff <(grep -oE '^[a-zA-Z]+:' /tmp/old.yaml) <(grep -oE '^[a-zA-Z]+:' /tmp/new.yaml)
+
+helm template x <repo>/<chart> --version <new> -f our-values.yaml | less
+```
+
+:::
+
 ### Resource Configuration
 
 Optimized for Raspberry Pi cluster:
