@@ -50,7 +50,7 @@ chaos-controller-manager (Deployment)
 The chaos-controller-manager mutation webhook listens on container port **10250** (not 443). The Service exposes 443 and forwards to 10250 internally.
 
 :::warning Bare port rule required for NetworkPolicy
-The API server (hostNetwork on control-plane) reaches the webhook across nodes via IPIP-encapsulated traffic. Calico IPIP rewrites the source IP so `ipBlock` rules matching the control-plane CIDR fail for cross-node traffic. Use a bare port rule (no `from` selector) for port 10250 in any NetworkPolicy.
+The API server (hostNetwork on control-plane) reaches the webhook across nodes. Until 2026-11-06, when Calico ran IPIP `Always`, that traffic was sourced from the tunnel address, so `ipBlock` rules matching the control-plane CIDR failed for cross-node traffic. With `IPIPCrossSubnet` it now arrives from the node IP. Keep the bare port rule (no `from` selector) for port 10250 anyway: it works in both modes.
 :::
 
 ### Mutation Webhook Behaviours

@@ -172,7 +172,7 @@ sequenceDiagram
     CD-->>Pod: A record (cached 30s)
 ```
 
-**Pod-to-internet TCP**: once the pod has the IP, traffic egresses via the node's default route → UDR → WAN. Calico does **not** NAT in IPIP mode for cross-cluster pod-to-pod — but pod-to-external traffic IS source-NAT'd to the node IP by the kernel's MASQUERADE.
+**Pod-to-internet TCP**: once the pod has the IP, traffic egresses via the node's default route → UDR → WAN. Calico does **not** NAT pod-to-pod traffic between nodes. Since 2026-11-06 (`IPIPCrossSubnet`) it is routed natively over `eth0` with the real pod IPs, no IP-in-IP header. Pod-to-external traffic IS source-NAT'd to the node IP by the kernel's MASQUERADE (`natOutgoing`).
 
 See [CoreDNS](./coredns.md) for resolver details and [Cloudflare Tunnel](./cloudflare-tunnel.md) for the reverse direction (inbound public traffic without a port-forward).
 
