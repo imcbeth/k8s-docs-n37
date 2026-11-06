@@ -829,9 +829,11 @@ This is why the SLO probe set is split into `blackbox-availability` (HTTPS via i
 
 See the [SLOs guide](../monitoring/slos.md#why-two-jobs) and [CoreDNS](../networking/coredns.md#public-service-through-split-horizon-argocdk8sn37ca) for more.
 
-### Calico IPIP rewrites source IP across nodes
+### Source IP of host-network traffic to pods on other nodes
 
-For cross-node pod-to-pod traffic, Calico's IPIP encapsulation rewrites the source IP. `ipBlock` rules matching node IPs become unreliable for K8s API → webhook traffic. Use bare port rules or namespaceSelector instead.
+Since 2026-11-06 the pod pool uses `IPIPCrossSubnet` (homelab #1119). All nodes share 10.0.10.0/24, so traffic from a host-network component, such as the kube-apiserver calling a webhook, reaches a pod on another node unencapsulated and **sourced from the node IP**. An `ipBlock` of `10.0.10.0/24` therefore matches it.
+
+Before that, with IPIP `Always`, the same traffic left through `tunl0` and was sourced from that node's tunnel address inside 192.168.0.0/16. `ipBlock` rules for node IPs silently missed it, which is why several webhook policies use a bare port rule. Bare port rules still work and remain the safest choice for webhooks. If a node is ever added on another subnet, its traffic is encapsulated again and the old behaviour returns for that node.
 
 ## Troubleshooting
 

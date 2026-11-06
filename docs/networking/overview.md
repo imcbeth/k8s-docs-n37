@@ -144,7 +144,7 @@ graph TB
         end
 
         subgraph Networking ["Cluster Networking"]
-            Calico["Calico CNI\nPod CIDR 192.168.0.0/16\nIP-in-IP encapsulation"]
+            Calico["Calico CNI\nPod CIDR 192.168.0.0/16\nBGP, native routing (IPIP cross-subnet only)"]
             Istio["Istio Ambient Mesh\nmTLS via ztunnel (port 15008)"]
             MLB["MetalLB L2\nLB Pool 10.0.10.10–10.0.10.99"]
             Ingress["ingress-nginx\n10.0.10.10 (LoadBalancer)"]
@@ -187,7 +187,7 @@ MAC addresses and PoE port mappings will be documented once collected.
 - **Operator Namespace:** `tigera-operator`
 - **Pod CIDR:** 192.168.0.0/16
 - **Block Size:** /26 (64 IPs per node)
-- **Encapsulation:** IP-in-IP
+- **Encapsulation:** `IPIPCrossSubnet` (since 2026-11-06, homelab #1119). All nodes share 10.0.10.0/24, so cross-node pod traffic is routed natively over BGP on `eth0`. IP-in-IP would only be used for a node on another subnet, so the pod MTU stays at 1480. Before this it was `IPIP` (Always).
 - **BGP:** Enabled
 - **Network Policy:** Enabled and actively configured
 - **Typha:** Deployed with topology spread constraints across all nodes (port 5473/tcp)
@@ -206,7 +206,7 @@ spec:
     bgp: Enabled
     ipPools:
       - cidr: 192.168.0.0/16
-        encapsulation: IPIP
+        encapsulation: IPIPCrossSubnet
         natOutgoing: Enabled
         blockSize: 26
     nodeAddressAutodetectionV4:
@@ -577,7 +577,7 @@ Ambient mode eliminates per-pod sidecars, reducing resource overhead by ~90% com
 
 **Symptoms:** Pods with `hostNetwork: true` cannot communicate across nodes.
 
-**Root Cause:** This is a known Calico limitation with IP-in-IP encapsulation.
+**Root Cause:** Recorded as a Calico limitation with IP-in-IP (Always) encapsulation. Not re-tested since the pool moved to `IPIPCrossSubnet` on 2026-11-06, which removes the tunnel between nodes in the same subnet. It may no longer apply.
 
 **Workaround:** Use pod network IPs instead of node IPs for inter-pod communication.
 
