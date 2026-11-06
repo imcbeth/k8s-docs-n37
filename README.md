@@ -108,8 +108,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, writing guidelines
 
 ## Architecture
 
-**Infrastructure:** 5x Raspberry Pi 5 (16GB each) running Kubernetes v1.35.x
-**GitOps:** ArgoCD managing 24 applications (all Synced & Healthy)
+**Infrastructure:** 5x Raspberry Pi 5 (16GB each) running Kubernetes v1.36.3
+**GitOps:** ArgoCD managing 38 applications (all Synced & Healthy)
 **Monitoring:** Prometheus + Grafana + Loki stack
 **Storage:** Synology NAS with CSI integration
 **Networking:** UniFi with VLAN segmentation

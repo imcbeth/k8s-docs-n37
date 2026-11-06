@@ -136,7 +136,7 @@ graph TB
             APIServer["kube-apiserver · etcd\nkube-scheduler\nkube-controller-manager"]
         end
 
-        subgraph Workers ["Worker Nodes (all: Ubuntu 24.04, K8s v1.35, 16 GB RAM, ARM64)"]
+        subgraph Workers ["Worker Nodes (all: Ubuntu 24.04, K8s v1.36, 16 GB RAM, ARM64)"]
             N1["node01  ·  10.0.10.235"]
             N2["node02  ·  10.0.10.211"]
             N3["node03  ·  10.0.10.244"]
