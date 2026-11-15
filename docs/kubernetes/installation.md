@@ -117,9 +117,12 @@ sudo ufw allow 10259/tcp      # kube-scheduler
 sudo ufw allow 10257/tcp      # kube-controller-manager
 sudo ufw allow 5000/tcp       # Docker Registry
 sudo ufw allow 30001/tcp      # Docker Registry External
-sudo ufw allow 179/tcp
-sudo ufw allow 4789/udp
-sudo ufw allow 2379:2380/tcp
+sudo ufw allow 179/tcp        # Calico BGP
+sudo ufw allow 4789/udp       # Calico VXLAN
+sudo ufw allow 5473/tcp       # Calico Typha
+sudo ufw allow 7946/tcp       # MetalLB speaker memberlist
+sudo ufw allow 15021/tcp      # Istio ztunnel health
+sudo ufw allow from 10.0.10.0/24 to any port 9120 proto tcp comment 'metallb speaker metrics'
 ```
 
 ### Firewall (Node ONLY)
@@ -129,10 +132,40 @@ sudo ufw allow 22/tcp
 sudo ufw allow 10250/tcp        # Kubelet API
 sudo ufw allow 10256/tcp        # kube-proxy
 sudo ufw allow 30000:32767/tcp  # NodePort Services
-sudo ufw allow 179/tcp
-sudo ufw allow 4789/udp
+sudo ufw allow 179/tcp          # Calico BGP
+sudo ufw allow 4789/udp         # Calico VXLAN
 sudo ufw allow 2379:2380/tcp
+sudo ufw allow 5473/tcp         # Calico Typha
+sudo ufw allow 7946/tcp         # MetalLB speaker memberlist
+sudo ufw allow 15021/tcp        # Istio ztunnel health
+sudo ufw allow from 10.0.10.0/24 to any port 9120 proto tcp comment 'metallb speaker metrics'
 ```
+
+These lists match `sudo ufw status` on all five nodes as of 2026-11-15. The
+default policy is deny incoming, allow outgoing, deny routed.
+
+:::warning hostNetwork ports need a ufw rule, not just a NetworkPolicy
+
+ufw filters traffic arriving at the **node's** IP. Pods that run with
+`hostNetwork: true` (MetalLB speakers, kubelet, kube-proxy) listen on that IP,
+so anything that reaches them from another node — Prometheus scrapes included —
+must be allowed here as well. A NetworkPolicy alone is not enough, and the
+failure is easy to misread: scrapes of the host on the **same** node as
+Prometheus succeed, because that traffic never crosses ufw, while every other
+node times out.
+
+This is how MetalLB speaker metrics (9120) were found on 2026-11-15: 1 of 5
+speakers up, the other 4 failing with `TLS handshake timeout`.
+
+Scope rules of this kind to the **node subnet** (`10.0.10.0/24`), not the pod
+CIDR. The Calico IP pool has `natOutgoing: true`, so a packet from a pod to an
+address outside the pool — which includes every node IP — is masqueraded to
+the sending node's IP before it leaves. The receiving node's ufw therefore
+sees `10.0.10.x` as the source, never `192.168.x.x`; a rule written for
+`192.168.0.0/16` matches nothing (confirmed with `tcpdump` on node02: the
+scrape SYN arrived from `10.0.10.220`, node04, where Prometheus runs).
+
+:::
 
 ```bash
 sudo ufw enable
