@@ -339,7 +339,8 @@ which can be days. Measured on this cluster:
 | the same, guarded by recent restarts | **0** |
 
 Without the guard the alert fires once and never clears. That is exactly what made
-`CriticalClusterRoleRBACIssues` useless enough to demote to `info`.
+`CriticalClusterRoleRBACIssues` useless enough to demote to `info` (and, on 2026-11-15, to
+replace with a 24h-delta rule).
 :::
 
 No `for:` clause: an OOM kill is a discrete event that already happened, so waiting to confirm
