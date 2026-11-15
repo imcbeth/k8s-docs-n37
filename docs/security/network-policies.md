@@ -301,7 +301,32 @@ Istio Ambient uses transparent proxy (TPROXY) which **preserves source IPs**. Th
 
 1. **HBONE Tunnel (Port 15008):** All mesh traffic is tunneled over mTLS on port 15008
 2. **Source IP Preserved:** NetworkPolicies see the original source namespace, not istio-system
-3. **Dual Rules Required:** Allow both HBONE (15008) and application ports from source namespaces
+3. **Application-port rules only bind non-meshed sources.** Allow the application
+   port for traffic from non-meshed pods (and the node / kubelet), and 15008 for
+   meshed sources. Between two meshed pods, only the 15008 rule is evaluated —
+   see the warning below.
+
+:::danger Between two meshed pods, application-port rules are not enforced
+
+HBONE traffic reaches the destination pod on 15008, and ztunnel then delivers
+the connection **inside that pod's network namespace**. NetworkPolicy sees the
+15008 packet and nothing else, so a rule such as "4222 from `podSelector: {}`"
+in an ambient namespace documents intent but restricts nothing for meshed
+callers.
+
+Verified 2026-11-15: from meshed `default/prometheus`, NATS 4222 and its
+monitoring port 8222 in `argo-events` both answered, although the policy admits
+them only from inside `argo-events`. A non-meshed control (cert-manager 9403,
+not admitted) timed out as expected.
+
+At that date all 11 ambient namespaces admitted 15008 **from anywhere** and the
+cluster had no Istio `AuthorizationPolicy`, so any meshed pod could reach any
+port on any other meshed pod. Restricting the 15008 rule's `from` restores
+namespace-level control; port-level control between meshed pods needs Istio
+`AuthorizationPolicy` (enforced by ztunnel). Tracked as O8 in the homelab
+`TODO.md`.
+
+:::
 
 ### Pattern for Meshed Namespaces
 
