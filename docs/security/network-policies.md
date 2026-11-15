@@ -73,8 +73,8 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
 
 ## Protected Namespaces
 
-**30 namespaces carry NetworkPolicies — 35 policies in total** (verified
-2026-11-02). Ports listed are the application-specific ones; DNS (53), HTTPS
+**30 namespaces carry NetworkPolicies — 36 policies in total** (verified
+2026-11-15). Ports listed are the application-specific ones; DNS (53), HTTPS
 (443), the API server (6443) and the Istio ports (15008/15012/15017) are
 covered by the [universal patterns](#universal-patterns) below and omitted here.
 
@@ -82,26 +82,26 @@ covered by the [universal patterns](#universal-patterns) below and omitted here.
 |-----------|---------|-------------|-----------|
 | argo-events | Webhook event sources, NATS JetStream | Ambient | 4222, 6222, 7777, 8222, 12000 |
 | argo-workflows | CI/CD pipelines | Ambient | 2746, 4566, 5000, 9090 |
-| argocd | GitOps controller | No | 8080, 8443, 6379, 5556/5557 (Dex) |
+| argocd | GitOps controller | No | 8080, 6379, 5556/5557 (Dex) |
 | calico-system | CNI | No | 5443 |
 | cert-manager | TLS certificates | No | 9402 |
 | chaos-mesh | Chaos engineering | No | 2333, 10080, 31766, 31767 |
 | default | Monitoring stack, blackbox-exporter | Ambient | 3000, 9090, 9093, 9115, 9100 |
 | external-dns | DNS management | No | 7979, 8080, 8888 |
-| falco | Runtime security | No | 2801, 2802, 5060, 6379, 8765 |
+| falco | Runtime security | No | 2801, 2802, 6379, 8765 |
 | flink-demo | Flink streaming jobs | Ambient | 6123, 6124, 8081, 9092 |
 | flink-operator | Flink operator | Ambient | 8081, 9443 |
 | gatekeeper-system | Admission control | No | 8443, 8888, 9090 |
 | ingress-nginx | HTTP/HTTPS ingress controller | No | 80, 10254 |
 | istio-system | Service mesh control plane | No | 15010, 15014, 15020 |
-| kafka | Kafka brokers | Ambient | 9090–9092, 9404 |
-| kube-system | CoreDNS, metrics-server, sealed-secrets | No | 9153, 10255, 10256 |
+| kafka | Kafka brokers | Ambient | 9090–9092 |
+| kube-system | CoreDNS, metrics-server, sealed-secrets | No | 9153, 10255 |
 | **lifeonabike** | **Public blog + Cloudflare tunnel** | **No** | **7844, 8080, 12000** |
 | localstack | S3 emulator for Argo artifacts | Ambient | 4566 |
 | loki | Log aggregation | Ambient | 3100, 7946, 9095, 12345 |
-| metallb-system | Load balancer | No | 7472, 7473, 7946 |
+| metallb-system | Load balancer | No | 9120, 9443 |
 | oauth2-proxy | GitHub SSO forward-auth | No | 4180 |
-| strimzi-system | Kafka operator | Ambient | 9090–9092, 9404, 9443 |
+| strimzi-system | Kafka operator | Ambient | 9090–9092 |
 | synology-csi | Storage driver | No | 3260 (iSCSI), 9808 |
 | tempo | Distributed tracing | No | 3200, 4317, 4318 |
 | tigera-operator | Calico management | No | 5443 |
@@ -581,26 +581,22 @@ Load balancer with memberlist clustering.
 
 **Note:** Layer 2 ARP/GARP announcements bypass NetworkPolicy (Layer 2 vs Layer 3/4).
 
+**Note:** The speakers run with `hostNetwork: true`, so pod NetworkPolicy does not
+apply to them at all — neither their metrics port (9120) nor memberlist (7946),
+which runs only between speakers. Both are governed by each node's ufw instead
+(see [Installation → Firewall](../kubernetes/installation.md#firewall-node-only)).
+The policy below covers only the controller, which is an ordinary pod.
+
 ```yaml
 ingress:
-  # Prometheus metrics
+  # Prometheus metrics (controller only, HTTPS)
   - from:
       - namespaceSelector:
           matchLabels:
             kubernetes.io/metadata.name: default
     ports:
       - protocol: TCP
-        port: 7472   # controller metrics
-      - protocol: TCP
-        port: 7473   # speaker metrics
-  # Intra-namespace memberlist
-  - from:
-      - podSelector: {}
-    ports:
-      - protocol: TCP
-        port: 7946
-      - protocol: UDP
-        port: 7946
+        port: 9120
   # Webhook from control plane
   - from:
       - ipBlock:
@@ -611,7 +607,6 @@ ingress:
 
 egress:
   # DNS, K8s API
-  # Intra-namespace memberlist
 ```
 
 ## ArgoCD Deployment
