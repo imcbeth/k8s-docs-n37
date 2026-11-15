@@ -272,23 +272,57 @@ PrometheusRule: `trivy-operator-alerts`
 All alerts restored to active status after the v0.29.0 vulnerability scanning bug was resolved (PR #410).
 :::
 
-**Active Alerts (RBAC & Compliance):**
+All seven rules, as deployed (verified 2026-11-15). `info` routes to
+Alertmanager's null receiver, so it is visible in the Alertmanager UI but never
+mailed.
 
-- `CriticalClusterRoleRBACIssues`: ClusterRoles with CRITICAL RBAC issues
-- `HighClusterRoleRBACIssues`: ClusterRoles with >10 HIGH severity issues
-- `CriticalConfigurationIssues`: Critical Kubernetes misconfigurations
-- `ExposedSecretsDetected`: Secrets found in images (immediate action required)
-- `CISKubernetesBenchmarkFailures`: CIS compliance failures
-- `NSAKubernetesHardeningFailures`: NSA hardening failures
-- `PSSBaselineComplianceFailures`: Pod Security Standards Baseline failures (added 2026-03-01)
-- `PSSRestrictedComplianceFailures`: Pod Security Standards Restricted failures (added 2026-03-01)
+| Alert | Severity | Fires when |
+|-------|----------|------------|
+| `ClusterRoleRBACIssuesIncreased` | warning | ClusterRole Critical or High RBAC findings rose vs. 24h ago (one alert per severity) |
+| `CriticalVulnerabilitiesIncreased` | warning | Cluster-wide CRITICAL CVE count rose vs. 24h ago |
+| `ImageCriticalVulnerabilitiesHigh` | warning | A single image carries >10 CRITICALs (`for: 6h`; three accepted-risk images excluded by exact tag) |
+| `HighVulnerabilitiesIncreased` | info | Cluster-wide HIGH CVE count rose vs. 24h ago |
+| `CriticalConfigurationIssues` | warning | Any Role/ClusterRole config audit report has a Critical finding |
+| `ExposedSecretsDetected` | critical | Critical/High secret found in an image (localstack excluded) |
+| `ClusterComplianceFailuresIncreased` | warning | A compliance framework (CIS, NSA, PSS Baseline/Restricted) has more failing controls than 24h ago, one alert per report `title` |
 
-**Vulnerability Alerts (redesigned 2026-09-07):**
+#### Why the posture alerts became deltas (2026-11-15)
 
-- `CriticalVulnerabilitiesIncreased`: cluster-wide CRITICAL count rose vs. 24h ago
-- `ImageCriticalVulnerabilitiesHigh`: a single image carries >10 CRITICALs (`for: 6h`)
-- `HighVulnerabilityCount`: Image has >20 HIGH vulnerabilities
-- `ClusterCriticalVulnerabilityThresholdExceeded`: >100 CRITICAL CVEs cluster-wide
+Six rules compared inherent posture against a fixed threshold, so they fired
+permanently and never cleared:
+
+| Removed | Expression | Value on 2026-11-15 |
+|---------|-----------|---------------------|
+| `CriticalClusterRoleRBACIssues` | Critical RBAC findings `> 0` | 48 |
+| `HighClusterRoleRBACIssues` | High RBAC findings `> 10` | 23 |
+| `HighVulnerabilityCount` | Critical+High CVEs `> 50` | ~1,600 |
+| `CISKubernetesBenchmarkFailures` | failing controls `> 0` | 16 |
+| `NSAKubernetesHardeningFailures` | failing controls `> 0` | 7 |
+| `PSSBaselineComplianceFailures` / `PSSRestrictedComplianceFailures` | failing controls `> 0` | 3 / 3, but see below |
+
+The RBAC findings are mostly KSV041 (can manage secrets) and KSV046 (can manage
+all resources) on operator ClusterRoles that genuinely need those grants. The
+rules had been demoted to `info` on 2026-09-14 to stop a daily email, which also
+meant **nothing** notified on RBAC drift. They now use the same
+`x - x offset 24h > 0` pattern as `CriticalVulnerabilitiesIncreased`: silent
+while the posture is steady, firing when a chart upgrade or new app makes it
+worse, and resolving once the higher count is 24h old. The 14-day maximum of
+each new RBAC and compliance delta was 0 when they were introduced.
+
+:::warning The PSS rules could never fire
+They matched `title=~".*PSS.*"`, but trivy-operator's report titles are
+`Kubernetes Pod Security Standards - Baseline` and `... - Restricted`, which do
+not contain "PSS". Both rules, including Restricted at `warning`, matched
+nothing from the day they were added (2026-03-01). The replacement groups by
+`title` instead of matching it, so there is no regex to get wrong, and a newly
+enabled framework is covered without editing the rule. It aggregates with
+`max by (title)` because the raw series carry a `pod` label that changes on
+every trivy-operator restart, which would break the `offset 24h` match.
+:::
+
+`HighVulnerabilitiesIncreased` stays `info` deliberately: the HIGH count rose in
+171 of the 336 hours before the change, because it moves with nearly every image
+bump.
 
 #### Why `CriticalVulnerabilitiesDetected` was removed
 
@@ -312,10 +346,10 @@ The replacement asks two questions that *are* actionable:
   for: 6h
 ```
 
-The standing total is still visible on dashboards and in `ClusterCriticalVulnerabilityThresholdExceeded` — it just no longer pages per workload. Routine CVE reduction belongs in the [remediation workflow](./trivy-vulnerability-remediation.md), not in the alert stream.
+The standing total is still visible on dashboards — it just no longer alerts per workload. Routine CVE reduction belongs in the [remediation workflow](./trivy-vulnerability-remediation.md), not in the alert stream.
 
 :::note `HighRiskRBACPermissions` deleted as a duplicate
-It was an un-aggregated twin of `CriticalClusterRoleRBACIssues` — same underlying condition, counted per ClusterRole instead of summed, so every real finding alerted twice.
+It was an un-aggregated twin of `CriticalClusterRoleRBACIssues` (itself replaced by `ClusterRoleRBACIssuesIncreased` on 2026-11-15) — same underlying condition, counted per ClusterRole instead of summed, so every real finding alerted twice.
 :::
 
 #### On stale VulnerabilityReports
