@@ -62,7 +62,7 @@ graph TB
 - **GitOps**: ArgoCD for declarative application management
 - **Monitoring**: Prometheus, Grafana, and AlertManager
 - **DNS**: External-DNS with Cloudflare and UniFi providers
-- **Ingress**: NGINX Ingress Controller with TLS
+- **Ingress**: Istio Gateway API LAN gateway with TLS (replaced NGINX Ingress Controller in November 2026)
 
 ## Design Principles
 

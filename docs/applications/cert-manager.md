@@ -415,53 +415,43 @@ Recommended alerts to configure:
 
 ## Adding New Certificates
 
-### For a New Ingress
+### For a New LAN Gateway Host
 
-Simply add the cert-manager annotation to your Ingress:
+The cluster has no Ingress objects since 2026-11-15. Hosts on the [LAN gateway](./lan-gateway.md) use an explicit `Certificate` in `istio-system`, added to `manifests/base/istio-gateway/certificates.yaml`:
 
 ```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: cert-manager.io/v1
+kind: Certificate
 metadata:
-  name: my-app-ingress
-  namespace: my-app
-  annotations:
-    cert-manager.io/cluster-issuer: "lets-encrypt-k8s-n37-ca-prod"
+  name: myapp-k8s-n37-ca-gw
+  namespace: istio-system
 spec:
-  ingressClassName: nginx
-  tls:
-  - hosts:
+  secretName: myapp-k8s-n37-ca-gw-tls
+  dnsNames:
     - myapp.k8s.n37.ca
-    secretName: myapp-k8s-n37-ca-nginx-tls
-  rules:
-  - host: myapp.k8s.n37.ca
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: my-app-service
-            port:
-              number: 80
+  issuerRef:
+    kind: ClusterIssuer
+    name: lets-encrypt-k8s-n37-ca-prod
 ```
+
+The host's listener in `gateway.yaml` references `myapp-k8s-n37-ca-gw-tls` under `tls.certificateRefs`. Issuance is DNS-01 through Cloudflare, so nothing has to reach the gateway from the internet.
 
 **Process:**
 
-1. Apply Ingress manifest
-2. cert-manager detects annotation
-3. Creates Certificate resource automatically
-4. Initiates ACME challenge
-5. Certificate issued and stored in secret
-6. Ingress uses secret for TLS
+1. Merge the Certificate and the listener
+2. cert-manager creates the ACME order and a `_acme-challenge` TXT record
+3. Let's Encrypt validates the TXT record
+4. Certificate stored in the secret in `istio-system`
+5. Envoy picks up the secret for the listener (no restart)
 
 ### For Testing (Use Staging)
 
-Replace the issuer annotation:
+Point the Certificate at the staging issuer:
 
 ```yaml
-annotations:
-  cert-manager.io/cluster-issuer: "lets-encrypt-k8s-n37-ca-staging"
+  issuerRef:
+    kind: ClusterIssuer
+    name: lets-encrypt-k8s-n37-ca-staging
 ```
 
 ---
@@ -585,7 +575,7 @@ kubectl get secret <cert-secret> -n <namespace> -o jsonpath='{.data.tls\.crt}' |
 
 ## Related Documentation
 
-- [nginx-ingress](./ingress-nginx.md) - Ingress controller using these certificates
+- [LAN Gateway](./lan-gateway.md) - Gateway listeners using these certificates
 - [ArgoCD](./argocd.md) - GitOps deployment of cert-manager
 - [external-dns](./external-dns.md) - Complementary DNS automation (planned)
 

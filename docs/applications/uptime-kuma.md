@@ -32,7 +32,7 @@ Uptime Kuma provides two capabilities:
 External users
      │
      ▼
-ingress-nginx ──► oauth2-proxy (GitHub SSO) ──► Uptime Kuma UI
+lan-gateway ──► oauth2-proxy (GitHub SSO) ──► Uptime Kuma UI
                                                       │
                                                Prometheus ◄── ServiceMonitor
                                                       │           (default namespace,

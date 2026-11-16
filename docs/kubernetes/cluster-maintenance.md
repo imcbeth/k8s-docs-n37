@@ -495,7 +495,7 @@ Expect **98 total, 0 down** (count as of 2026-10-26). A target down with
 - [ ] DaemonSets at expected counts
 - [ ] Metrics API responsive (`kubectl top nodes`)
 - [ ] No stuck pods
-- [ ] LoadBalancer IP assigned (10.0.10.10)
+- [ ] LAN gateway IP assigned (10.0.10.11) and `lan-gateway` PROGRAMMED
 - [ ] Gatekeeper PDB restored
 - [ ] External endpoints accessible
 

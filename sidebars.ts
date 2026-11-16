@@ -70,7 +70,7 @@ const sidebars: SidebarsConfig = {
         'applications/metrics-server',
         'applications/velero',
         'applications/blackbox-exporter',
-        'applications/ingress-nginx',
+        'applications/lan-gateway',
         {
           type: 'category',
           label: 'Trivy Operator',

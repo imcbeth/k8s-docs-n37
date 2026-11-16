@@ -108,7 +108,7 @@ spec:
 
 | Service | Namespace | IP Address | Ports | Purpose |
 |---------|-----------|------------|-------|---------|
-| ingress-nginx-controller | ingress-nginx | 10.0.10.10 | 80, 443 | Main ingress controller |
+| lan-gateway-istio | istio-system | 10.0.10.11 | 80, 443 | [LAN gateway](./lan-gateway.md); requested with the Gateway's `metallb.io/loadBalancerIPs` annotation |
 | pi-hole (planned) | pihole | 10.0.0.200 | 53, 80, 443 | DNS/DHCP server |
 
 ---
@@ -147,7 +147,7 @@ kubectl get ipaddresspool first-pool -n metallb-system -o jsonpath='{.status}'
 kubectl get svc -A --field-selector spec.type=LoadBalancer
 
 # Check specific service
-kubectl describe svc ingress-nginx-controller -n ingress-nginx
+kubectl describe svc lan-gateway-istio -n istio-system
 ```
 
 ### Check Layer 2 Advertisements
@@ -253,7 +253,7 @@ kubectl get svc -n my-namespace
 
    ```bash
    # From a client on same network:
-   arp -a | grep 10.0.10.10
+   arp -a | grep 10.0.10.11
    ```
 
    **Solution:** Check network switch configuration, VLAN settings
@@ -423,13 +423,13 @@ kubectl get ipaddresspool first-pool -n metallb-system -o jsonpath='{.status}' |
 
 ## Related Documentation
 
-- [ingress-nginx](./ingress-nginx.md) - Primary consumer of MetalLB LoadBalancer
+- [LAN Gateway](./lan-gateway.md) - Primary consumer of MetalLB LoadBalancer (10.0.10.11; ingress-nginx held 10.0.10.10 until 2026-11-15)
 - [ArgoCD](./argocd.md) - GitOps deployment of MetalLB
 
 **Note:** For comprehensive network configuration details, see `network-info.md` in the [homelab repository](https://github.com/imcbeth/homelab).
 
 ---
 
-**Last Updated:** 2025-12-27
+**Last Updated:** 2026-11-16
 **Status:** Production, Healthy
 **Managed By:** ArgoCD (`manifests/applications/metal-lb.yaml`)

@@ -494,40 +494,34 @@ dig TXT external-dns-myapp.k8s.n37.ca
 
 ## Usage Examples
 
-### Example 1: Ingress with Automatic DNS
+### Example 1: HTTPRoute on the LAN Gateway
+
+Since 2026-11-15 the cluster has no Ingress objects; LAN hosts are `HTTPRoute`s on the [LAN gateway](./lan-gateway.md). `external-dns-unifi` runs with `--source=gateway-httproute`, so a route's hostname gets a UniFi record pointing at the parent Gateway's address:
 
 ```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: grafana
   namespace: default
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
-  ingressClassName: nginx
-  tls:
-  - hosts:
+  parentRefs:
+    - name: lan-gateway
+      namespace: istio-system
+      sectionName: https-grafana
+  hostnames:
     - grafana.k8s.n37.ca
-    secretName: grafana-tls
   rules:
-  - host: grafana.k8s.n37.ca
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: kube-prometheus-stack-grafana
-            port:
-              number: 80
+    - backendRefs:
+        - name: kube-prometheus-stack-grafana
+          port: 80
 ```
 
 **Result:**
 
-- External-DNS creates DNS records (Cloudflare + UniFi)
-- Cert-manager obtains Let's Encrypt certificate
-- Grafana accessible at `https://grafana.k8s.n37.ca`
+- external-dns-unifi creates `grafana.k8s.n37.ca → 10.0.10.11` on the UDR
+- No Cloudflare record: that instance does not watch routes, and `--exclude-target-net=10.0.0.0/8` would block it anyway
+- The certificate is a separate `Certificate` object (see [cert-manager](./cert-manager.md#for-a-new-lan-gateway-host))
 
 ### Example 2: LoadBalancer with Custom Hostname
 

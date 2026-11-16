@@ -245,7 +245,7 @@ If you're new to this setup, start here:
 
 - **Namespace Isolation**: 29 namespaces protected with Kubernetes NetworkPolicies + Calico NetworkPolicies
 - **Allow-List Approach**: Default-deny ingress with explicit allow rules
-- **Namespaces Protected**: ingress-nginx, istio-system, gatekeeper-system, localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco, default, argocd, synology-csi, kube-system, tigera-operator
+- **Namespaces Protected**: istio-system, gatekeeper-system, localstack, unipoller, loki, trivy-system, velero, argo-workflows, cert-manager, external-dns, metallb-system, falco, default, argocd, synology-csi, kube-system, tigera-operator
 - **Monitoring Preserved**: Prometheus metrics scraping allowed across all policies
 - **GitOps Managed**: ArgoCD Application at sync-wave -40
 

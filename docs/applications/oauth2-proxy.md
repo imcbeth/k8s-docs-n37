@@ -17,29 +17,36 @@ oauth2-proxy is a reverse proxy that enforces GitHub OAuth authentication before
 | **ArgoCD App** | `oauth2-proxy` (project: `infrastructure`, wave: `0`) |
 | **Auth Endpoint** | `https://oauth.k8s.n37.ca` |
 | **Provider** | GitHub OAuth App |
-| **Mode** | Validate-only (`upstream: static://202`) |
+| **Mode** | Validate-only (`upstream: static://200`), called by the LAN gateway's Envoy ext_authz |
 
 ## Purpose
 
-oauth2-proxy acts as an authentication gate in front of cluster services. Rather than proxying traffic, it validates GitHub session cookies and returns `202 Accepted` for authorized users. nginx's `auth_request` directive handles the gate:
+oauth2-proxy acts as an authentication gate in front of cluster services. Rather than proxying traffic, it validates GitHub session cookies and returns `200` for authorized users. Since 2026-11-15 the [LAN gateway](./lan-gateway.md) asks it through **Envoy ext_authz** (it was nginx's `auth_request` before):
 
 ```
-Browser → ingress-nginx → auth_request → oauth2-proxy (validates cookie)
-              │                                  │
-              │         ← 202 OK ────────────────┘
-              │
-              └──────────────────────────────────► Backend service
+Browser → lan-gateway (Envoy) → ext_authz check → oauth2-proxy (validates cookie)
+               │                                       │
+               │          ← 200 OK ────────────────────┘
+               │
+               └───────────────────────────────────────► Backend service
 ```
 
-If the cookie is missing or invalid, oauth2-proxy returns `401` and nginx redirects the browser to `https://oauth.k8s.n37.ca/oauth2/start`, which initiates the GitHub OAuth flow.
+If the cookie is missing or invalid, oauth2-proxy answers the check itself with a `302` to GitHub (`skip-provider-button`), and Envoy returns that redirect to the browser. After sign-in, GitHub calls back to `https://oauth.k8s.n37.ca/oauth2/callback`, oauth2-proxy sets the `.k8s.n37.ca` cookie, and the browser goes back to the original URL.
+
+:::warning Envoy ext_authz allows only 200
+Any other status from the check, 202 included, is a denial that Envoy returns to the client. With the old `static://202` upstream, a signed-in user got an empty 202 page instead of the app. That's why the upstream is `static://200` (homelab #1183).
+:::
 
 ## Protected Services
 
-| Service | URL | Auth annotations |
-|---------|-----|-----------------|
-| Uptime Kuma | `https://status.k8s.n37.ca` | ✅ |
-| Falco UI | `https://falco.k8s.n37.ca` | ✅ |
-| Argo Workflows | `https://workflows.k8s.n37.ca` | ✅ |
+| Service | URL |
+|---------|-----|
+| Uptime Kuma | `https://status.k8s.n37.ca` |
+| Falco UI | `https://falco.k8s.n37.ca` |
+| Argo Workflows | `https://workflows.k8s.n37.ca` |
+| Flink (kafka-to-s3) | `https://flink.k8s.n37.ca` |
+
+The list is the `hosts` of the `CUSTOM` AuthorizationPolicy `istio-system/lan-gateway-oauth2` (`manifests/base/istio-gateway/authz.yaml`).
 
 **Not protected by oauth2-proxy:**
 
@@ -47,29 +54,34 @@ If the cookie is missing or invalid, oauth2-proxy returns `401` and nginx redire
 |---------|--------|
 | ArgoCD | Has native GitHub OIDC via Dex |
 | Grafana | Has own authentication |
-| Zot registry | docker CLI cannot handle OAuth redirects |
+| Zot registry | docker CLI cannot handle OAuth redirects; zot does htpasswd auth |
 | LocalStack | AWS CLI/SDK cannot handle OAuth browser redirects |
+| lifeonabike.ca | Public site |
 
 ## Architecture
 
+The ext_authz provider is defined once in istiod's mesh config (`manifests/base/istio/istiod-values.yaml`):
+
+```yaml
+meshConfig:
+  extensionProviders:
+    - name: oauth2-proxy
+      envoyExtAuthzHttp:
+        service: oauth2-proxy.oauth2-proxy.svc.cluster.local
+        port: 4180
+        includeRequestHeadersInCheck: [authorization, cookie]
+        includeAdditionalHeadersInCheck:
+          x-auth-request-redirect: "https://%REQ(:authority)%%REQ(:path)%"
+        headersToUpstreamOnAllow: [authorization, x-auth-request-user, x-auth-request-email]
+        headersToDownstreamOnDeny: [content-type, set-cookie, location]
+        headersToDownstreamOnAllow: [set-cookie]
 ```
-Browser
-   │
-   ▼
-ingress-nginx
-   │
-   ├── auth_request ──► oauth2-proxy (oauth2-proxy ns, port 4180)
-   │                          │
-   │         ┌── 202 OK ──────┘
-   │         │
-   │         └── 401 → redirect to https://oauth.k8s.n37.ca/oauth2/start
-   │                                           │
-   │                                    GitHub OAuth flow
-   │                                           │
-   │                                    Set cookie + redirect back
-   │
-   └──────────────────────────────────► Backend Service (direct, not proxied)
-```
+
+- **`x-auth-request-redirect`**: an ext_authz check carries only the request path, so oauth2-proxy would otherwise send the user back to `oauth.k8s.n37.ca/<path>` after sign-in. This header gives it the full original URL, and oauth2-proxy still checks it against `whitelist-domain`.
+- **`headersToDownstreamOnDeny`**: passes `location` and `set-cookie`, so the browser sees the 302 to GitHub.
+- The service is the ClusterIP name, and the gateway reaches it over HBONE (mTLS) like any backend.
+
+`oauth.k8s.n37.ca` itself (sign-in start and callback) is an ordinary route on the gateway, with no forward-auth.
 
 ## Deployment Configuration
 
@@ -88,26 +100,24 @@ kubectl apply -f manifests/base/oauth2-proxy/oauth2-proxy-cookie-sealed.yaml
 **Location:** `manifests/base/oauth2-proxy/values.yaml`
 
 ```yaml
-config:
-  clientID: "<github-oauth-client-id>"
-  configFile: |-
-    provider = "github"
-    github_users = ["imcbeth"]
-    upstreams = ["static://202"]
-    cookie_domains = [".k8s.n37.ca"]
-    whitelist_domains = [".k8s.n37.ca"]
-    email_domains = ["*"]
-    cookie_secure = true
-    skip_provider_button = true
-
-ingress:
-  enabled: true
-  hosts:
-    - oauth.k8s.n37.ca
-
 image:
-  registry: quay.io
   repository: oauth2-proxy/oauth2-proxy  # No registry prefix — chart prepends quay.io automatically
+config:
+  existingSecret: oauth2-proxy-secret
+extraArgs:
+  provider: github
+  github-user: imcbeth
+  email-domain: "*"
+  upstream: static://200          # ext_authz allows only 200
+  redirect-url: https://oauth.k8s.n37.ca/oauth2/callback
+  cookie-domain: .k8s.n37.ca
+  whitelist-domain: .k8s.n37.ca
+  cookie-secure: "true"
+  cookie-name: _oauth2_proxy_k8s
+  skip-provider-button: "true"
+  set-xauthrequest: "true"
+ingress:
+  enabled: false                  # oauth.k8s.n37.ca is an HTTPRoute on the LAN gateway
 ```
 
 :::warning Double registry prefix
@@ -116,27 +126,9 @@ The oauth2-proxy Helm chart prepends `image.registry` to `image.repository`. Set
 
 ## Protecting a New Service
 
-Add three annotations to the service's Ingress:
+Add the host to the `hosts` list in `manifests/base/istio-gateway/authz.yaml`, in the same PR that adds its route to the gateway (see [Adding a host](./lan-gateway.md#adding-a-host)). Nothing changes on the backend.
 
-```yaml
-nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.oauth2-proxy.svc.cluster.local:4180/oauth2/auth"
-nginx.ingress.kubernetes.io/auth-signin: "https://oauth.k8s.n37.ca/oauth2/start?rd=$scheme://$host$uri"
-nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email"
-```
-
-:::warning Use `$uri` not `$escaped_request_uri` in auth-signin
-ingress-nginx v1.14.x validates nginx variables in the `auth-signin` annotation against a strict allowlist. `$escaped_request_uri` is **not** on that list — the annotation is silently rejected and nginx never generates a login redirect, resulting in a blank 401 on every unauthenticated request.
-
-Use `$scheme://$host$uri` instead:
-
-- `$uri` (path only, no query string) is on the allowlist
-- Avoids a second issue with `$request_uri`: raw `&` characters in query strings would be parsed as extra `/oauth2/start` parameters, truncating the redirect URL
-- Acceptable for SPA dashboards (argo-workflows, falco, uptime-kuma) where query params are not needed for the initial auth redirect
-:::
-
-:::tip Use ClusterIP for auth-url
-`auth-url` uses the internal ClusterIP address (`oauth2-proxy.oauth2-proxy.svc.cluster.local`), not the external hostname. This avoids hairpin NAT issues where the ingress controller loops back through itself.
-:::
+A CUSTOM policy applies to every request it matches, which is why it is scoped by host: argocd and grafana have their own login, registry and localstack are used by non-browser clients, and oauth.k8s.n37.ca is oauth2-proxy itself.
 
 ## GitHub OAuth App
 
@@ -164,31 +156,28 @@ Access is restricted to specific GitHub users via the `github_users` config opti
 
 | Component | CPU Request | CPU Limit | Memory Request | Memory Limit |
 |-----------|-------------|-----------|----------------|--------------|
-| oauth2-proxy | 25m | 100m | 64Mi | 128Mi |
+| oauth2-proxy | 20m | 100m | 64Mi | 128Mi |
 
 ## Troubleshooting
 
-### Blank 401 on every request (no redirect to GitHub login)
+### Signed-in user lands on `oauth.k8s.n37.ca/<path>`
 
-The most common cause is an invalid `auth-signin` annotation. ingress-nginx v1.14.x rejects `$escaped_request_uri` (not in the nginx variable allowlist) — when this happens, no `error_page 401` redirect is generated. Check the controller logs:
-
-```bash
-kubectl logs -n ingress-nginx deployment/ingress-nginx-controller | grep "auth-signin contains invalid"
-```
-
-If you see `annotation auth-signin contains invalid value`, fix the annotation to use `$uri`:
-
-```yaml
-nginx.ingress.kubernetes.io/auth-signin: "https://oauth.k8s.n37.ca/oauth2/start?rd=$scheme://$host$uri"
-```
-
-### Auth loop (redirecting indefinitely)
-
-Check that the `auth-signin` URL includes scheme and host:
+The `x-auth-request-redirect` header is missing from the provider's `includeAdditionalHeadersInCheck` in istiod's mesh config, so oauth2-proxy only knows the path. Check:
 
 ```bash
-kubectl get ingress -n <namespace> -o yaml | grep auth-signin
-# Should contain: $scheme://$host$uri
+kubectl get cm istio -n istio-system -o yaml | grep -A2 includeAdditionalHeadersInCheck
+```
+
+### Empty page with status 202 after sign-in
+
+The upstream is `static://202`. Envoy treats any non-200 check result as a denial. Set `upstream: static://200`.
+
+### No sign-in redirect at all (host loads without auth)
+
+The host isn't in `authz.yaml`:
+
+```bash
+kubectl get authorizationpolicy -n istio-system lan-gateway-oauth2 -o jsonpath='{.spec.rules[0].to[0].operation.hosts}'
 ```
 
 ### 401 on every request (cookie not accepted)
@@ -217,19 +206,19 @@ kubectl describe pod -n oauth2-proxy -l app.kubernetes.io/name=oauth2-proxy | gr
 
 ### Service returns 403 instead of redirecting to GitHub
 
-The `auth-url` must be reachable from within the ingress-nginx pod. Verify the oauth2-proxy service is up:
+Envoy could not reach oauth2-proxy for the check (ext_authz fails closed with 403). Check that oauth2-proxy is up and the gateway's access log shows the `UAEX` response flag:
 
 ```bash
-kubectl get svc -n oauth2-proxy
-kubectl get endpoints -n oauth2-proxy
+kubectl get pods,endpoints -n oauth2-proxy
+kubectl logs -n istio-system deploy/lan-gateway-istio | grep UAEX | tail
 ```
 
 ## References
 
 - [oauth2-proxy Documentation](https://oauth2-proxy.github.io/oauth2-proxy/)
 - [GitHub OAuth2 Provider](https://oauth2-proxy.github.io/oauth2-proxy/configuration/providers/github)
-- [nginx auth_request module](https://nginx.org/en/docs/http/ngx_http_auth_request_module.html)
+- [Istio external authorization](https://istio.io/latest/docs/tasks/security/authorization/authz-custom/)
 
 ---
 
-**Last Updated:** 2026-06-01
+**Last Updated:** 2026-11-16

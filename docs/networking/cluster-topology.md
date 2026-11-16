@@ -27,7 +27,7 @@ graph TB
         kube_proxy["kube-proxy\n(iptables NAT)"]
         coredns["CoreDNS\nkube-dns 10.96.0.10"]
         metallb["MetalLB\nspeaker DaemonSet\nVIP pool: 10.0.10.10-99"]
-        ingress["ingress-nginx\nNetMlbVIP 10.0.10.10"]
+        ingress["LAN gateway (Istio Envoy)\nMetalLB VIP 10.0.10.11"]
     end
 
     subgraph external ["External"]
@@ -37,8 +37,8 @@ graph TB
 
     client -->|"HTTPS\n*.k8s.n37.ca"| metallb
     metallb --> ingress
-    ingress -->|"backend Service"| kube_proxy
-    kube_proxy -->|"DNAT to pod IP"| podA
+    ingress -->|"HBONE :15008\nmTLS"| zt1
+    zt1 -->|"backend pod"| podC
 
     podC -->|"HBONE :15008\nmTLS"| zt1
     zt1 -->|"HBONE :15008"| podD
@@ -55,25 +55,26 @@ sequenceDiagram
     participant U as UDR (10.0.1.1)
     participant M as MetalLB (L2)
     participant N as Node holding VIP
-    participant I as ingress-nginx pod
-    participant S as Service ClusterIP
+    participant I as lan-gateway pod (Envoy)
+    participant Z as ztunnel (destination node)
     participant P as Backend pod
 
-    C->>U: DNS argocd.k8s.n37.ca → 10.0.10.10
-    C->>M: TCP :443 → 10.0.10.10
+    C->>U: DNS grafana.k8s.n37.ca → 10.0.10.11
+    C->>M: TCP :443 → 10.0.10.11
     M->>N: ARP / GARP attracts traffic
-    N->>I: Routes to ingress-nginx pod via kube-proxy iptables
-    I->>I: TLS termination (or passthrough for argocd)
-    I->>S: HTTP to argocd-server.argocd.svc:80
-    S->>P: kube-proxy iptables DNAT → pod IP
-    P-->>C: Response back through the same path (reverse NAT preserved)
+    N->>I: kube-proxy iptables → one of the 2 gateway pods
+    I->>I: TLS termination, ext_authz check (forward-auth hosts), route match
+    I->>Z: HBONE mTLS :15008 to the Grafana pod (default ns is ambient)
+    Z->>P: Deliver inside the pod (L4 AuthorizationPolicy checked)
+    P-->>C: Response back through the same path
 ```
 
 **Key details:**
 
 - MetalLB runs in L2 mode (chart 0.16.1 with `frrk8s.enabled: false`). One node at a time owns each VIP via gratuitous ARP. Failover takes ~10 seconds.
-- ingress-nginx is the only L7 router. For services with `nginx.ingress.kubernetes.io/auth-url` (oauth2-proxy), nginx does the auth subrequest before forwarding.
-- ArgoCD's ingress is **TLS passthrough**, so ingress-nginx forwards the encrypted bytes and argocd-server terminates TLS itself. Grafana's ingress terminates TLS at nginx and forwards HTTP.
+- The [LAN gateway](../applications/lan-gateway.md) is the only L7 router (it replaced ingress-nginx and 10.0.10.10 on 2026-11-15). For forward-auth hosts it asks oauth2-proxy through Envoy ext_authz before forwarding.
+- The gateway terminates TLS for every host. To ambient backends (default, argo-workflows, flink-demo, localstack) it sends HTTP inside HBONE mTLS, as above. To non-ambient backends (argocd, falco, uptime-kuma, zot, oauth2-proxy, lifeonabike) it connects straight to the pod port in plain HTTP.
+- The Service uses `externalTrafficPolicy: Cluster`, so the VIP does not have to move when one gateway replica goes away.
 
 ## Path 2 — Pod-to-pod (Istio Ambient HBONE)
 
@@ -120,19 +121,19 @@ This is the gotcha that bit the SLO probe wiring in PRs #707 and #708 — see [N
 
 ## Path 3 — Pod-to-MetalLB VIP (the hairpin)
 
-Sometimes a workload resolves a service hostname like `argocd.k8s.n37.ca` and tries to reach the MetalLB VIP `10.0.10.10` from inside the cluster. This *mostly* doesn't work.
+Sometimes a workload resolves a service hostname like `argocd.k8s.n37.ca` and tries to reach the MetalLB VIP `10.0.10.11` from inside the cluster. This *mostly* doesn't work.
 
 ```mermaid
 sequenceDiagram
     participant Pod as Pod (any ns)
     participant DNS as CoreDNS / upstream
     participant KP as kube-proxy on node
-    participant VIP as MetalLB VIP 10.0.10.10
-    participant I as ingress-nginx
+    participant VIP as MetalLB VIP 10.0.10.11
+    participant I as lan-gateway
 
     Pod->>DNS: Resolve argocd.k8s.n37.ca
-    DNS-->>Pod: 10.0.10.10 (split-horizon DNS)
-    Pod->>KP: Send TCP to 10.0.10.10:443
+    DNS-->>Pod: 10.0.10.11 (split-horizon DNS)
+    Pod->>KP: Send TCP to 10.0.10.11:443
 
     Note over KP: KUBE-EXT-{svc} chain check<br/>--src-type LOCAL? NO<br/>(pod traffic is not LOCAL)
     Note over KP: No DNAT applied<br/>Packet leaves to node network
@@ -148,6 +149,7 @@ sequenceDiagram
 | Ambient-meshed pod, destination ingress backend is meshed | ztunnel HBONE bypasses kube-proxy — works |
 | Ambient-meshed pod, destination is not meshed | Use ClusterIP DNS directly (`argocd-server.argocd:80`) |
 | Non-meshed pod | Use ClusterIP DNS directly |
+| Needs the real HTTPS path (blackbox probes) | `hostAliases` mapping the hostname to the gateway's ClusterIP |
 
 This is why Uptime Kuma monitors point at `http://argocd-server.argocd:80/healthz`, not `https://argocd.k8s.n37.ca/healthz`. And why SLO probes are split into an ingress-job (works for argocd/grafana) and a backend-job (works for everything via ClusterIP).
 
@@ -182,7 +184,7 @@ NetworkPolicies are evaluated by Calico at the source's egress AND the destinati
 
 1. **Source egress allows it, destination ingress doesn't** — destination NetPol's missing.
 2. **Destination ingress allows it, source egress only allows certain ports** — common with the `default` namespace which restricts egress to a specific port list (80, 443, 8443, 161, plus a few service-specific entries).
-3. **Both are correct but the path uses an intermediate hop** — e.g. an HTTPS probe to ingress-nginx → backend service. The probe pod's egress must reach ingress-nginx; ingress-nginx's egress must reach the backend.
+3. **Both are correct but the path uses an intermediate hop** — e.g. an HTTPS probe to the LAN gateway → backend service. The probe pod's egress must reach the gateway in `istio-system`; the backend must admit `istio-system` on 15008 and, if it has an L4 AuthorizationPolicy, the gateway's principal.
 
 See [Network Policies → Gotchas](../security/network-policies.md#gotchas) for the worked examples.
 

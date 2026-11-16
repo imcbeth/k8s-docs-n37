@@ -113,12 +113,12 @@ The current Corefile is the upstream kubeadm default with one Pi-friendly tweak 
 In this homelab, `*.k8s.n37.ca` records exist in **two** DNS zones:
 
 - **External (Cloudflare)** — resolves to the public WAN IP (unused; no port-forward to the cluster).
-- **Internal (UniFi gateway)** — resolves to MetalLB VIP `10.0.10.10`.
+- **Internal (UniFi gateway)** — resolves to the LAN gateway's MetalLB VIP `10.0.10.11` (ingress-nginx's `10.0.10.10` until 2026-11-15).
 
-CoreDNS itself isn't doing the split — it forwards to the node's resolver, which is the UniFi gateway. The gateway returns the internal record. Result: in-cluster lookups of `argocd.k8s.n37.ca` resolve to `10.0.10.10` (MetalLB VIP).
+CoreDNS itself isn't doing the split — it forwards to the node's resolver, which is the UniFi gateway. The gateway returns the internal record. Result: in-cluster lookups of `argocd.k8s.n37.ca` resolve to `10.0.10.11` (MetalLB VIP).
 
 :::warning Pod-to-MetalLB VIP hairpin
-Resolving `argocd.k8s.n37.ca` to `10.0.10.10` from a pod is correct DNS-wise, but kube-proxy's `KUBE-EXT` chain only DNATs LoadBalancer VIPs when traffic source-type is `LOCAL` (node-originated). Pod traffic to the VIP silently drops. Non-meshed pods must use the ClusterIP service DNS (`argocd-server.argocd:80`) instead. Istio-meshed pods (ambient mode) work via ztunnel HBONE bypassing kube-proxy.
+Resolving `argocd.k8s.n37.ca` to `10.0.10.11` from a pod is correct DNS-wise, but kube-proxy's `KUBE-EXT` chain only DNATs LoadBalancer VIPs when traffic source-type is `LOCAL` (node-originated). Pod traffic to the VIP silently drops. Non-meshed pods must use the ClusterIP service DNS (`argocd-server.argocd:80`) instead. Istio-meshed pods (ambient mode) work via ztunnel HBONE bypassing kube-proxy.
 :::
 
 ## Monitoring

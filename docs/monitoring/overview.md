@@ -285,7 +285,7 @@ In addition to the 100+ default alerts from kube-prometheus-stack, the following
 | `velero-alerts` | 7 | Backup failures, schedule misses, restore errors |
 | `istio-alerts` | 9 | Control plane health, XDS convergence, DNS failures |
 | `apm-alerts` | 8 | OOMKill, CrashLoop, node CPU/memory/disk, API server |
-| `ingress-nginx-alerts` | 7 | 5xx/4xx rates, p95 latency, config reload, controller down |
+| `lan-gateway-alerts` | 7 | Gateway down, config rejected, 5xx/4xx rates, p95 latency (overall and per backend) |
 | `trivy-operator-alerts` | 12 | Critical CVEs, RBAC issues, compliance failures, exposed secrets |
 
 **Total Custom Alerts:** ~70 across 8 PrometheusRules

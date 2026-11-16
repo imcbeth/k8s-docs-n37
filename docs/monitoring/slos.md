@@ -38,7 +38,7 @@ Probes are split into two Prometheus scrape jobs so the SLI signal is honest:
 
 | Job | Module | What it measures |
 |---|---|---|
-| `blackbox-availability` | `https_2xx` | End-to-end via ingress-nginx (DNS → MetalLB → ingress → backend). `slo_path: "ingress"` |
+| `blackbox-availability` | `https_2xx` | End-to-end via the LAN gateway (hostAliases → gateway ClusterIP → backend; ingress-nginx until 2026-11-15). `slo_path: "ingress"` |
 | `blackbox-availability-internal` | `http_2xx` | Backend Service ClusterIP only (no ingress). `slo_path: "backend"` |
 
 Both set `slo_target: "0.995"`. The SLI recording rule selects on `slo_target!=""` so new targets join the SLO automatically when labelled.
@@ -47,7 +47,7 @@ Both set `slo_target: "0.995"`. The SLI recording rule selects on `slo_target!="
 
 Some services can't be probed end-to-end:
 
-- **Argo Workflows** sits behind oauth2-proxy. A `https_2xx` probe follows the 302 redirect to `oauth.k8s.n37.ca`, which resolves to MetalLB VIP `10.0.10.10`, which fails because kube-proxy's `KUBE-EXT` chain only DNATs LoadBalancer VIPs for `src-type LOCAL` traffic (see [pod-to-MetalLB hairpin](../networking/coredns.md#public-service-through-split-horizon-argocdk8sn37ca)).
+- **Argo Workflows** sits behind oauth2-proxy. A `https_2xx` probe follows the 302 redirect to `oauth.k8s.n37.ca`, which resolves to MetalLB VIP `10.0.10.11`, which fails because kube-proxy's `KUBE-EXT` chain only DNATs LoadBalancer VIPs for `src-type LOCAL` traffic (see [pod-to-MetalLB hairpin](../networking/coredns.md#public-service-through-split-horizon-argocdk8sn37ca)).
 - **Zot Registry** has L7 routing quirks for `/v2/` from the cluster side.
 - **Lifeonabike** resolves internally via split-horizon DNS to the same MetalLB VIP — same hairpin.
 
@@ -240,7 +240,7 @@ The probe never got a response. Almost always one of:
   namespace for unrelated reasons** — see
   [the incident below](#the-lifeonabike-outage-2026-10-29). The probe is usually
   not what changed.
-- **Redirect chain hits the MetalLB VIP hairpin**. The probe followed a 302 to an internal hostname that resolves to `10.0.10.10`, which is unreachable from non-mesh-meshed pods. Switch to a direct ClusterIP probe target.
+- **Redirect chain hits the MetalLB VIP hairpin**. The probe followed a 302 to an internal hostname that resolves to the MetalLB VIP, which is unreachable from non-mesh-meshed pods. Switch to a direct ClusterIP probe target.
 
 ### Probe reports `probe_success=0` with a real status code
 
