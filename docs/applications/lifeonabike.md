@@ -277,4 +277,4 @@ kubectl describe pod -n lifeonabike -l app=web | grep -A5 "Events:"
 
 ---
 
-**Last Updated:** 2026-06-01
+**Last Updated:** 2026-11-16

@@ -167,42 +167,30 @@ See [Secrets Management](../security/secrets-management.md) for details on manag
 
 ## Certificate Management
 
-### Automatic Certificate Creation
+### How Certificates Are Created
 
-Certificates are automatically created when an Ingress resource includes cert-manager annotations:
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: example-ingress
-  annotations:
-    cert-manager.io/cluster-issuer: "lets-encrypt-k8s-n37-ca-prod"
-spec:
-  tls:
-  - hosts:
-    - example.k8s.n37.ca
-    secretName: example-k8s-n37-ca-nginx-tls
-  rules:
-  - host: example.k8s.n37.ca
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: example-service
-            port:
-              number: 80
-```
+The cluster has no Ingress objects since 2026-11-15, so nothing uses the `cert-manager.io/cluster-issuer` annotation any more. Every host certificate is an explicit `Certificate` in `istio-system`, referenced by a listener on the [LAN gateway](./lan-gateway.md). See [For a New LAN Gateway Host](#for-a-new-lan-gateway-host).
 
 ### Currently Managed Certificates
 
-| Domain | Namespace | Secret Name | Status | Age |
-|--------|-----------|-------------|--------|-----|
-| argocd.k8s.n37.ca | argocd | argocd-k8s-n37-ca-nginx-tls | Ready | 4d6h |
-| grafana.k8s.n37.ca | default | grafana-k8s-n37-ca-nginx-tls | Ready | 31h |
-| localstack.k8s.n37.ca | localstack | localstack-k8s-n37-ca-nginx-tls | Ready | 4d5h |
+| Certificate (istio-system) | Domains |
+|----------------------------|---------|
+| argocd-k8s-n37-ca-gw | argocd.k8s.n37.ca |
+| falco-k8s-n37-ca-gw | falco.k8s.n37.ca |
+| flink-k8s-n37-ca-gw | flink.k8s.n37.ca |
+| grafana-k8s-n37-ca-gw | grafana.k8s.n37.ca |
+| lifeonabike-ca-gw | `lifeonabike.ca`, `www.lifeonabike.ca` |
+| localstack-k8s-n37-ca-gw | localstack.k8s.n37.ca |
+| oauth-k8s-n37-ca-gw | oauth.k8s.n37.ca |
+| registry-k8s-n37-ca-gw | registry.k8s.n37.ca |
+| status-k8s-n37-ca-gw | status.k8s.n37.ca |
+| workflows-k8s-n37-ca-gw | workflows.k8s.n37.ca |
+
+Each secret is `<name>-tls`. Also present: `flink-operator/flink-operator-serving-cert` (webhook) and `lifeonabike/lifeonabike-ca-tls`, which only the removed ingress-nginx Ingress used.
+
+```bash
+kubectl get certificate -A
+```
 
 ### Certificate Lifecycle
 
@@ -260,30 +248,30 @@ kubectl describe clusterissuer lets-encrypt-k8s-n37-ca-prod
 kubectl get certificates -A
 
 # Check specific certificate details
-kubectl describe certificate grafana-k8s-n37-ca-nginx-tls -n default
+kubectl describe certificate grafana-k8s-n37-ca-gw -n istio-system
 ```
 
 ### View Certificate Details
 
 ```bash
 # Get certificate information
-kubectl get certificate grafana-k8s-n37-ca-nginx-tls -n default -o yaml
+kubectl get certificate grafana-k8s-n37-ca-gw -n istio-system -o yaml
 
 # Check TLS secret
-kubectl get secret grafana-k8s-n37-ca-nginx-tls -n default -o yaml
+kubectl get secret grafana-k8s-n37-ca-gw-tls -n istio-system -o yaml
 
 # Decode certificate
-kubectl get secret grafana-k8s-n37-ca-nginx-tls -n default -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -text -noout
+kubectl get secret grafana-k8s-n37-ca-gw-tls -n istio-system -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -text -noout
 ```
 
 ### Manually Trigger Certificate Renewal
 
 ```bash
 # Delete certificate to force renewal (it will be recreated)
-kubectl delete certificate grafana-k8s-n37-ca-nginx-tls -n default
+kubectl delete certificate grafana-k8s-n37-ca-gw -n istio-system
 
 # Or annotate certificate to force renewal
-kubectl annotate certificate grafana-k8s-n37-ca-nginx-tls -n default cert-manager.io/issue-temporary-certificate="true" --overwrite
+kubectl annotate certificate grafana-k8s-n37-ca-gw -n istio-system cert-manager.io/issue-temporary-certificate="true" --overwrite
 ```
 
 ---
@@ -473,7 +461,7 @@ Both use the same Cloudflare API token, no conflict.
 2. **Monitor Expiry:** Set up alerts for expiring certificates
 3. **Secret Management:** Keep cloudflare-api-token-secret secure and backed up
 4. **Rate Limits:** Be aware of Let's Encrypt rate limits
-5. **Consistent Naming:** Use pattern: `<app>-k8s-n37-ca-nginx-tls` for secrets
+5. **Consistent Naming:** Use pattern: Certificate `<host>-k8s-n37-ca-gw`, secret `<host>-k8s-n37-ca-gw-tls`, in `istio-system`
 6. **Namespace Isolation:** Certificates are namespace-scoped, plan accordingly
 
 ---
@@ -581,7 +569,7 @@ kubectl get secret <cert-secret> -n <namespace> -o jsonpath='{.data.tls\.crt}' |
 
 ---
 
-**Last Updated:** 2026-02-14
+**Last Updated:** 2026-11-16
 **Status:** Production, Healthy
 **Managed By:** ArgoCD (`manifests/applications/cert-manager.yaml`)
 **Secrets:** SealedSecret (`manifests/base/cert-manager/cloudflare-sealed.yaml`)

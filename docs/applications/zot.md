@@ -388,4 +388,4 @@ Zot is a StatefulSet with a RWO iSCSI PVC (`synology-iscsi-delete`). Only one no
 
 ---
 
-**Last Updated:** 2026-06-01
+**Last Updated:** 2026-11-16
