@@ -232,7 +232,7 @@ The `argo-events` NetworkPolicy allows:
 | Ingress | any (bare) | 15008 | ztunnel HBONE |
 | Ingress | `default` ns | 7777 | Prometheus scrape |
 | Ingress | intra-pod | 4222/6222/8222 | NATS cluster |
-| Ingress | `ingress-nginx` or `lifeonabike` | 12000 | Webhook events |
+| Ingress | `lifeonabike` (cloudflared) | 12000 | Webhook events |
 | Egress | any (bare) | 15008 | ztunnel HBONE |
 | Egress | `kube-system` kube-dns | 53 | DNS |
 | Egress | K8s API (10.96.0.1, 10.0.10.0/24) | 443/6443 | API server |
@@ -248,7 +248,7 @@ The EventSource webhook at port 12000 is exposed externally via Cloudflare Tunne
 This means:
 
 - No public IP exposure
-- No ingress-nginx Ingress rule for webhooks
+- No LAN gateway route for webhooks
 - Traffic enters via the `lifeonabike` namespace → therefore `lifeonabike` is in the NetworkPolicy ingress allow list
 
 ## Troubleshooting

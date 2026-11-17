@@ -312,6 +312,4 @@ helm version
 
 ___
 
-```bash
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.14.1/deploy/static/provider/cloud/deploy.yaml
-```
+The cluster was originally installed with ingress-nginx (`kubectl apply` of the upstream `deploy.yaml`). That controller has since been retired. Today, ingress is the [LAN gateway](../applications/lan-gateway.md), a Gateway API `Gateway` that istiod programs. ArgoCD deploys it as the `istio-gateway` Application once Istio is installed; nothing is applied by hand.

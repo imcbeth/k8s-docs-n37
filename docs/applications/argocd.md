@@ -78,7 +78,6 @@ graph TB
         I2["istio-base/istiod/cni/ztunnel  -45 to -42\nService mesh"]
         I3["network-policies  -40\nNamespace isolation"]
         I4["metallb  -35\nLoadBalancer IPs"]
-        I5["ingress-nginx  -30\nHTTP/S ingress"]
     end
 
     subgraph Wave2 ["-25 to -6  —  Platform Services"]
@@ -87,6 +86,7 @@ graph TB
         P3["kube-prometheus-stack  -15\nloki  -12  alloy  -11  tempo  0"]
         P4["gatekeeper  -6\ngatekeeper-policies  -5"]
         P5["velero  -5\nfalco  -5\ntrivy-operator  0"]
+        P6["istio-gateway  -4\nLAN gateway (HTTP/S)"]
     end
 
     subgraph Wave3 ["-8 to 0  —  Applications"]
@@ -328,7 +328,7 @@ ArgoCD organizes applications into projects for access control and resource mana
 **Applications:**
 
 - argocd (self-management)
-- ingress-nginx
+- istio-gateway (LAN gateway)
 - metal-lb
 - synology-csi
 - cert-manager
@@ -377,7 +377,7 @@ ArgoCD uses sync waves to control deployment order. Applications are deployed in
  -42: istio-cni, istio-ztunnel (mesh data plane)
  -40: network-policies (must be in place before workloads)
  -35: MetalLB (networking layer)
- -30: synology-csi (storage), ingress-nginx (ingress controller)
+ -30: synology-csi (storage)
  -25: sealed-secrets (decrypt before other apps)
  -20: unipoller (metrics collection)
  -15: kube-prometheus-stack (monitoring)

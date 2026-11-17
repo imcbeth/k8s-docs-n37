@@ -62,15 +62,9 @@ A source with both `ref:` and `path:` renders manifests AND serves as a Helm val
 
 ### Authentication
 
-The Argo Workflows UI uses oauth2-proxy for GitHub SSO. The Helm chart is configured with `--auth-mode=server` (bypasses Argo's own auth, relies on the oauth2-proxy cookie set by nginx).
+The Argo Workflows UI uses oauth2-proxy for GitHub SSO. The Helm chart is configured with `--auth-mode=server` (bypasses Argo's own auth, relies on the oauth2-proxy cookie).
 
-The ingress uses these annotations:
-
-```yaml
-nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.oauth2-proxy.svc.cluster.local:4180/oauth2/auth"
-nginx.ingress.kubernetes.io/auth-signin: "https://oauth.k8s.n37.ca/oauth2/start?rd=$scheme://$host$uri"
-nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email"
-```
+`workflows.k8s.n37.ca` is served by the [LAN gateway](./lan-gateway.md), and forward-auth comes from listing the host in the gateway's `CUSTOM` AuthorizationPolicy (`manifests/base/istio-gateway/authz.yaml`); see [oauth2-proxy](./oauth2-proxy.md). Until 2026-11-15 it used nginx `auth-url`/`auth-signin` annotations.
 
 ## lifeonabike Build Pipeline
 
@@ -396,7 +390,7 @@ kubectl get events -n argo-workflows --sort-by='.lastTimestamp'
 
 ### UI returns 401 (no redirect to GitHub login)
 
-If visiting `https://workflows.k8s.n37.ca` shows a blank 401 instead of redirecting to GitHub login, the `auth-signin` ingress annotation may be invalid. See the [oauth2-proxy troubleshooting guide](./oauth2-proxy.md#blank-401-on-every-request-no-redirect-to-github-login).
+If visiting `https://workflows.k8s.n37.ca` shows a 401 or 403 instead of redirecting to GitHub login, the gateway's ext_authz check is failing. See the [oauth2-proxy troubleshooting guide](./oauth2-proxy.md#service-returns-403-instead-of-redirecting-to-github).
 
 ### Permission Denied Errors in Workflows
 
@@ -412,4 +406,4 @@ kubectl get rolebindings,clusterrolebindings -A | grep argo
 
 ---
 
-**Last Updated:** 2026-06-01
+**Last Updated:** 2026-11-16

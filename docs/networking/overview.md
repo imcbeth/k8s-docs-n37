@@ -147,7 +147,7 @@ graph TB
             Calico["Calico CNI\nPod CIDR 192.168.0.0/16\nBGP, native routing (IPIP cross-subnet only)"]
             Istio["Istio Ambient Mesh\nmTLS via ztunnel (port 15008)"]
             MLB["MetalLB L2\nLB Pool 10.0.10.10–10.0.10.99"]
-            Ingress["ingress-nginx\n10.0.10.10 (LoadBalancer)"]
+            Ingress["LAN gateway (Istio)\n10.0.10.11 (LoadBalancer)"]
         end
 
         subgraph Storage ["Storage"]
@@ -234,7 +234,7 @@ spec:
 - **IP Pool Name:** first-pool
 - **Auto-assign:** Enabled
 - **Status:**
-  - Assigned IPv4: 1 (ingress-nginx-controller)
+  - Assigned IPv4: 1 (lan-gateway-istio)
   - Available IPv4: 89
 
 See the [MetalLB guide](../applications/metallb.md) for detailed configuration.
@@ -243,27 +243,25 @@ See the [MetalLB guide](../applications/metallb.md) for detailed configuration.
 
 | Service | Namespace | IP Address | Ports | Purpose |
 |---------|-----------|------------|-------|---------|
-| ingress-nginx-controller | ingress-nginx | 10.0.10.10 | 80, 443 | Main ingress controller |
+| lan-gateway-istio | istio-system | 10.0.10.11 | 80, 443 | LAN gateway (Istio Gateway API) |
 
 ### Ingress Configuration
 
-- **Controller:** ingress-nginx v1.14.3 (Helm chart v4.15.1, ArgoCD-managed)
-- **External IP:** 10.0.10.10 (via MetalLB)
-- **TLS:** Let's Encrypt via cert-manager (Cloudflare DNS-01 challenge)
-- **Security Headers:** X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
-- **TLS Hardening:** TLSv1.2+, HSTS, server-preferred ciphers
+- **Gateway:** `istio-system/lan-gateway`, Gateway API class `istio` (istiod 1.30, ArgoCD app `istio-gateway`). Replaced ingress-nginx on 2026-11-15.
+- **External IP:** 10.0.10.11 (via MetalLB; 10.0.10.10 was ingress-nginx's and is free)
+- **TLS:** Let's Encrypt via cert-manager (Cloudflare DNS-01 challenge), one `Certificate` per host
+- **Security Headers:** HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy (per-route filter)
+- **TLS Hardening:** TLSv1.2+ (Envoy default)
 - **Public Domain:** k8s.n37.ca
-- **IngressClass:** nginx (default)
+- **Forward-auth:** oauth2-proxy via Envoy ext_authz for workflows, falco, status, flink
 
-See the [Ingress NGINX guide](../applications/ingress-nginx.md) for detailed configuration.
+See the [LAN Gateway guide](../applications/lan-gateway.md) for detailed configuration.
 
-#### Active Ingresses
+#### Hosts
 
-| Host | Namespace | Service | TLS | Status |
-|------|-----------|---------|-----|--------|
-| argocd.k8s.n37.ca | argocd | argocd-server | ✅ | Active |
-| grafana.k8s.n37.ca | default | kube-prometheus-stack-grafana | ✅ | Active |
-| localstack.k8s.n37.ca | localstack | localstack | ✅ | Active |
+argocd, grafana, workflows, falco, status, flink, localstack, registry and oauth
+(`*.k8s.n37.ca`), plus the LAN path for `lifeonabike.ca` and `www.lifeonabike.ca`. The full table, with
+backends and forward-auth, is in the [LAN Gateway guide](../applications/lan-gateway.md#hosts).
 
 ## External Services (VLAN 1 - Home Network)
 
@@ -364,7 +362,7 @@ And always include a control — a name you know *is* public — so a broken que
 
 Both ClusterIssuers use **DNS-01 with Cloudflare**, with no HTTP-01 solver. cert-manager creates its own `_acme-challenge` TXT records through its own API token; the A records are never consulted.
 
-This is also the only scheme that *could* work here: HTTP-01 needs Let's Encrypt to reach the host from the internet, which `10.0.10.10` cannot satisfy. So removing the public A records affects neither issuance nor renewal.
+This is also the only scheme that *could* work here: HTTP-01 needs Let's Encrypt to reach the host from the internet, which a LAN address cannot satisfy. So removing the public A records affects neither issuance nor renewal.
 
 ### DNS Flow
 
@@ -425,8 +423,7 @@ See the [cert-manager guide](../applications/cert-manager.md) for detailed confi
 
 **Namespace-specific Policies.** 29 namespaces carry their own policy as of 2026-10-28; representative examples:
 
-- `ingress-nginx` - Allow external traffic, backend routing, Prometheus scraping
-- `istio-system` - Allow HBONE tunnel, istiod xDS, Prometheus scraping
+- `istio-system` - Allow HBONE tunnel, istiod xDS, Prometheus scraping; `lan-gateway-ingress` admits 80/443 to the LAN gateway pods
 - `gatekeeper-system` - Allow webhook calls, Prometheus scraping
 - `localstack`, `unipoller`, `loki`, `trivy-system`, `velero`, `argo-workflows` - Application-specific rules
 - `cert-manager`, `external-dns`, `metallb-system`, `falco` - Infrastructure rules
@@ -447,9 +444,9 @@ See [Network Policies](../security/network-policies.md) for detailed configurati
   - Synology NAS via SNMP exporter
   - Network interface statistics on all nodes via node-exporter
 
-- **Ingress Metrics:**
-  - ingress-nginx controller metrics → Prometheus
-  - Request rates, latencies, error rates per Ingress
+- **Gateway Metrics:**
+  - LAN gateway Envoy metrics (PodMonitor, port 15020) → Prometheus
+  - Request rates, latencies, error rates per backend ("LAN Gateway (Istio)" dashboard)
 
 ### Service Mesh (Istio Ambient)
 
@@ -541,27 +538,27 @@ Ambient mode eliminates per-pod sidecars, reducing resource overhead by ~90% com
    kubectl get svc <service-name> -n <namespace>
    ```
 
-#### Ingress not accessible
+#### Hostname not accessible
 
-**Symptoms:** Cannot access ingress hostname from browser.
+**Symptoms:** Cannot access a `*.k8s.n37.ca` hostname from browser.
 
 **Diagnostic Steps:**
 
-1. Check ingress-nginx controller running:
+1. Check the LAN gateway is programmed and running:
 
    ```bash
-   kubectl get pods -n ingress-nginx
-   kubectl get svc -n ingress-nginx
+   kubectl get gateway -n istio-system lan-gateway
+   kubectl get pods,svc -n istio-system -l gateway.networking.k8s.io/gateway-name=lan-gateway
    ```
 
-2. Check Ingress resource:
+2. Check the host's route was accepted:
 
    ```bash
-   kubectl get ingress -n <namespace>
-   kubectl describe ingress <ingress-name> -n <namespace>
+   kubectl get httproute -A
+   kubectl describe httproute <name> -n <namespace>
    ```
 
-3. Check DNS resolves to MetalLB IP:
+3. Check DNS resolves to the gateway IP (10.0.10.11):
 
    ```bash
    nslookup <hostname>
@@ -570,7 +567,7 @@ Ambient mode eliminates per-pod sidecars, reducing resource overhead by ~90% com
 4. Check TLS certificate:
 
    ```bash
-   kubectl get certificate -n <namespace>
+   kubectl get certificate -n istio-system
    ```
 
 #### Cannot ping hostNetwork pods on other nodes
@@ -595,9 +592,9 @@ kubectl get pods -n tigera-operator
 kubectl get pods -n metallb-system
 kubectl get ipaddresspool -n metallb-system
 
-# Check ingress controller
-kubectl get pods -n ingress-nginx
-kubectl get svc -n ingress-nginx
+# Check the LAN gateway
+kubectl get gateway,httproute -A
+kubectl get pods,svc -n istio-system -l gateway.networking.k8s.io/gateway-name=lan-gateway
 
 # Test DNS resolution from pod
 kubectl run -it --rm debug --image=busybox --restart=Never -- nslookup kubernetes.default
@@ -628,7 +625,7 @@ kubectl get l2advertisement -n metallb-system -o yaml
 
 - **Calico Documentation:** [Calico Docs](https://docs.tigera.io/calico/latest)
 - **MetalLB Documentation:** [MetalLB](https://metallb.universe.tf/)
-- **ingress-nginx:** [ingress-nginx](https://kubernetes.github.io/ingress-nginx/)
+- **Istio Gateway API:** [Istio Gateway API](https://istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/)
 - **UniFi Network:** [UniFi](https://ui.com/)
 - **Synology NAS:** 10.0.1.204 (DSM interface)
 

@@ -28,7 +28,7 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
                               └────────┬────────┘
                                        │
                               ┌────────▼────────┐
-                              │  ingress-nginx  │
+                              │   lan-gateway   │
                               │  (policy ✅)    │
                               └────────┬────────┘
                                        │
@@ -92,8 +92,7 @@ covered by the [universal patterns](#universal-patterns) below and omitted here.
 | flink-demo | Flink streaming jobs | Ambient | 6123, 6124, 8081, 9092 |
 | flink-operator | Flink operator | Ambient | 8081, 9443 |
 | gatekeeper-system | Admission control | No | 8443, 8888, 9090 |
-| ingress-nginx | HTTP/HTTPS ingress controller | No | 80, 10254 |
-| istio-system | Service mesh control plane | No | 15010, 15014, 15020 |
+| istio-system | Service mesh control plane, LAN gateway | No | 15010, 15014, 15020; 80, 443 (gateway pods) |
 | kafka | Kafka brokers | Ambient | 9090–9092 |
 | kube-system | CoreDNS, metrics-server, sealed-secrets | No | 9153, 10255 |
 | **lifeonabike** | **Public blog + Cloudflare tunnel** | **No** | **7844, 8080, 12000** |
@@ -141,7 +140,7 @@ nginx pod the internet egress that only cloudflared requires:
 | Policy | Selects | Allows |
 |---|---|---|
 | `lifeonabike-default-deny` | all pods | DNS egress only |
-| `lifeonabike-web` | `app.kubernetes.io/name: lifeonabike-web` | ingress :8080 from ingress-nginx, cloudflared, uptime-kuma, blackbox-exporter |
+| `lifeonabike-web` | `app.kubernetes.io/name: lifeonabike-web` | ingress :8080 from istio-system (LAN gateway), cloudflared, uptime-kuma, blackbox-exporter |
 | `lifeonabike-cloudflared` | `app.kubernetes.io/name: cloudflared` | egress to the Cloudflare edge (7844 UDP/TCP, 443, RFC1918 excluded), `web`:8080, `argo-events`:12000 |
 
 Two requirements that are easy to miss:
@@ -650,8 +649,6 @@ manifests/base/network-policies/
 │   └── calico-network-policy-allow-egress-icmp.yaml  # Calico ICMP
 ├── argocd/
 │   └── network-policy.yaml
-├── ingress-nginx/
-│   └── network-policy.yaml
 ├── istio-system/
 │   └── network-policy.yaml
 ├── gatekeeper-system/
@@ -838,7 +835,7 @@ kubectl get networkpolicy -n <ns> -o json | jq '
 
 ### Pod-to-MetalLB VIP hairpin (kube-proxy KUBE-EXT chain)
 
-Pods can resolve `*.k8s.n37.ca` to MetalLB VIP `10.0.10.10` via split-horizon DNS, but most pods *cannot* reach that VIP. The kube-proxy `KUBE-EXT-<svc>` chain only DNATs LoadBalancer external IPs for traffic with iptables `--src-type LOCAL` (= the node itself originated the packet). Pod traffic fails that check and the packet is left undelivered.
+Pods can resolve `*.k8s.n37.ca` to the LAN gateway's MetalLB VIP `10.0.10.11` via split-horizon DNS, but most pods *cannot* reach that VIP. The kube-proxy `KUBE-EXT-<svc>` chain only DNATs LoadBalancer external IPs for traffic with iptables `--src-type LOCAL` (= the node itself originated the packet). Pod traffic fails that check and the packet is left undelivered.
 
 **Workaround** for monitors/probes:
 

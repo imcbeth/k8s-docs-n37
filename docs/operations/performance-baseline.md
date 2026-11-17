@@ -185,7 +185,7 @@ graph TD
     Single --> Q2{"Ingress P95<br/>elevated?"}
     Wide --> Q3{"API server<br/>P99 elevated?"}
 
-    Q2 -->|"Yes"| Network["Check ingress-nginx<br/>logs, backend pod logs,<br/>node network alerts"]
+    Q2 -->|"Yes"| Network["Check lan-gateway<br/>access logs, backend pod logs,<br/>node network alerts"]
     Q2 -->|"No"| App["Service-side problem<br/>(app logs, resource<br/>throttling)"]
 
     Q3 -->|"Yes"| EtcdQ{"etcd P99<br/>elevated?"}

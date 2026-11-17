@@ -346,10 +346,10 @@ Expected — Zot downloads all platform variants of the image on first pull (v2.
 
 ### 504 Gateway Timeout on Pull
 
-Check that the ingress-nginx NetworkPolicy allows egress to the `zot` namespace on port 5000:
+`registry.k8s.n37.ca` is served by the [LAN gateway](./lan-gateway.md). `zot` is not ambient, so the gateway connects straight to the pod on port 5000. Check that the zot NetworkPolicy admits `istio-system` there:
 
 ```bash
-kubectl get networkpolicy ingress-nginx-network-policy -n ingress-nginx -o yaml | grep -A5 "zot"
+kubectl get networkpolicy -n zot -o yaml | grep -B3 -A8 "istio-system"
 ```
 
 ### Check Sync Status
@@ -388,4 +388,4 @@ Zot is a StatefulSet with a RWO iSCSI PVC (`synology-iscsi-delete`). Only one no
 
 ---
 
-**Last Updated:** 2026-06-01
+**Last Updated:** 2026-11-16

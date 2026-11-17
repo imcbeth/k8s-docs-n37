@@ -32,7 +32,7 @@ Uptime Kuma provides two capabilities:
 External users
      │
      ▼
-ingress-nginx ──► oauth2-proxy (GitHub SSO) ──► Uptime Kuma UI
+lan-gateway ──► oauth2-proxy (GitHub SSO) ──► Uptime Kuma UI
                                                       │
                                                Prometheus ◄── ServiceMonitor
                                                       │           (default namespace,
@@ -167,17 +167,7 @@ kubectl apply -f manifests/applications/uptime-kuma.yaml
 
 ```yaml
 ingress:
-  enabled: true
-  hosts:
-    - host: status.k8s.n37.ca
-  annotations:
-    # GitHub SSO via oauth2-proxy
-    nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth"
-    nginx.ingress.kubernetes.io/auth-signin: "https://oauth.k8s.n37.ca/oauth2/start?rd=$scheme%3A%2F%2F$host$escaped_request_uri"
-    nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email"
-    # WebSocket support (Uptime Kuma uses socket.io)
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  enabled: false  # status.k8s.n37.ca is an HTTPRoute on the LAN gateway since 2026-11-15
 
 persistence:
   enabled: true
@@ -187,6 +177,8 @@ persistence:
 strategy:
   type: Recreate  # Required for RWO iSCSI PVC
 ```
+
+Forward-auth comes from the gateway's `authz.yaml` host list. WebSockets (socket.io) need no settings: Istio gateways upgrade WebSockets by default and route timeouts are off, which covers nginx's old 3600 s timeouts.
 
 ## Resource Usage
 
@@ -405,4 +397,4 @@ kubectl delete pod -n uptime-kuma -l app.kubernetes.io/name=uptime-kuma
 
 ---
 
-**Last Updated:** 2026-06-01
+**Last Updated:** 2026-11-16

@@ -662,19 +662,21 @@ affinity:
 
 ## Integration Examples
 
-### Example: CPU-based HPA for NGINX Ingress
+### Example: CPU-based HPA for a Deployment
+
+Illustrative only; nothing in the cluster uses an HPA. (The LAN gateway's replica count is set through its `parametersRef` ConfigMap, which also accepts a `horizontalPodAutoscaler` key.)
 
 ```yaml
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: nginx-ingress-hpa
-  namespace: ingress-nginx
+  name: my-app-hpa
+  namespace: my-app
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: ingress-nginx-controller
+    name: my-app
   minReplicas: 2
   maxReplicas: 5
   metrics:

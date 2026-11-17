@@ -600,23 +600,22 @@ In addition to the 4 custom dashboards above, 13 community/vendor dashboards tha
 
 **Data Source:** All UniFi dashboards use metrics from **UniFi Poller** (deployed in `unipoller` namespace)
 
-### Ingress Dashboards (1)
+### Gateway Dashboards (1)
 
-**1. Ingress NGINX Overview**
+**1. LAN Gateway (Istio)**
 
-- **Source:** Custom dashboard (deployed 2026-03-01)
-- **Purpose:** Comprehensive ingress controller monitoring
+- **Source:** Custom dashboard, uid `lan-gateway-overview` (deployed 2026-11-15; replaced "Ingress NGINX Overview" when ingress-nginx was removed)
+- **Purpose:** Traffic, errors and latency through the LAN gateway
 - **Features:**
-  - Overview stats: RPS, success rate, active connections, config reload, p95 latency
-  - Request rate by status code (2xx/3xx/4xx/5xx) with per-host breakdown
-  - Latency percentiles (p50/p90/p95/p99) with per-host p95
-  - Upstream performance: response time p95, request/response sizes
-  - Connection states: active/reading/writing/waiting + rate-limited 429s
-  - Controller health: memory, CPU, config reload timestamps
-- **Data Source:** ingress-nginx controller metrics (ingress-nginx namespace)
+  - Overview stats: gateway up, requests/s, 5xx %, p95 latency, sign-in redirects/s, uptime
+  - Requests by backend and by status class
+  - Latency percentiles and per-backend p95
+  - 5xx by backend, Envoy response flags, sign-in redirects by backend
+  - Listener certificate days to expiry, gateway memory
+- **Data Source:** `istio_requests_total{source_workload="lan-gateway-istio", reporter="source"}` and Envoy stats (PodMonitor `lan-gateway`)
 - **Folder:** network
-- **Template Variable:** `host` dropdown for per-Ingress filtering
-- **Alerts:** 7 PrometheusRule alerts for availability, latency, and controller health
+- **Template Variable:** `backend`
+- **Alerts:** 7 rules in `lan-gateway-alerts` (see [LAN Gateway](../applications/lan-gateway.md#monitoring))
 
 ### Security Dashboards (2)
 

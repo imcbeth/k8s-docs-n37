@@ -97,26 +97,9 @@ domainFilters:
 
 External-DNS monitors these Kubernetes resources:
 
-**1. Ingress Resources:**
+**1. Gateway API HTTPRoutes** (`external-dns-unifi` only, `--source=gateway-httproute`): every LAN host on the [LAN gateway](./lan-gateway.md). The record points at the parent Gateway's address (10.0.10.11). See [Example 1](#example-1-httproute-on-the-lan-gateway).
 
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: my-app
-spec:
-  rules:
-  - host: myapp.k8s.n37.ca  # Automatically creates DNS record
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: my-app
-            port:
-              number: 80
-```
+Both instances also watch Ingress resources, but the cluster has none since 2026-11-15.
 
 **2. LoadBalancer Services:**
 
@@ -137,15 +120,15 @@ spec:
 
 ### DNS Record Creation Flow
 
-1. **Resource Created:** User creates Ingress or LoadBalancer Service
+1. **Resource Created:** User creates an HTTPRoute or LoadBalancer Service
 2. **Detection:** External-DNS watches API server and detects new resource
 3. **Record Creation:**
-   - **Cloudflare:** Creates `myapp.k8s.n37.ca` → MetalLB IP (public DNS)
    - **UniFi:** Creates `myapp.k8s.n37.ca` → MetalLB IP (internal DNS)
+   - **Cloudflare:** Nothing for LAN addresses: `--exclude-target-net=10.0.0.0/8` keeps RFC1918 targets out of public DNS (see below)
 4. **Ownership Tracking:** TXT record created: `external-dns-myapp.k8s.n37.ca`
 5. **Split-Horizon DNS:**
-   - External clients → Cloudflare DNS → MetalLB IP
-   - Internal clients → UniFi DNS → MetalLB IP (faster, no internet roundtrip)
+   - Internal clients → UniFi DNS → MetalLB IP
+   - External clients → NXDOMAIN for `*.k8s.n37.ca` (LAN-only)
 
 ## Configuration
 
@@ -494,40 +477,34 @@ dig TXT external-dns-myapp.k8s.n37.ca
 
 ## Usage Examples
 
-### Example 1: Ingress with Automatic DNS
+### Example 1: HTTPRoute on the LAN Gateway
+
+Since 2026-11-15 the cluster has no Ingress objects; LAN hosts are `HTTPRoute`s on the [LAN gateway](./lan-gateway.md). `external-dns-unifi` runs with `--source=gateway-httproute`, so a route's hostname gets a UniFi record pointing at the parent Gateway's address:
 
 ```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: grafana
   namespace: default
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
-  ingressClassName: nginx
-  tls:
-  - hosts:
+  parentRefs:
+    - name: lan-gateway
+      namespace: istio-system
+      sectionName: https-grafana
+  hostnames:
     - grafana.k8s.n37.ca
-    secretName: grafana-tls
   rules:
-  - host: grafana.k8s.n37.ca
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: kube-prometheus-stack-grafana
-            port:
-              number: 80
+    - backendRefs:
+        - name: kube-prometheus-stack-grafana
+          port: 80
 ```
 
 **Result:**
 
-- External-DNS creates DNS records (Cloudflare + UniFi)
-- Cert-manager obtains Let's Encrypt certificate
-- Grafana accessible at `https://grafana.k8s.n37.ca`
+- external-dns-unifi creates `grafana.k8s.n37.ca → 10.0.10.11` on the UDR
+- No Cloudflare record: that instance does not watch routes, and `--exclude-target-net=10.0.0.0/8` would block it anyway
+- The certificate is a separate `Certificate` object (see [cert-manager](./cert-manager.md#for-a-new-lan-gateway-host))
 
 ### Example 2: LoadBalancer with Custom Hostname
 

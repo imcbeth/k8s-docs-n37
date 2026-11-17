@@ -33,7 +33,6 @@ Sizing rule of thumb: 3-5x current observed count, with reasonable floors. Two n
 | argocd | 40 | 10 | 25 | 100 | 50 |
 | cert-manager | 15 | 5 | 10 | 30 | 30 |
 | external-dns | 10 | 5 | 10 | 20 | 20 |
-| ingress-nginx | 15 | 5 | 10 | 20 | 20 |
 | lifeonabike | 15 | 5 | 10 | 20 | 20 |
 | localstack | 10 | 5 | 10 | 20 | 20 |
 | metallb-system | 15 | 5 | 10 | 20 | 20 |
@@ -73,7 +72,7 @@ For each included namespace:
 Before applying, sanity-check that **no namespace is already over quota**:
 
 ```bash
-for ns in argocd cert-manager external-dns ingress-nginx lifeonabike localstack \
+for ns in argocd cert-manager external-dns lifeonabike localstack \
           metallb-system oauth2-proxy synology-csi tempo unipoller uptime-kuma velero zot; do
   pods=$(kubectl get pods -n $ns --no-headers 2>/dev/null | wc -l)
   cms=$(kubectl get cm -n $ns --no-headers 2>/dev/null | wc -l)

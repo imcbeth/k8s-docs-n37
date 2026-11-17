@@ -169,12 +169,12 @@ timeout: 5s
 
 These targets carry the `slo_target="0.995"` label and feed into the [SLO recording rules and burn-rate alerts](../monitoring/slos.md).
 
-**`blackbox-availability` job** — end-to-end HTTPS through ingress-nginx (`slo_path="ingress"`):
+**`blackbox-availability` job** — end-to-end HTTPS through the [LAN gateway](./lan-gateway.md) (`slo_path="ingress"`; the label value predates the gateway):
 
-- `https://argocd.k8s.n37.ca` - argocd-server (TLS passthrough)
-- `https://grafana.k8s.n37.ca` - Grafana (HTTPS termination)
+- `https://argocd.k8s.n37.ca` - argocd-server (TLS terminated at the gateway)
+- `https://grafana.k8s.n37.ca` - Grafana (TLS terminated at the gateway)
 
-**`blackbox-availability-internal` job** — HTTP via ClusterIP Service (`slo_path="backend"`). Bypasses ingress-nginx for services where the end-to-end path can't be probed reliably from in-cluster (oauth2-proxy redirects + MetalLB VIP hairpin):
+**`blackbox-availability-internal` job** — HTTP via ClusterIP Service (`slo_path="backend"`). Bypasses the gateway for services where the end-to-end path can't be probed reliably from in-cluster (oauth2-proxy redirects + MetalLB VIP hairpin):
 
 - `http://argo-workflows-server.argo-workflows:2746/`
 - `http://zot.zot:5000/v2/`
@@ -509,12 +509,12 @@ kubectl port-forward -n default svc/kube-prometheus-stack-prometheus 9090:9090
 **Symptoms**:
 
 ```
-Get "https://10.0.10.10": context deadline exceeded
+Get "https://10.0.10.11": context deadline exceeded
 ```
 
 **Why it happens**: Pods inside the cluster cannot reach external IPs (MetalLB LoadBalancer IPs) that route back to the same cluster. This is called "hairpin NAT" and causes connection timeouts due to NAT asymmetry.
 
-**Solution**: Use `hostAliases` in the deployment to resolve external hostnames directly to the ingress ClusterIP:
+**Solution**: Use `hostAliases` in the deployment to resolve external hostnames directly to the LAN gateway's ClusterIP:
 
 ```yaml
 # In blackbox-exporter-deployment.yaml
@@ -522,21 +522,20 @@ spec:
   template:
     spec:
       hostAliases:
-        - ip: "10.98.168.24"  # ingress-nginx ClusterIP
+        - ip: "10.96.28.68"  # lan-gateway-istio ClusterIP
           hostnames:
-            - "argocd.k8s.n37.ca"
             - "grafana.k8s.n37.ca"
-            - "workflows.k8s.n37.ca"
+            - "argocd.k8s.n37.ca"
 ```
 
-**Get the ingress ClusterIP**:
+**Get the gateway ClusterIP**:
 
 ```bash
-kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.spec.clusterIP}'
+kubectl get svc -n istio-system lan-gateway-istio -o jsonpath='{.spec.clusterIP}'
 ```
 
 :::tip
-The ClusterIP is stable unless the ingress-nginx service is deleted and recreated. If probes start failing after ingress-nginx changes, check if the ClusterIP has changed.
+The ClusterIP is stable unless the Gateway is renamed or recreated (Istio regenerates the Service). The aliases pointed at ingress-nginx's ClusterIP until 2026-11-15. If probes start failing after gateway changes, check whether the ClusterIP has changed.
 :::
 
 :::note Added 2026-01-29

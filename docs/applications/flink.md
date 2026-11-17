@@ -292,15 +292,9 @@ Root cause: `env.from_collection(records)` without `type_info` → Kryo serializ
 
 Fix: always pass `type_info=Types.STRING()`.
 
-### flink.k8s.n37.ca returns 500
+### flink.k8s.n37.ca returns 403 or 503
 
-Check that the ingress `auth-url` annotation includes `:4180`:
-
-```
-nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.oauth2-proxy.svc.cluster.local:4180/oauth2/auth"
-```
-
-Omitting the port causes nginx to connect to port 80 (refused) → 500 on every request.
+The host is on the [LAN gateway](./lan-gateway.md) with forward-auth. A 403 means the ext_authz check could not reach oauth2-proxy (see [oauth2-proxy troubleshooting](./oauth2-proxy.md#service-returns-403-instead-of-redirecting-to-github)). A 503 means the gateway could not reach `kafka-to-s3-rest:8081`: check the JobManager pod is running, and that flink-demo's AuthorizationPolicy still allows `sa/lan-gateway-istio` on 8081.
 
 ## Gotchas
 
@@ -320,4 +314,4 @@ Omitting the port causes nginx to connect to port 80 (refused) → 500 on every 
 
 ---
 
-**Last Updated:** 2026-05-31
+**Last Updated:** 2026-11-16

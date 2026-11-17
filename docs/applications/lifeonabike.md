@@ -26,7 +26,7 @@ The `lifeonabike` namespace hosts the web application at `lifeonabike.ca`, a Clo
 |----------|------|-------------|
 | `web` | Deployment | Web application (image from Zot registry) |
 | `web` | Service | ClusterIP port 80 → pod port 8080 (nginx non-root) |
-| `web` / `www` | Ingress | nginx ingress routing (TLS via cert-manager) |
+| `web` | HTTPRoute | LAN path for `lifeonabike.ca` / `www` on the [LAN gateway](./lan-gateway.md) (route and certificate live in `manifests/base/istio-gateway/`) |
 | `cloudflared` | Deployment | Cloudflare Tunnel (2 replicas) |
 | `cloudflared-config` | ConfigMap | Tunnel routing rules |
 | `tunnel-credentials` | SealedSecret | Tunnel auth credentials |
@@ -192,12 +192,13 @@ the internet egress that only cloudflared requires:
 | Policy | Selects | Allows |
 |---|---|---|
 | `lifeonabike-default-deny` | all pods | DNS egress only |
-| `lifeonabike-web` | `app.kubernetes.io/name: lifeonabike-web` | ingress **:8080** from ingress-nginx, cloudflared, uptime-kuma, blackbox-exporter |
+| `lifeonabike-web` | `app.kubernetes.io/name: lifeonabike-web` | ingress **:8080** from istio-system (LAN gateway), cloudflared, uptime-kuma, blackbox-exporter |
 | `lifeonabike-cloudflared` | `app.kubernetes.io/name: cloudflared` | egress to the Cloudflare edge (**7844** UDP/TCP, 443, RFC1918 excluded), `web`:8080, `argo-events`:**12000** |
 
 :::danger Four callers reach `web`, and two are easy to miss
 
-- **ingress-nginx** — the `lifeonabike.ca` / `www` Ingress.
+- **LAN gateway** (`istio-system`) — the LAN path for `lifeonabike.ca` / `www`
+  (ingress-nginx until 2026-11-15).
 - **cloudflared** — same namespace, proxies to the Service.
 - **uptime-kuma** — its `lifeonabike.ca` and `www.lifeonabike.ca` monitors hit
   `http://web.lifeonabike:80` **internally**, not the public URL. See
@@ -215,10 +216,10 @@ of the HBONE `:15008` or ztunnel link-local rules the meshed namespaces have.
 Enrolling the namespace without adding them first breaks all traffic.
 
 :::note Port mapping
-The `web` container runs nginx as a non-root user and binds to **port 8080** (non-privileged). The `web` Service maps **port 80 → targetPort 8080**. The Cloudflare Tunnel connects to the Service at port 80 (`web.lifeonabike.svc.cluster.local:80`), which kube-proxy translates to pod port 8080. The ingress-nginx NetworkPolicy egress rule allows port **8080** because ingress-nginx resolves backend Services to their pod endpoints (bypassing the Service ClusterIP) and connects directly to the pod on port 8080.
+The `web` container runs nginx as a non-root user and binds to **port 8080** (non-privileged). The `web` Service maps **port 80 → targetPort 8080**. The Cloudflare Tunnel connects to the Service at port 80 (`web.lifeonabike.svc.cluster.local:80`), which kube-proxy translates to pod port 8080. The `lifeonabike-web` policy admits the LAN gateway on port **8080** because Envoy resolves backend Services to their pod endpoints (bypassing the Service ClusterIP) and connects directly to the pod; `lifeonabike` is not ambient, so there is no HBONE.
 :::
 
-The ingress-nginx NetworkPolicy allows egress to `lifeonabike:8080` for web traffic (pod endpoint port, not Service port).
+The `istio-system` NetworkPolicy allows the gateway's egress to in-cluster namespaces on all ports.
 
 ## TLS Certificate
 
@@ -276,4 +277,4 @@ kubectl describe pod -n lifeonabike -l app=web | grep -A5 "Events:"
 
 ---
 
-**Last Updated:** 2026-06-01
+**Last Updated:** 2026-11-16

@@ -254,7 +254,7 @@ NAS unreachable, RAID degraded beyond recovery, or you're moving to a new NAS.
 
 - All PVCs become `Lost` (iSCSI sessions error out).
 - Loki / Prometheus / Grafana / Falco-redis / Velero / Argo Workflows / Tempo / Uptime Kuma / Zot all lose their data.
-- The cluster itself keeps running on local node state — workloads that don't use PVCs (cert-manager, external-dns, ingress-nginx, oauth2-proxy, metallb, sealed-secrets, tigera, gatekeeper, falco, alloy) stay healthy.
+- The cluster itself keeps running on local node state — workloads that don't use PVCs (cert-manager, external-dns, the LAN gateway, oauth2-proxy, metallb, sealed-secrets, tigera, gatekeeper, falco, alloy) stay healthy.
 
 ### Recover
 
