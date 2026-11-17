@@ -68,12 +68,14 @@ Plain HTTP on port 80 is answered for every host by one `HTTPRoute`
 argocd-server runs with `server.insecure: true` (since 2026-11-15), so the gateway talks
 plain HTTP to it, with no TLS origination and no DestinationRule.
 
-:::warning This hop is not encrypted
-The `argocd` namespace is not in the ambient mesh, so gateway → argocd-server is
-plaintext HTTP on the pod network. Under ingress-nginx it was HTTPS
-(`backend-protocol: HTTPS`). Open in the homelab TODO; the fix is either to mesh the
-`argocd` namespace or to go back to TLS to the backend.
-:::
+That hop runs inside HBONE mTLS because the **argocd-server pod** is in the ambient
+mesh (pod label `istio.io/dataplane-mode: ambient` via `server.podLabels`, since
+2026-11-17). The rest of the `argocd` namespace is deliberately not meshed, so that
+Argo CD can still deploy a fix when the mesh is broken. See
+[Disaster Recovery](../operations/disaster-recovery.md#service-mesh-istio-ambient-failure).
+From 2026-11-15 to 2026-11-17 the hop was plaintext: `server.insecure` assumed a mesh
+that argocd wasn't in yet. Under ingress-nginx it was HTTPS (`backend-protocol: HTTPS`).
+
 The `argocd` CLI's native gRPC needs HTTP/2 to the backend, so the route sends
 `content-type: application/grpc*` to the chart's h2c port `http2` (8080). The UI, REST
 API and grpc-web go to port 80. Both CLI modes work.
@@ -146,11 +148,10 @@ back, so the browser gets the 302 to GitHub. See [oauth2-proxy](./oauth2-proxy.m
   only. It is additive to the namespace's own policy.
 - The gateway pod itself is not captured by ztunnel (`dataplane-mode: none`), but Envoy
   speaks HBONE natively: to **ambient** backends (default, argo-workflows, flink-demo,
-  localstack) it opens HBONE mTLS on 15008 with its own identity, and those namespaces'
+  localstack, and the argocd-server pod) it opens HBONE mTLS on 15008 with its own identity, and those namespaces'
   L4 `AuthorizationPolicy` allows the principal
   `cluster.local/ns/istio-system/sa/lan-gateway-istio` on the app port.
-- To **non-ambient** backends (argocd, falco, uptime-kuma, zot, oauth2-proxy,
-  lifeonabike) it connects directly to the pod port, in plain HTTP, and their
+- To **non-ambient** backends (falco, uptime-kuma, zot, oauth2-proxy, lifeonabike) it connects directly to the pod port, in plain HTTP, and their
   NetworkPolicy admits `istio-system` on that port.
   See [Network Policies](../security/network-policies.md).
 

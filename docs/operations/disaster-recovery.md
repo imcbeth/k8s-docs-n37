@@ -19,6 +19,7 @@ The cluster is **5 nodes**: 1 control-plane (`10.0.10.214`) + 4 workers (`10.0.1
 | PVC corrupted / lost | 1 hour | 24h max | Restore from Velero CSI snapshot |
 | Full cluster rebuild | 8 hours | 24h max | Provision → bootstrap → Velero restore |
 | Synology NAS lost | days | 7d max | Velero offsite backups to B2 + manual NAS rebuild |
+| Istio mesh broken | 30 minutes | 0 | Argo CD's deploy path is outside the mesh; revert in git, or un-enrol by hand |
 
 These are realistic for a homelab; treat them as targets to verify against, not SLAs.
 
@@ -293,6 +294,102 @@ velero backup get --selector=schedule=weekly-cluster-backup | head -5
 ```
 
 If the schedule hasn't run in >48h, fix that **before** the NAS dies, not after.
+
+## Service mesh (Istio ambient) failure
+
+### What depends on the mesh
+
+Every pod in an ambient namespace sends and receives all its traffic through the
+**ztunnel** pod on its node, which gets its configuration and certificates from
+**istiod**. **istio-cni** sets up the redirection when a pod starts.
+
+- **Meshed namespaces:**
+  - argo-events, argo-workflows, default (Prometheus, Grafana, Alertmanager),
+    flink-demo, flink-operator, kafka, localstack, loki, strimzi-system,
+    trivy-system, unipoller.
+  - Plus the single **argocd-server** pod (pod label, since 2026-11-17).
+- **If ztunnel is down on a node**, meshed pods on that node have no network.
+- **If istio-cni is down on a node**, new meshed pods on that node can't start.
+- **lan-gateway** (every LAN host) is an Istio Envoy configured by istiod.
+
+Argo CD deploys istiod, ztunnel, istio-cni and every NetworkPolicy and
+AuthorizationPolicy. So the parts of Argo CD that deploy are **deliberately left
+out of the mesh**: application-controller, repo-server, redis and dex. A broken mesh
+can take down the Argo CD UI (argocd-server is meshed). It can't stop Argo CD from
+syncing the revert that fixes the mesh. **Don't enrol the `argocd` namespace.**
+
+### Symptoms
+
+- Apps in meshed namespaces time out or reset connections while their pods look
+  `Running`.
+- `ztunnel`, `istio-cni-node` or `istiod` pods in `istio-system` not `Running`.
+- ztunnel logs full of `RBAC: access denied` after a policy change.
+- The Argo CD UI or `argocd` CLI fails, while Applications keep syncing.
+
+### Recover
+
+```bash
+# 1. Find the broken piece
+kubectl get pods -n istio-system -o wide
+kubectl logs -n istio-system ds/ztunnel --tail=50
+istioctl ztunnel-config workloads | grep -v HBONE | head   # pods that should be meshed but aren't
+
+# 2. If a git change caused it (Istio upgrade, AuthorizationPolicy, NetworkPolicy):
+#    revert the PR. The Argo CD controller is not meshed and syncs the revert.
+#    If the UI is down, drive Argo CD straight through the Kubernetes API.
+#    --core needs the kube context's namespace to be argocd:
+kubectl config set-context --current --namespace=argocd
+argocd app list --core
+argocd app get <app> --core
+argocd app sync <app> --core
+kubectl config set-context --current --namespace=default   # put it back
+
+# 3. Break-glass: take argocd-server out of the mesh to get the UI back.
+#    The gateway then connects directly on 8080, which the argocd NetworkPolicy
+#    still admits.
+kubectl label pod -n argocd -l app.kubernetes.io/name=argocd-server istio.io/dataplane-mode-
+
+# 4. Break-glass: take a whole namespace out of the mesh
+kubectl label ns <ns> istio.io/dataplane-mode-
+
+# 5. ztunnel crashlooping on one node only: move meshed pods off that node
+kubectl cordon <node>
+kubectl drain <node> --ignore-daemonsets --delete-emptydir-data
+```
+
+### Verify
+
+```bash
+kubectl get pods -n istio-system
+istioctl ztunnel-config workloads | grep -E 'argocd|<ns>'   # protocol HBONE once re-enrolled
+kubectl get applications.argoproj.io -n argocd \
+  -o custom-columns='NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status'
+curl -sI https://argocd.k8s.n37.ca/ | head -1
+```
+
+### Pitfall
+
+The break-glass labels don't last:
+
+- **Step 3:** the argocd-server Deployment template still carries the
+  label (`server.podLabels` in `argocd-config.yaml`). A restarted server pod
+  rejoins the mesh. To keep it out, remove `podLabels` in git.
+- **Step 4, namespaces labelled from git:** the label comes back on the next
+  self-heal for these:
+  - argo-events: `manifests/base/argo-events/namespace.yaml`
+  - kafka, strimzi-system, flink-operator, flink-demo:
+    `manifests/base/network-policies/<ns>/namespace.yaml`
+
+  Change git for those.
+- **Step 4, namespaces labelled by hand:** the rest were labelled with
+  `kubectl label` and stay un-enrolled until relabelled.
+
+**Before un-enrolling a namespace, read its NetworkPolicy.** Since the O8 work
+(2026-11-15), meshed callers reach a meshed pod only through the 15008 rule. Not
+every namespace kept app-port rules for unmeshed callers. Taking it out of the
+mesh can cut it off, instead of restoring it.
+
+---
 
 ## Case study — the 16-day silent outage (2026-06-21)
 

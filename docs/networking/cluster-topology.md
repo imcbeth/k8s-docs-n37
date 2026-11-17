@@ -73,7 +73,7 @@ sequenceDiagram
 
 - MetalLB runs in L2 mode (chart 0.16.1 with `frrk8s.enabled: false`). One node at a time owns each VIP via gratuitous ARP. Failover takes ~10 seconds.
 - The [LAN gateway](../applications/lan-gateway.md) is the only L7 router (it replaced ingress-nginx and 10.0.10.10 on 2026-11-15). For forward-auth hosts it asks oauth2-proxy through Envoy ext_authz before forwarding.
-- The gateway terminates TLS for every host. To ambient backends (default, argo-workflows, flink-demo, localstack) it sends HTTP inside HBONE mTLS, as above. To non-ambient backends (argocd, falco, uptime-kuma, zot, oauth2-proxy, lifeonabike) it connects straight to the pod port in plain HTTP.
+- The gateway terminates TLS for every host. To ambient backends (default, argo-workflows, flink-demo, localstack, and the argocd-server pod) it sends HTTP inside HBONE mTLS, as above. To non-ambient backends (falco, uptime-kuma, zot, oauth2-proxy, lifeonabike) it connects straight to the pod port in plain HTTP.
 - The Service uses `externalTrafficPolicy: Cluster`, so the VIP does not have to move when one gateway replica goes away.
 
 ## Path 2 — Pod-to-pod (Istio Ambient HBONE)
@@ -147,7 +147,7 @@ sequenceDiagram
 | Source pod type | Solution |
 |---|---|
 | Ambient-meshed pod, destination ingress backend is meshed | ztunnel HBONE bypasses kube-proxy — works |
-| Ambient-meshed pod, destination is not meshed | Use ClusterIP DNS directly (`argocd-server.argocd:80`) |
+| Ambient-meshed pod, destination is not meshed | Use ClusterIP DNS directly (`<service>.<namespace>:<port>`) |
 | Non-meshed pod | Use ClusterIP DNS directly |
 | Needs the real HTTPS path (blackbox probes) | `hostAliases` mapping the hostname to the gateway's ClusterIP |
 
