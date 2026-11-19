@@ -57,6 +57,34 @@ EOF
 sudo sysctl --system
 ```
 
+## Block the SCTP kernel module
+
+Nothing in this cluster uses SCTP. Its kernel module has an unpatched
+use-after-free (present since Linux 4.15), and the
+[nginx2root](https://nginx2root.com/) chain uses it to get from an nginx worker
+to root on the host. Any unprivileged `socket()` call can autoload the module, so
+`blacklist sctp` is not enough; make loading fail instead. Applied to all five
+nodes on 2026-11-18.
+
+```bash
+cat <<EOF | sudo tee /etc/modprobe.d/disable-sctp.conf
+# Block the SCTP module (nginx2root, 2026-11-18). Remove to re-enable.
+install sctp /bin/false
+EOF
+```
+
+Check it (no reboot needed):
+
+```bash
+# Expect "[Errno 93] Protocol not supported", and no sctp in lsmod
+python3 -c 'import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM, 132)'
+lsmod | grep '^sctp'
+```
+
+Conntrack and IPVS SCTP support is built into the kernel (`CONFIG_NF_CT_PROTO_SCTP=y`,
+`CONFIG_IP_VS_PROTO_SCTP=y`) and does not need this module. If a workload ever
+needs SCTP (a Service with `protocol: SCTP`), delete the file.
+
 ## Install runc
 
 ```bash
