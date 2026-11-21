@@ -22,22 +22,28 @@ This guide covers procedures for gracefully shutting down and bringing up the Ku
 
 ## NAS-Dependent Workloads
 
-These workloads have PersistentVolumeClaims backed by the Synology NAS via iSCSI (`synology-iscsi-retain` StorageClass):
+These workloads have PersistentVolumeClaims backed by the Synology NAS: ten over iSCSI
+(Synology CSI) and one over NFS (verified against the cluster 2026-11-21):
 
-| Workload | Namespace | Type | PVC Size |
-|----------|-----------|------|----------|
-| Prometheus | default | StatefulSet | 50Gi |
-| Grafana | default | Deployment | 5Gi |
-| Loki | loki | StatefulSet | 20Gi |
-| Tempo | tempo | StatefulSet | 10Gi |
-| Trivy Server | trivy-system | StatefulSet | 5Gi |
-| Zot | zot | StatefulSet | 50Gi |
-| uptime-kuma | uptime-kuma | Deployment | 5Gi |
-| LocalStack | localstack | Deployment | 2Gi |
+| Workload | Namespace | Type | PVC | Size | StorageClass |
+|----------|-----------|------|-----|------|--------------|
+| Prometheus | default | StatefulSet | `prometheus-...-prometheus-0` | 50Gi | `synology-iscsi-retain` |
+| Grafana | default | Deployment | `kube-prometheus-stack-grafana` | 5Gi | `synology-iscsi-retain` |
+| Loki | loki | StatefulSet | `storage-loki-0` | 20Gi | `synology-iscsi-retain` |
+| Tempo | tempo | StatefulSet | `storage-tempo-0` | 10Gi | `synology-iscsi-delete` |
+| Trivy Server | trivy-system | StatefulSet | `data-trivy-server-0` | 5Gi | `synology-iscsi-retain` |
+| Zot | zot | StatefulSet | `zot-pvc-zot-0` | 50Gi | `synology-iscsi-delete` |
+| uptime-kuma | uptime-kuma | Deployment | `uptime-kuma-pvc` | 5Gi | `synology-iscsi-delete` |
+| LocalStack | localstack | Deployment | `localstack-data` | 2Gi | `synology-iscsi-retain` |
+| NATS EventBus (JetStream) | argo-events | StatefulSet | `eventbus-default-js-vol-eventbus-default-js-0` | 2Gi | `synology-iscsi-delete` |
+| lifeonabike-agent (state) | lifeonabike | Deployment | `lifeonabike-agent-data` | 1Gi | `synology-iscsi-retain` |
+| lifeonabike-agent (photo inbox) | lifeonabike | Deployment | `lifeonabike-inbox` | 100Gi | static NFS PV (`Retain`, RWX) |
 
-**8 PVCs total** (verified 2026-10-28). `Falco Redis` used to appear here with a 2Gi PVC and
-**no longer has one** — its Redis runs with `save ""` and AOF off, so the volume was removed.
-It is therefore not volume-relevant during a shutdown; the drain handles it.
+**11 PVCs total.** The earlier list (8, verified 2026-10-28) predates the persistent JetStream
+EventBus and the lifeonabike agent. `lifeonabike-inbox` is NFS, not iSCSI: it does not show up in
+iSCSI session checks, but the agent still needs the NAS up. `Falco Redis` used to appear here with a
+2Gi PVC and **no longer has one** — its Redis runs with `save ""` and AOF off, so the volume was
+removed. It is therefore not volume-relevant during a shutdown; the drain handles it.
 
 ## After any kubeadm upgrade: re-check static pod customizations
 
@@ -490,8 +496,8 @@ Expect **98 total, 0 down** (count as of 2026-10-26). A target down with
 - [ ] 5/5 nodes Ready and uncordoned
 - [ ] ArgoCD auto-sync re-enabled
 - [ ] 38/38 apps Synced + Healthy
-- [ ] 8/8 PVCs Bound with VolumeAttachments
-- [ ] All NAS workloads running (Prometheus, Grafana, Loki, Trivy, Tempo, Zot, uptime-kuma, localstack)
+- [ ] 11/11 PVCs Bound; VolumeAttachments for the 10 iSCSI volumes (the NFS inbox has none)
+- [ ] All NAS workloads running (Prometheus, Grafana, Loki, Trivy, Tempo, Zot, uptime-kuma, localstack, NATS EventBus, lifeonabike-agent)
 - [ ] DaemonSets at expected counts
 - [ ] Metrics API responsive (`kubectl top nodes`)
 - [ ] No stuck pods

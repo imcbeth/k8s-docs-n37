@@ -87,7 +87,7 @@ sources:
   # 1. Helm chart
   - repoURL: https://argoproj.github.io/argo-helm
     chart: argo-events
-    targetRevision: 2.4.21
+    targetRevision: 2.4.28
     helm:
       releaseName: argo-events
       valueFiles:
@@ -118,7 +118,7 @@ metadata:
   namespace: argo-events
 spec:
   jetstream:
-    version: "2.10.10"
+    version: "2.10.29"
     replicas: 1
 ```
 

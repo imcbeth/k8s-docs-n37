@@ -11,8 +11,8 @@ Velero provides backup and disaster recovery capabilities for the Raspberry Pi 5
 
 - **Namespace:** `velero`
 - **Helm Chart:** `vmware-tanzu/velero`
-- **Chart Version:** `12.2.2` (as of 2026-11-02, via Renovate PR #1101; running image `velero/velero:v1.18.4`)
-- **App Version:** `v1.18.1`
+- **Chart Version:** `12.2.5` (as of 2026-11-21, verified against the cluster; running image `velero/velero:v1.18.4`)
+- **App Version:** `v1.18.4`
 - **Deployment:** Managed by ArgoCD
 - **Backup Storage:** Backblaze B2 (production)
 - **Backup Strategy:** Daily PVC backups + Weekly cluster resource backups
@@ -199,9 +199,14 @@ It surfaced only because a one-way Uptime Kuma migration needed a rollback and t
 | `default` | Prometheus, Grafana |
 | `loki` | Loki |
 | `trivy-system` | Trivy vulnerability DB |
-| `falco` | Falco Sidekick Redis |
 | `uptime-kuma` | Monitors + heartbeat history — **added 2026-09-07 (#907)** |
 | `zot` | OCI registry — **added 2026-09-08 (#910)** |
+| `lifeonabike` | lifeonabike-agent state (`lifeonabike-agent-data`). **Not** the 100Gi photo inbox: it is a static NFS volume from the NAS, which CSI cannot snapshot (`defaultVolumesToFsBackup: false`); it is only as safe as the NAS share itself. The 2026-11-21 02:00 backup took 7/7 CSI snapshots |
+
+`falco` was removed on 2026-09-09: its Redis no longer has a PVC. A separate schedule,
+`velero-daily-argocd` (`30 1 * * *`), backs up the `argocd` namespace's resources, and
+`velero-weekly-cluster-resources` (`0 3 * * 0`, 90-day TTL) takes every namespace's resources
+without volumes. Verified against the cluster 2026-11-21.
 
 Deliberately unprotected, and recorded as such so the alert stays quiet:
 
@@ -209,6 +214,7 @@ Deliberately unprotected, and recorded as such so the alert stays quiet:
 |---|---|
 | `localstack` | test S3 emulator, disposable |
 | `tempo` | 5.8M of short-TTL traces, regenerable |
+| `argo-events` | the EventBus's JetStream store, transient by design (72h maxage); sensors re-create their K/V buckets on restart (added 2026-11-15) |
 
 `zot` was the debatable one — 50Gi, mostly pull-through cache that repopulates from upstream. It is backed up anyway because it is **also the local push target**: images built and pushed to `registry.k8s.n37.ca` may exist nowhere else, and separating those from cached layers after a loss is not practical. CSI snapshots are copy-on-write, so the nightly cost is the delta rather than 50Gi.
 
@@ -219,7 +225,7 @@ Deliberately unprotected, and recorded as such so the alert stays quiet:
 ```yaml
 expr: |
   kube_persistentvolumeclaim_info{
-    namespace!~"default|loki|trivy-system|falco|uptime-kuma|zot|localstack|tempo"
+    namespace!~"default|loki|trivy-system|uptime-kuma|localstack|tempo|zot|lifeonabike|argo-events"
   }
 for: 6h   # short-lived PVCs from restore tests and CI must not fire
 ```

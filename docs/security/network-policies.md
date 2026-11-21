@@ -9,7 +9,7 @@ NetworkPolicies provide namespace isolation and traffic control for the Raspberr
 
 ## Overview
 
-- **CNI:** Calico v3.31.4 (native NetworkPolicy support)
+- **CNI:** Calico v3.31.7 (native NetworkPolicy support)
 - **Service Mesh:** Istio Ambient (mTLS via HBONE tunneling)
 - **Deployment:** Managed by ArgoCD at sync-wave `-40`
 - **Approach:** Zero-trust (default-deny with explicit allow rules)
@@ -484,49 +484,33 @@ Calico NetworkPolicy uses its own expression syntax (`app == 'blackbox-exporter'
 
 ### trivy-system
 
-Vulnerability scanner with intra-namespace communication for scan jobs.
+Vulnerability scanner. Scan jobs and the operator call trivy-server (port 4954) inside the
+namespace; since 2026-11-21 the Argo Workflows image builds call it too (the image-gate scan).
+Summary of the live policy (verified 2026-11-21; source `manifests/base/network-policies/trivy-system/`):
 
-**Critical:** Scan jobs must connect to trivy-server (port 4954) within the namespace.
+| Direction | Peer | Ports | Why |
+|---|---|---|---|
+| ingress | pods in trivy-system | 4954, 8080 | scan jobs -> trivy-server; metrics |
+| ingress | namespaces `default`, `trivy-system`, `argo-workflows` | 15008 (HBONE) | meshed callers: Prometheus, the scan jobs, the image-gate scan |
+| ingress | `169.254.7.127/32` | any | kubelet probes via the ambient link-local SNAT address |
+| ingress | namespace `default` | 8080 | Prometheus scrape (non-HBONE path) |
+| egress | any | 15008 | HBONE to meshed pods |
+| egress | pods in trivy-system | 4954 | scan jobs -> trivy-server |
+| egress | kube-dns; API server (10.96.0.1:443, 10.0.10.0/24:6443) | 53, 443, 6443 | DNS and the Kubernetes API |
+| egress | lan-gateway pods in istio-system | 443 | `registry.k8s.n37.ca` (local images) |
+| egress | internet (RFC 1918 excluded) | 443 | registries, vulnerability DB |
+| egress | istio-system | 15008, 15012, 15017 | ztunnel / istiod |
 
-```yaml
-ingress:
-  # Intra-namespace: scan jobs -> trivy-server
-  - from:
-      - podSelector: {}
-    ports:
-      - protocol: TCP
-        port: 4954
-      - protocol: TCP
-        port: 8080
-  # Istio mesh + Prometheus
-  - from:
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: istio-system
-    ports:
-      - protocol: TCP
-        port: 15008
-      - protocol: TCP
-        port: 8080
-  - from:
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: default
-    ports:
-      - protocol: TCP
-        port: 15008
-        port: 8080
+Between two meshed pods only the 15008 rule is evaluated, so which identity may reach which
+port is decided by the namespace's Istio `AuthorizationPolicy` (`trivy-system-allow`): Prometheus
+on 8080, `trivy-operator` and `argo-workflows/argo-workflow` on 4954.
 
-egress:
-  # Intra-namespace: scan jobs -> trivy-server
-  - to:
-      - podSelector: {}
-    ports:
-      - protocol: TCP
-        port: 4954
-  # DNS, K8s API, external registries, Istio mesh
-  # ... (standard patterns)
-```
+:::warning An egress ipBlock for a LoadBalancer IP never matches
+The registry egress used to be `ipBlock: 10.0.10.11/32` (the gateway's MetalLB address). kube-proxy
+DNATs that to a gateway pod IP before Calico evaluates egress, and pod IPs are in the excluded
+`192.168.0.0/16`, so **no `registry.k8s.n37.ca` image was ever scanned** until it was replaced with
+the pod selector above (homelab PR #1229, 2026-11-20).
+:::
 
 ### cert-manager
 

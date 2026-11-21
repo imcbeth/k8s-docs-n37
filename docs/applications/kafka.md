@@ -14,8 +14,9 @@ Apache Kafka message broker deployed on Kubernetes via the Strimzi operator, use
 |----------|-------|
 | **Namespace** | `kafka` |
 | **Operator namespace** | `strimzi-system` |
-| **Kafka version** | 4.2.1 (KRaft mode, no ZooKeeper) |
-| **Strimzi chart** | 1.2.0 (as of 2026-09-07, via Renovate PR #878) |
+| **Kafka version** | 4.2.1 (KRaft mode, no ZooKeeper); image `quay.io/strimzi/kafka:1.3.1-kafka-4.2.1`. 4.2.2 proposed in homelab PR #1256 |
+| **Strimzi chart** | 1.3.1 (latest, 2026-11-04; operator image `quay.io/strimzi/operator:1.3.1`) |
+| **Java** | Red Hat OpenJDK 21.0.13 (2026-10-20 update) in the broker, operator and entity operator |
 | **ArgoCD App** | `kafka` (project: `infrastructure`) |
 | **Istio Mesh** | Enabled (Ambient mode) |
 
@@ -47,7 +48,7 @@ metadata:
   namespace: kafka
 spec:
   kafka:
-    version: 4.1.2
+    version: 4.2.1
     replicas: 1
     listeners:
       - name: plain
@@ -167,6 +168,7 @@ The topic-operator watches for `KafkaTopic` CRDs with label `strimzi.io/cluster:
 - **entity-operator bootstrap uses port 9091**: The internal `REPLICATION` listener, not port 9092. NetworkPolicies from `strimzi-system` must allow egress to `kafka` on 9091 in addition to 9092.
 - **KRaft CONTROLPLANE port 9090**: The `describeMetadataQuorum` call follows the controller endpoint from Kafka metadata. This second connection goes to port 9090 — must be open from `strimzi-system` → `kafka`.
 - **user-operator liveness probe kills ARM64 JVM**: JVM on ARM64 needs ~35s to start; probe fires at 30s. Remove `userOperator` from `entityOperator` unless KafkaUser CRDs are actually needed.
+- **Renovate does not track `spec.kafka.version`.** It bumps the Strimzi chart but not the Kafka version in the `Kafka` CR, so Kafka patch releases have to be checked by hand: the supported versions are in the operator's `STRIMZI_KAFKA_IMAGES` env (`kubectl get deploy strimzi-cluster-operator -n strimzi-system -o yaml`). Strimzi 1.3.1 supports 4.2.0–4.2.2 and 4.3.0–4.3.2; the cluster ran 4.2.1 on 2026-11-21.
 - **Strimzi minor bumps drop Kafka versions.** Discovered 2026-07-16: strimzi-kafka-operator chart 1.0.x → 1.1.0 removed Kafka 4.1.x from the supported set. Our `Kafka` CR was pinned at `spec.kafka.version: 4.1.2` → operator refused to reconcile → app went Degraded within minutes of the chart upgrade. Fix: bump the Kafka CR alongside the operator (`spec.kafka.version: 4.2.1` picked; supported in 1.1.0 are 4.2.0/4.2.1/4.3.0). Before ANY strimzi chart-minor bump: check the operator's release notes for `Supported Kafka versions` and bump the CR alongside if needed. Single-broker KRaft cluster upgrades roll cleanly — just a pod restart.
 
   **Read the full support matrix, not a snippet.** On 2026-09-07 the 1.1.0 → 1.2.0 bump was nearly rejected on this gotcha, based on an `STRIMZI_KAFKA_IMAGES` env dump that showed only its first line (`4.2.0=...`). The complete list showed 1.1.0 supports 4.2.0/4.2.1/4.3.0 and **1.2.0 supports those plus 4.3.1** — it adds a version and drops nothing. Extract the whole list before concluding:

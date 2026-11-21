@@ -151,7 +151,7 @@ If you're new to this setup, start here:
 
 - **Tigera Operator**: Migrated Calico CNI from manifest-based to operator-managed
 - **Namespace**: `calico-system` (previously `kube-system`)
-- **Version**: Calico v3.31.3 via Tigera Operator
+- **Version**: Calico v3.31.7 via Tigera Operator (tigera/operator v1.40.15)
 - **Typha**: Deployed with topology spread constraints across all nodes
 - **ArgoCD Managed**: Sync-wave -100 for foundational infrastructure
 
@@ -227,7 +227,7 @@ If you're new to this setup, start here:
 
 ### Ingress Hardening (February 2026)
 
-- **Helm Migration**: ingress-nginx migrated from manual kubectl to ArgoCD-managed Helm chart (now v4.15.1)
+- **Helm Migration**: ingress-nginx migrated from manual kubectl to an ArgoCD-managed Helm chart (later retired: replaced by the Istio LAN gateway on 2026-11-15)
 - **Security Headers**: X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
 - **TLS Hardening**: TLSv1.2+ only, HSTS, server-preferred ciphers
 - **ServiceMonitor**: Prometheus metrics collection enabled

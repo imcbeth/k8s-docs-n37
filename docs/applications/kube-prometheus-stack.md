@@ -11,8 +11,8 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 
 - **Namespace:** `default`
 - **Helm Chart:** `prometheus-community/kube-prometheus-stack`
-- **Chart Version:** `92.17.0` (as of 2026-11-02, via Renovate PR #1104; appVersion v0.94.2). Three chart-major bumps in quick succession: 87→89 (PR #854) and 89→90 (PR #873), both on 2026-09-06/07. Notable running images: prometheus-operator `v0.94.2`, prometheus `v3.15.1`, alertmanager `v0.34.2` (PR #1102), thanos `v0.42.5` (PR #1103, **not deployed** — see below). Chart v87 upgrade path requires the `crds.upgradeJob` — see Deployment Notes below for the Gatekeeper-compatible values.
-- **App Version:** `v0.91.0` (prometheus-operator)
+- **Chart Version:** `93.6.1` (as of 2026-11-21, verified against the cluster; Renovate PR #1239). Three chart-major bumps in quick succession: 87→89 (PR #854) and 89→90 (PR #873), both on 2026-09-06/07. Running images (2026-11-21): prometheus-operator `v0.95.2`, prometheus `v3.16.0`, alertmanager `v0.35.0`, grafana `13.3.1-distroless`, kube-state-metrics `v2.20.0`, node-exporter `v1.13.1-distroless`; thanos is in the chart but **not deployed** — see below. Chart v87 upgrade path requires the `crds.upgradeJob` — see Deployment Notes below for the Gatekeeper-compatible values.
+- **App Version:** `v0.95.2` (prometheus-operator)
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-15` (deploys after UniFi Poller, before cert-manager)
 
@@ -22,7 +22,7 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 
 **Purpose:** Time-series database for metrics collection and storage
 
-- **Version:** v3.12.0
+- **Version:** v3.16.0
 - **Replicas:** 1
 - **Storage:** 50Gi persistent volume (Synology iSCSI)
 - **Retention:** Configured for long-term metrics storage
@@ -37,7 +37,7 @@ The kube-prometheus-stack is a comprehensive monitoring solution that includes P
 
 **Purpose:** Metrics visualization and dashboarding
 
-- **Version:** `13.0.1-security-01`
+- **Version:** `13.3.1` (`grafana/grafana:13.3.1-distroless`)
 - **Replicas:** 1
 - **Authentication:** Admin credentials stored in secret
 - **Datasource:** Pre-configured Prometheus datasource

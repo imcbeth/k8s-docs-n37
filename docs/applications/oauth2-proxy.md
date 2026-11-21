@@ -12,9 +12,9 @@ oauth2-proxy is a reverse proxy that enforces GitHub OAuth authentication before
 | Property | Value |
 |----------|-------|
 | **Namespace** | `oauth2-proxy` |
-| **Chart** | `oauth2-proxy/oauth2-proxy` v10.7.1 (appVersion 7.15.5) |
-| **App Version** | `v7.15.2` |
-| **ArgoCD App** | `oauth2-proxy` (project: `infrastructure`, wave: `0`) |
+| **Chart** | `oauth2-proxy/oauth2-proxy` v10.7.4 |
+| **App Version** | `v7.15.6` |
+| **ArgoCD App** | `oauth2-proxy` (project: `infrastructure`, wave: `-3`) |
 | **Auth Endpoint** | `https://oauth.k8s.n37.ca` |
 | **Provider** | GitHub OAuth App |
 | **Mode** | Validate-only (`upstream: static://200`), called by the LAN gateway's Envoy ext_authz |

@@ -121,8 +121,8 @@ kubectl get pod -n synology-csi -l app.kubernetes.io/name=pvc-mount-monitor
 POD_IP=$(kubectl get pod -n synology-csi -l app.kubernetes.io/name=pvc-mount-monitor \
   -o jsonpath='{.items[0].status.podIP}')
 kubectl run -n synology-csi --rm -i --restart=Never \
-  --image=docker.io/alpine/k8s:1.36.2 --image-pull-policy=IfNotPresent \
-  --overrides='{"spec":{"containers":[{"name":"x","image":"docker.io/alpine/k8s:1.36.2","command":["curl","-fsS","http://'$POD_IP':9300/metrics"],"resources":{"requests":{"cpu":"50m","memory":"64Mi"},"limits":{"cpu":"200m","memory":"128Mi"}}}]}}' \
+  --image=docker.io/alpine/k8s:1.37.2 --image-pull-policy=IfNotPresent \
+  --overrides='{"spec":{"containers":[{"name":"x","image":"docker.io/alpine/k8s:1.37.2","command":["curl","-fsS","http://'$POD_IP':9300/metrics"],"resources":{"requests":{"cpu":"50m","memory":"64Mi"},"limits":{"cpu":"200m","memory":"128Mi"}}}]}}' \
   netcheck
 
 # Sample output:
@@ -221,7 +221,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: remediator
-        image: docker.io/alpine/k8s:1.36.2
+        image: docker.io/alpine/k8s:1.37.2
         command: ["/bin/sh", "/scripts/remediate.sh"]
         env: [{name: DRY_RUN, value: "true"}]
         # ... (copy rest of CronJob template)

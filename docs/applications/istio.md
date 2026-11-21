@@ -4,8 +4,12 @@
 
 Istio Ambient mode provides a sidecarless service mesh architecture for the homelab cluster. It handles mTLS encryption, L4 authorization, and telemetry without injecting sidecar proxies into application pods.
 
-**Version:** 1.30.4 (Helm charts)
-**Last Updated:** 2026-06-01
+**Version:** 1.30.8 (Helm charts: base, istiod, cni, ztunnel)
+**Last Updated:** 2026-11-21
+
+:::warning Istio 1.30 reaches end of life on 2026-12-16
+The charts come from `istio-release.storage.googleapis.com/charts`, which stopped publishing at 1.30.8; newer releases are at `blob.istio.io/istio-release/charts`, so Renovate never proposed 1.31. The repo switch and the upgrade to 1.31.4 are planned for the weekend of 2026-11-28 (homelab `runbooks/k8s-1.37-upgrade.md`, Phase 2; TODO O25).
+:::
 
 :::info Version history
 Upgraded from 1.28.3 → 1.30.0 on 2026-06-01 via Renovate batch PR. The upgrade follows the standard sequential minor-version path: 1.28 → 1.29 → 1.30. No ambient-mode breaking changes in this range.
