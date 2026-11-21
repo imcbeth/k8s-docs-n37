@@ -182,7 +182,7 @@ MAC addresses and PoE port mappings will be documented once collected.
 
 #### CNI (Container Network Interface)
 
-- **Plugin:** Calico v3.31.3 (via Tigera Operator)
+- **Plugin:** Calico v3.31.7 (via Tigera Operator)
 - **Namespace:** `calico-system` (operator-managed)
 - **Operator Namespace:** `tigera-operator`
 - **Pod CIDR:** 192.168.0.0/16

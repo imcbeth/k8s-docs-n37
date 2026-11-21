@@ -236,6 +236,16 @@ A weekly CronJob (`compliance-report-summary`, deployed 2026-03-01) collects com
 - `manifests/base/trivy-operator/compliance-report-rbac.yaml` - ServiceAccount, ClusterRole, ClusterRoleBinding
 - `manifests/base/trivy-operator/compliance-report-cronjob.yaml` - CronJob definition
 
+## Scanning before deploy (image gate)
+
+Since 2026-11-21 the in-cluster image builds (Argo Workflows `lifeonabike-build`,
+`lifeonabike-agent-build`, `flink-demo-build`) scan an image **before** it is tagged for deployment,
+using the shared `image-gate` WorkflowTemplate: a trivy 0.76.2 client against this trivy-server
+(`trivy-service.trivy-system:4954`), failing on any CRITICAL that has a fixed version. See
+[Argo Workflows](./argo-workflows.md#image-gate). trivy-operator remains the runtime check, for CVEs
+published after an image shipped. trivy-system admits the build pods over HBONE (15008) and, in its
+AuthorizationPolicy, the `argo-workflows/argo-workflow` service account on 4954.
+
 ## Monitoring and Alerts
 
 ### Grafana Dashboard
@@ -279,9 +289,9 @@ mailed.
 | Alert | Severity | Fires when |
 |-------|----------|------------|
 | `ClusterRoleRBACIssuesIncreased` | warning | ClusterRole Critical or High RBAC findings rose vs. 24h ago (one alert per severity) |
-| `CriticalVulnerabilitiesIncreased` | warning | Cluster-wide CRITICAL CVE count rose vs. 24h ago |
+| `CriticalVulnerabilitiesIncreased` | warning | CRITICAL count across **running images, each counted once**, rose vs. 24h ago |
 | `ImageCriticalVulnerabilitiesHigh` | warning | A single image carries >10 CRITICALs (`for: 6h`; three accepted-risk images excluded by exact tag) |
-| `HighVulnerabilitiesIncreased` | info | Cluster-wide HIGH CVE count rose vs. 24h ago |
+| `HighVulnerabilitiesIncreased` | info | HIGH count across running images, each counted once, rose vs. 24h ago |
 | `CriticalConfigurationIssues` | warning | Any Role/ClusterRole config audit report has a Critical finding |
 | `ExposedSecretsDetected` | critical | Critical/High secret found in an image (localstack excluded) |
 | `ClusterComplianceFailuresIncreased` | warning | A compliance framework (CIS, NSA, PSS Baseline/Restricted) has more failing controls than 24h ago, one alert per report `title` |
@@ -336,8 +346,8 @@ The replacement asks two questions that *are* actionable:
 # 1. Did it get worse? (a new CVE, or a newly-vulnerable image landed)
 - alert: CriticalVulnerabilitiesIncreased
   expr: |
-    sum(trivy_image_vulnerabilities{severity="Critical"})
-    - sum(trivy_image_vulnerabilities{severity="Critical"} offset 24h) > 0
+    sum(trivy:running_image_vulnerabilities:max{severity="Critical"})
+    - sum(trivy:running_image_vulnerabilities:max{severity="Critical"} offset 24h) > 0
 
 # 2. Is any single image an outlier worth prioritising?
 - alert: ImageCriticalVulnerabilitiesHigh
@@ -352,11 +362,39 @@ The standing total is still visible on dashboards — it just no longer alerts p
 It was an un-aggregated twin of `CriticalClusterRoleRBACIssues` (itself replaced by `ClusterRoleRBACIssuesIncreased` on 2026-11-15) — same underlying condition, counted per ClusterRole instead of summed, so every real finding alerted twice.
 :::
 
-#### On stale VulnerabilityReports
+#### Each running image counted once (2026-11-21)
 
-Trivy writes one VulnerabilityReport per **ReplicaSet**, so reports for superseded ReplicaSets linger. This was investigated on 2026-09-07 as a suspected source of inflated counts and **the suspicion did not hold up**: only **12 of 111** reports pointed at dead ReplicaSets, stale entries (e.g. `argocd:v3.4.5`) aged out unaided, and all four images matching `ImageCriticalVulnerabilitiesHigh` were verified as genuinely running.
+`trivy_image_vulnerabilities` has one series per VulnerabilityReport, and there is one report per
+ReplicaSet / DaemonSet / Job. Summed raw, it counts an image once per workload that runs it
+(argo-events v1.9.11: 7 criticals in 5 reports, summed as 35), and it keeps counting an image after
+its pods are gone, until the report's 24h TTL. After the 2026-11-21 Renovate batch that made
+`CriticalVulnerabilitiesIncreased` go pending at +6 with no new CVE: uptime-kuma 2.5.12 was counted
+next to the stale 2.5.11 report it replaced.
 
-Cleanup would mean lowering `revisionHistoryLimit` across many Helm charts to prune the ~311 dead ReplicaSets (median age 138 days). Judged not worth the churn. Recorded here so the same theory isn't re-investigated from scratch.
+Both `*Increased` alerts now use a recording rule:
+
+```yaml
+- record: trivy:running_image_vulnerabilities:max
+  expr: |
+    max by (image_repository, image_tag, severity) (
+      trivy_image_vulnerabilities{severity=~"Critical|High"}
+    )
+    and on (image_repository, image_tag)
+    ( <kube_pod_container_info and kube_pod_init_container_info, with image_repository and
+      image_tag parsed out of the `image` label by label_replace> )
+```
+
+On that day the raw sum was 102 criticals and the per-running-image count 61. The join is on
+repository + tag, **not digest**: trivy records the per-platform manifest digest and the kubelet
+usually the multi-arch index digest, so a digest join silently dropped running images (strimzi,
+python, busybox). A promtool test replaying the uptime-kuma case: the old rule fired +13, the new
+one stays silent, and a genuinely worse image still fires. The rule has no history when first
+deployed, so both alerts stay silent for 24h afterwards.
+
+An earlier note here (2026-09-07) concluded stale reports did not inflate the counts; for a
+standing total that was fair, but a 24h delta is exactly where they show up.
+
+`ImageCriticalVulnerabilitiesHigh` still sums raw reports: its threshold and allow-list were tuned on that.
 
 ### Metrics
 

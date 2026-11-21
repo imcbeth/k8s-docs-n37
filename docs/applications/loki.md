@@ -13,7 +13,7 @@ Grafana Loki with Grafana Alloy provides centralized log aggregation and queryin
 
 - **Namespace:** `loki`
 - **Helm Chart:** `grafana/loki`
-- **Chart Version:** `7.5.0` (as of 2026-10-24, via Renovate PR #1069). Chart appVersion declares 3.6.16 but the chart renders image `grafana/loki:3.6.11` — compare `helm template` against the running image rather than assuming appVersion.
+- **Chart Version:** `7.7.0` (as of 2026-11-21, verified against the cluster; Renovate PR #1239). Chart appVersion declares 3.6.20 but the chart's own default image tag is still `grafana/loki:3.6.11`, which is what runs — compare `helm template` against the running image rather than assuming appVersion.
 - **Deployment Mode:** SingleBinary (monolithic, explicit — Loki v7 default is SimpleScalable)
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-12` (after kube-prometheus-stack -15, before cert-manager -10)
@@ -22,7 +22,7 @@ Grafana Loki with Grafana Alloy provides centralized log aggregation and queryin
 
 - **Namespace:** `loki`
 - **Helm Chart:** `grafana/alloy`
-- **Chart Version:** `1.14.3` (as of 2026-10-24 via Renovate PR #1058); running image `grafana/alloy:v1.21.2`
+- **Chart Version:** `1.16.0` (as of 2026-11-21, verified against the cluster); running image `grafana/alloy:v1.22.0`
 - **Deployment:** DaemonSet, 5/5 (one pod per node, control-plane included) + OTLP → Tempo forwarding
 - **Sync Wave:** `-11` (after Loki -12)
 

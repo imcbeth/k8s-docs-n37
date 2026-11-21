@@ -12,8 +12,8 @@ Zot is a CNCF incubating, OCI-native container registry. It serves as the cluste
 | Property | Value |
 |----------|-------|
 | **Namespace** | `zot` |
-| **Chart** | `zot/zot` v0.1.128 (as of 2026-10-11, via Renovate PR #1031; image v2.1.22) |
-| **Image** | `ghcr.io/project-zot/zot:v2.1.22` (linux/arm64/v8) |
+| **Chart** | `zot/zot` v0.1.135 (as of 2026-11-21, verified against the cluster; Renovate PR #1238) |
+| **Image** | `ghcr.io/project-zot/zot:v2.1.23` (linux/arm64/v8) |
 | **ArgoCD App** | `zot` (project: `infrastructure`, wave: `-2`) |
 | **UI / API URL** | `https://registry.k8s.n37.ca` |
 | **Storage** | 50Gi iSCSI PVC (`synology-iscsi-delete`) |

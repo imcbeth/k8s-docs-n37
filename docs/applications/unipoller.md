@@ -10,7 +10,7 @@ UniFi Poller collects metrics from UniFi network controllers and exposes them in
 ## Overview
 
 - **Namespace:** `unipoller`
-- **Image:** `ghcr.io/unpoller/unpoller:v2.33.0`
+- **Image:** `docker.io/golift/unifi-poller:v2.38.0`
 - **Deployment:** Managed by ArgoCD
 - **Sync Wave:** `-20` (deploys after storage, before monitoring stack)
 

@@ -14,8 +14,8 @@ Argo Workflows is the workflow engine for orchestrating parallel jobs on Kuberne
 |----------|-------|
 | **Namespace** | `argo-workflows` |
 | **Helm Chart** | `argo/argo-workflows` |
-| **Chart Version** | **2.0.4** (as of 2026-09-07, via Renovate PR #885 — major bump; appVersion v4.1.2) |
-| **App Version** | v4.1.2 |
+| **Chart Version** | **2.0.18** (as of 2026-11-21, verified against the cluster; the 1.x → 2.x major bump was Renovate PR #885 on 2026-09-07) |
+| **App Version** | v4.1.6 |
 | **ArgoCD App** | `argo-workflows` |
 | **UI URL** | `https://workflows.k8s.n37.ca` |
 | **Auth** | GitHub SSO via oauth2-proxy |
@@ -107,9 +107,11 @@ sequenceDiagram
 
 | Step | Image | Action |
 |------|-------|--------|
-| `clone` | `alpine/git:v2.52.0` | Shallow-clones the app repo, captures git SHA |
-| `build` | `gcr.io/kaniko-project/executor:v1.24.0` | Builds the Docker image, pushes `<sha>` + `latest` tags to Zot |
-| `deploy` | `alpine/k8s:1.37.1` | Runs `kubectl rollout restart deployment/web -n lifeonabike` |
+| `clone` | `alpine/git:v2.54.1` | Shallow-clones the app repo, captures git SHA |
+| `build` | `gcr.io/kaniko-project/executor:v1.24.0` | Builds the Docker image, pushes **only** the `<sha>` tag to Zot |
+| `scan` | `mirror.gcr.io/aquasec/trivy:0.76.2` | `image-gate/scan`: fails on any CRITICAL with a fixed version |
+| `promote` | `gcr.io/go-containerregistry/crane:v0.22.1` | `image-gate/promote`: retags the scanned `<sha>` as `latest` |
+| `deploy` | `alpine/k8s:1.37.2` | Runs `kubectl rollout restart deployment/web -n lifeonabike` |
 
 ### Key Configuration
 
@@ -118,7 +120,10 @@ sequenceDiagram
 - --destination=zot.zot.svc.cluster.local:5000/lifeonabike/lifeonabike.ca:{{inputs.parameters.image-tag}}
 - --insecure
 
-# Workflow pods bypass ztunnel — Kaniko and kubectl reach non-mesh endpoints
+# NOTE: this annotation does NOT take the pods out of the mesh. It is a status
+# annotation istio-cni writes itself; the build pods are ambient-meshed (ztunnel
+# logs "starting proxy" for them). Calls to non-mesh endpoints (Zot, GitHub) are
+# passthrough either way. To really opt out: label istio.io/dataplane-mode: none.
 podMetadata:
   annotations:
     ambient.istio.io/redirection: disabled
@@ -133,6 +138,33 @@ argo submit --from workflowtemplate/lifeonabike-build \
 ```
 
 See the [lifeonabike guide](./lifeonabike.md) for full pipeline details, RBAC setup, and secrets.
+
+## Image gate
+
+Shared `WorkflowTemplate` **`image-gate`** (homelab `manifests/base/argo-workflows/image-gate-workflow.yaml`,
+2026-11-21), called by `templateRef` from every image build:
+
+```
+clone -> kaniko (push :<sha> only) -> scan -> promote (:<sha> -> :latest or a version) -> deploy
+```
+
+- **scan:** trivy client mode against the in-cluster trivy-server (no DB download per build). Prints
+  HIGH and CRITICAL findings, then exits 1 on any CRITICAL **with a fixed version**. Unfixed CVEs and
+  HIGHs are reported, not gated: a build cannot act on them.
+- **promote:** `crane tag` the scanned sha as `to-tag` (default `latest`; flink-demo passes its version).
+  A failed scan leaves `latest` on the previous image, so even a pod restart cannot pull an unscanned one.
+- The scan reaches trivy-server over the mesh as service account `argo-workflow`; trivy-system's
+  NetworkPolicy admits argo-workflows on 15008 and its AuthorizationPolicy that identity on 4954.
+
+| Template | Builds | Promotes to | Deploy step |
+|---|---|---|---|
+| `lifeonabike-build` | lifeonabike.ca site | `latest` | restart `deployment/web` |
+| `lifeonabike-agent-build` | lifeonabike-agent | `latest` | restart `deployment/agent` |
+| `flink-demo-build` | flink-demo (manual, `-p version=<v>`) | `<version>` | none; bump the FlinkDeployments by PR |
+
+First run (2026-11-21) failed safe in `scan` (HBONE to trivy-server was not admitted); after the
+fix the site build passed all steps and `latest` matched the scanned digest. The gate's first real
+catch was pyarrow 11.0.0 in a Flink 1.20 rebuild, which led to the [Flink 2.2 move](./flink.md#custom-docker-image).
 
 ## Artifact Storage
 

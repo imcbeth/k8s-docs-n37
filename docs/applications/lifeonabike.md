@@ -84,22 +84,34 @@ GitHub push (main) ──► build-webhook.n37.ca (Cloudflare Tunnel)
 
 #### Step 1: git-clone
 
-Uses `alpine/git:2.43.0` to shallow-clone `imcbeth/lifeonabike.ca` using a GitHub PAT (`github-clone-token` SealedSecret). Writes the short git SHA to `/tmp/sha` for downstream tagging.
+Uses `alpine/git:v2.54.1` to shallow-clone `imcbeth/lifeonabike.ca` using a GitHub PAT (`github-clone-token` SealedSecret). Writes the short git SHA to `/tmp/sha` for downstream tagging.
 
 #### Step 2: kaniko-build
 
-Builds the Docker image and pushes two tags:
+Builds the Docker image and pushes **only** the sha tag:
 
 ```
 zot.zot.svc.cluster.local:5000/lifeonabike/lifeonabike.ca:<git-sha>
-zot.zot.svc.cluster.local:5000/lifeonabike/lifeonabike.ca:latest
 ```
+
+`:latest` moves only after the scan passes (steps 3 and 4).
 
 Uses `--insecure` because Kaniko pushes to the **in-cluster Zot ClusterIP** over HTTP (port 5000). See [in-cluster registry gotcha](#in-cluster-zot-push-over-http) below.
 
-#### Step 3: rollout-restart
+#### Step 3: scan (image gate)
 
-Uses `alpine/k8s:1.37.1` to run:
+`image-gate/scan` (trivy 0.76.2, client mode against the in-cluster trivy-server) prints HIGH and
+CRITICAL findings and fails the workflow on any CRITICAL that has a fixed version. See
+[Argo Workflows: Image gate](./argo-workflows.md#image-gate).
+
+#### Step 4: promote
+
+`image-gate/promote` (`crane tag`) retags the scanned `<git-sha>` as `:latest`. If the scan failed,
+`:latest` stays on the previous image.
+
+#### Step 5: rollout-restart
+
+Uses `alpine/k8s:1.37.2` to run:
 
 ```bash
 kubectl rollout restart deployment/web -n lifeonabike
@@ -163,17 +175,16 @@ zot.zot.svc.cluster.local:5000
 
 Pass `--insecure` and `--insecure-pull` to Kaniko. Kubelet image pulls happen at the **node level** (not inside pods), so they still use `registry.k8s.n37.ca` over HTTPS and are unaffected.
 
-### Istio Ambient Bypass for Workflow Pods
+### Workflow pods and the Istio ambient mesh
 
-**Problem:** Workflow pods that push to Zot (HTTP) or run `kubectl` have ztunnel intercept their outbound connections. ztunnel resets connections to non-mesh destinations (Zot in-cluster HTTP, Kubernetes API server) because it can't establish HBONE with them.
-
-**Fix:** Add this annotation to all workflow pod metadata:
-
-```yaml
-ambient.istio.io/redirection: disabled
-```
-
-This is set in the `WorkflowTemplate.spec.podMetadata.annotations`.
+The WorkflowTemplates set `ambient.istio.io/redirection: disabled` in `podMetadata.annotations`,
+with comments saying it bypasses ztunnel. **It does not** (found 2026-11-21): istio-cni writes that
+annotation itself as status, so setting it does nothing, and the build pods are meshed (ztunnel logs
+"inpod::statemanager pod received, starting proxy" for them). Their calls to non-mesh destinations
+(Zot over HTTP, GitHub, the API server) are passthrough and work regardless. Calls to meshed services
+go over HBONE with identity `spiffe://cluster.local/ns/argo-workflows/sa/argo-workflow`, which the
+destination must admit (NetworkPolicy on 15008, AuthorizationPolicy by principal), as trivy-server
+now does for the image-gate scan. To really opt a pod out, label it `istio.io/dataplane-mode: none`.
 
 ### git-crypt Filename Rule
 

@@ -13,7 +13,7 @@ Grafana Tempo is the distributed tracing backend for the homelab cluster. It rec
 |----------|-------|
 | **Namespace** | `tempo` |
 | **Chart** | `grafana/tempo` v1.24.4 |
-| **App Version** | `v2.9.0` |
+| **App Version** | `2.10.10` |
 | **ArgoCD App** | `tempo` (project: `infrastructure`, wave: `-11`) |
 | **Mode** | Monolithic |
 | **Storage** | 10Gi iSCSI PVC (`synology-iscsi-delete`) |
