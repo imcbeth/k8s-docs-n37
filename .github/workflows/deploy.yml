@@ -6,6 +6,10 @@ on:
       - main
       # Review gh actions docs if you want to further define triggers, paths, etc
       # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#on
+  # Manual re-deploy (2026-11-22). Re-running a failed run cannot fix an
+  # artifact-listing race: the first attempt's artifact is listed late, the
+  # re-run uploads a second, and deploy-pages rejects two. A fresh run can.
+  workflow_dispatch:
 
 permissions:
   contents: read
